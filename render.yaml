@@ -1,0 +1,34 @@
+# Render blueprint for GRC Platform.
+# Deploy in one click: https://render.com/deploy?repo=<your-repo-url>
+# Render will provision the Postgres DB, wire DATABASE_URL, and boot the web service.
+
+services:
+  - type: web
+    name: grc-platform
+    runtime: docker
+    plan: starter
+    autoDeploy: true
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: grc-postgres
+          property: connectionString
+      - key: NEXTAUTH_SECRET
+        generateValue: true
+      - key: NEXTAUTH_URL
+        sync: false
+    disk:
+      name: grc-uploads
+      mountPath: /app/uploads
+      sizeGB: 1
+
+databases:
+  - name: grc-postgres
+    plan: starter
+    databaseName: grc_platform
+    user: grc

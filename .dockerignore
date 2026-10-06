@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+uploads
+*.log
+.env
+.env.local
+.env.example
+README.md
+.vscode
+.idea

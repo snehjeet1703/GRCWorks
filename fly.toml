@@ -1,0 +1,34 @@
+# Fly.io deploy config for GRC Platform.
+#
+# Bring your own app name and Postgres:
+#   fly launch --copy-config --no-deploy --name my-grc
+#   fly postgres create --name my-grc-db
+#   fly postgres attach my-grc-db --app my-grc
+#   fly secrets set NEXTAUTH_SECRET="$(openssl rand -base64 48)" NEXTAUTH_URL="https://my-grc.fly.dev" --app my-grc
+#   fly volumes create grc_uploads --size 1 --app my-grc
+#   fly deploy --app my-grc
+
+app = "grc-platform"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "3000"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[mounts]]
+  source = "grc_uploads"
+  destination = "/app/uploads"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
