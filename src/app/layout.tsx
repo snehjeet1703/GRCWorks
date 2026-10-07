@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { THEME_COOKIE, parseThemeCookie, themeHtmlAttributes } from "@/lib/theme-config";
 import "./globals.css";
 import "./theme-presets.css";
+import "./dark-tints.css";
 
 export const metadata: Metadata = {
   title: "GRC Platform",

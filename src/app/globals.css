@@ -38,6 +38,12 @@
     --radius: 0.5rem;
     --text-family: "Inter", sans-serif;
 
+    --chart-1: var(--base-950);
+    --chart-2: var(--base-600);
+    --chart-3: var(--base-800);
+    --chart-4: var(--base-400);
+    --chart-5: var(--base-300);
+
     /* Legacy gray-* utilities map onto the theme's tinted base scale; inverted in dark mode. */
     --gray-50: var(--base-50);
     --gray-100: var(--base-100);
@@ -76,6 +82,12 @@
     --gray-800: var(--base-200);
     --gray-900: var(--base-100);
     --gray-950: var(--base-50);
+
+    --chart-1: var(--base-50);
+    --chart-2: var(--base-400);
+    --chart-3: var(--base-200);
+    --chart-4: var(--base-600);
+    --chart-5: var(--base-700);
 
     --background: var(--base-950);
     --foreground: var(--base-200);

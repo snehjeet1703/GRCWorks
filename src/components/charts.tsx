@@ -1,111 +1,99 @@
 "use client";
 
-// Hand-rolled SVG charts. Zero dependencies. Both are pure, deterministic given the same input,
-// and render fine server-side if the caller happens to use them in an RSC.
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { cn } from "@/lib/utils";
 
-export type DonutSlice = {
-  label: string;
-  value: number;
-  color: string; // any valid CSS color
-};
+const axisTick = { fontSize: 11, fill: "var(--muted-foreground)" };
+
+type TooltipEntry = { name?: string; value?: number | string; color?: string; payload?: { fill?: string } };
+
+function ChartTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: TooltipEntry[];
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="min-w-[8rem] rounded-lg border border-border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md">
+      {label && <div className="mb-1 font-semibold">{label}</div>}
+      {payload.map((p) => (
+        <div key={p.name} className="flex items-center gap-2">
+          <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: p.color ?? p.payload?.fill }} />
+          <span className="flex-1 text-muted-foreground">{p.name}</span>
+          <span className="font-mono font-semibold tabular-nums">{p.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export type DonutSlice = { label: string; value: number; color: string };
 
 export function DonutChart({
   slices,
-  size = 180,
-  thickness = 24,
   centerLabel,
   centerSubLabel,
 }: {
   slices: DonutSlice[];
-  size?: number;
-  thickness?: number;
   centerLabel?: string;
   centerSubLabel?: string;
 }) {
   const total = slices.reduce((n, s) => n + s.value, 0);
-  const r = (size - thickness) / 2;
-  const cx = size / 2;
-  const cy = size / 2;
-  const circumference = 2 * Math.PI * r;
-
-  let offset = 0;
+  const data = total > 0 ? slices.filter((s) => s.value > 0) : [{ label: "None", value: 1, color: "var(--muted)" }];
 
   return (
-    <div className="inline-flex flex-col items-center gap-3">
-      <svg width={size} height={size} role="img" aria-label="Control status distribution">
-        {/* Background track */}
-        <circle
-          cx={cx}
-          cy={cy}
-          r={r}
-          fill="none"
-          stroke="rgb(243 244 246)"
-          strokeWidth={thickness}
-        />
-
-        {total > 0 &&
-          slices.map((s) => {
-            if (s.value === 0) return null;
-            const length = (s.value / total) * circumference;
-            const dasharray = `${length} ${circumference - length}`;
-            const el = (
-              <circle
-                key={s.label}
-                cx={cx}
-                cy={cy}
-                r={r}
-                fill="none"
-                stroke={s.color}
-                strokeWidth={thickness}
-                strokeDasharray={dasharray}
-                strokeDashoffset={-offset}
-                transform={`rotate(-90 ${cx} ${cy})`}
-                strokeLinecap="butt"
-              >
-                <title>{`${s.label}: ${s.value}`}</title>
-              </circle>
-            );
-            offset += length;
-            return el;
-          })}
-
-        {/* Center text */}
+    <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+      <div className="relative h-44 w-44 shrink-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey="value"
+              nameKey="label"
+              innerRadius="68%"
+              outerRadius="100%"
+              paddingAngle={total > 0 && data.length > 1 ? 2 : 0}
+              stroke="none"
+              isAnimationActive={false}
+            >
+              {data.map((s) => (
+                <Cell key={s.label} fill={s.color} />
+              ))}
+            </Pie>
+            {total > 0 && <Tooltip content={<ChartTooltip />} />}
+          </PieChart>
+        </ResponsiveContainer>
         {centerLabel && (
-          <text
-            x={cx}
-            y={cy}
-            textAnchor="middle"
-            dominantBaseline="central"
-            className="fill-gray-900"
-            style={{ fontSize: 22, fontWeight: 600 }}
-          >
-            {centerLabel}
-          </text>
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+            <span className="font-mono text-2xl font-bold tabular-nums text-foreground">{centerLabel}</span>
+            {centerSubLabel && <span className="text-[11px] text-muted-foreground">{centerSubLabel}</span>}
+          </div>
         )}
-        {centerSubLabel && (
-          <text
-            x={cx}
-            y={cy + 18}
-            textAnchor="middle"
-            dominantBaseline="central"
-            className="fill-gray-500"
-            style={{ fontSize: 10 }}
-          >
-            {centerSubLabel}
-          </text>
-        )}
-      </svg>
-
-      {/* Legend */}
-      <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+      </div>
+      <ul className="grid w-full max-w-[14rem] gap-2 text-xs">
         {slices.map((s) => (
-          <li key={s.label} className="flex items-center gap-2 text-gray-700">
-            <span
-              className="inline-block h-2.5 w-2.5 rounded-sm"
-              style={{ backgroundColor: s.color }}
-            />
-            <span className="flex-1">{s.label}</span>
-            <span className="tabular-nums text-gray-500">{s.value}</span>
+          <li key={s.label} className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: s.color }} />
+            <span className="flex-1 text-muted-foreground">{s.label}</span>
+            <span className="font-mono font-semibold tabular-nums">{s.value}</span>
           </li>
         ))}
       </ul>
@@ -113,12 +101,73 @@ export function DonutChart({
   );
 }
 
-export type HorizontalBar = {
-  label: string;
-  value: number; // implemented count
-  total: number; // total controls in this framework
-  href?: string;
-};
+export function AreaTrendChart({
+  data,
+  name,
+  height = 220,
+}: {
+  data: { label: string; value: number }[];
+  name: string;
+  height?: number;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
+        <defs>
+          <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.25} />
+            <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+        <XAxis dataKey="label" tick={axisTick} axisLine={false} tickLine={false} minTickGap={24} />
+        <YAxis tick={axisTick} axisLine={false} tickLine={false} allowDecimals={false} width={40} />
+        <Tooltip content={<ChartTooltip />} cursor={{ stroke: "var(--border)" }} />
+        <Area
+          type="monotone"
+          dataKey="value"
+          name={name}
+          stroke="var(--chart-1)"
+          strokeWidth={2}
+          fill="url(#trendFill)"
+          dot={false}
+          activeDot={{ r: 4, fill: "var(--background)", stroke: "var(--chart-1)", strokeWidth: 2 }}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function GroupedBarChart({
+  data,
+  series,
+  height = 220,
+}: {
+  data: ({ label: string } & Record<string, string | number>)[];
+  series: { key: string; name: string; color: string }[];
+  height?: number;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -12 }} barGap={4}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+        <XAxis dataKey="label" tick={axisTick} axisLine={false} tickLine={false} />
+        <YAxis tick={axisTick} axisLine={false} tickLine={false} allowDecimals={false} width={40} />
+        <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--muted)", opacity: 0.6 }} />
+        <Legend
+          iconType="square"
+          iconSize={8}
+          wrapperStyle={{ fontSize: 12, color: "var(--muted-foreground)", paddingTop: 8 }}
+        />
+        {series.map((s) => (
+          <Bar key={s.key} dataKey={s.key} name={s.name} fill={s.color} radius={[4, 4, 0, 0]} maxBarSize={32} />
+        ))}
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+export type HorizontalBar = { label: string; value: number; total: number };
 
 export function HorizontalBarChart({
   bars,
@@ -128,31 +177,30 @@ export function HorizontalBarChart({
   highlightLabel?: string;
 }) {
   return (
-    <ul className="space-y-2.5">
+    <ul className="space-y-3">
       {bars.map((b) => {
         const pct = b.total > 0 ? Math.round((b.value / b.total) * 100) : 0;
-        const isHi = highlightLabel && b.label === highlightLabel;
+        const isHi = highlightLabel === b.label;
         return (
           <li key={b.label}>
-            <div className="mb-1 flex items-center justify-between text-xs">
-              <span
-                className={
-                  isHi ? "font-medium text-brand-700" : "font-medium text-gray-700"
-                }
-              >
+            <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
+              <span className={cn("truncate font-medium", isHi ? "text-foreground" : "text-muted-foreground")}>
                 {b.label}
               </span>
-              <span className="tabular-nums text-gray-500">
-                {b.value}/{b.total} ({pct}%)
+              <span className="shrink-0 font-mono tabular-nums text-muted-foreground">
+                {b.value}/{b.total} · {pct}%
               </span>
             </div>
-            <div className="h-2 w-full rounded-full bg-gray-100">
+            <div
+              className="h-2 w-full overflow-hidden rounded-full bg-muted"
+              role="progressbar"
+              aria-label={b.label}
+              aria-valuenow={pct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
               <div
-                className={
-                  isHi
-                    ? "h-2 rounded-full bg-brand-600 transition-all"
-                    : "h-2 rounded-full bg-brand-400 transition-all"
-                }
+                className={cn("h-full rounded-full transition-all", isHi ? "bg-primary" : "bg-primary/70")}
                 style={{ width: `${pct}%` }}
               />
             </div>

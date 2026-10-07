@@ -7,7 +7,9 @@ export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   const orgId = session!.user.organizationId;
 
-  const [frameworks, allControls, risks, policies, evidence, findings, exceptions, auditLogs] = await Promise.all([
+  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+  const [frameworks, allControls, risks, policies, evidence, findings, exceptions, auditLogs, activityByDay] = await Promise.all([
     prisma.framework.findMany({
       where: { organizationId: orgId },
       select: {
@@ -71,7 +73,7 @@ export default async function DashboardPage() {
     prisma.auditLog.findMany({
       where: {
         organizationId: orgId,
-        createdAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
+        createdAt: { gte: since },
       },
       orderBy: { createdAt: "desc" },
       take: 200,
@@ -85,6 +87,12 @@ export default async function DashboardPage() {
         entityName: true,
       },
     }),
+    prisma.$queryRaw<{ day: Date; count: number }[]>`
+      SELECT date_trunc('day', created_at) AS day, COUNT(*)::int AS count
+      FROM audit_logs
+      WHERE organization_id = ${orgId} AND created_at >= ${since}
+      GROUP BY 1
+      ORDER BY 1`,
   ]);
 
   return (
@@ -147,6 +155,10 @@ export default async function DashboardPage() {
         entityType: l.entityType,
         entityId: l.entityId,
         entityName: l.entityName,
+      }))}
+      activityByDay={activityByDay.map((a) => ({
+        day: a.day.toISOString().slice(0, 10),
+        count: a.count,
       }))}
     />
   );
