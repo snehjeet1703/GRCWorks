@@ -37,29 +37,30 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
+        className="anim-fade absolute inset-0 bg-black/20 backdrop-blur-sm"
         onClick={onClose}
       />
       <div
         role="dialog"
         aria-modal="true"
+        aria-labelledby="modal-title"
         className={cn(
-          "relative w-full rounded-xl bg-white shadow-xl",
+          "anim-pop relative w-full rounded-lg border border-border bg-background text-foreground shadow-lg",
           widths[size]
         )}
       >
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-          <h3 className="text-base font-medium text-gray-900">{title}</h3>
+        <div className="px-6 pt-6 pb-2">
+          <h3 id="modal-title" className="pr-8 text-lg font-semibold leading-none">{title}</h3>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="Close"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="max-h-[calc(100vh-10rem)] overflow-y-auto px-6 py-4">{children}</div>
+        <div className="max-h-[calc(100vh-10rem)] overflow-y-auto px-6 pb-6 pt-2">{children}</div>
       </div>
     </div>
   );
@@ -84,20 +85,15 @@ export function ConfirmDialog({
 }) {
   return (
     <Modal open={open} onClose={onClose} title={title} size="sm">
-      <p className="text-sm text-gray-600">{message}</p>
-      <div className="mt-6 flex justify-end gap-2">
+      <p className="text-sm text-muted-foreground">{message}</p>
+      <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button type="button" onClick={onClose} className="btn-secondary">
           Cancel
         </button>
         <button
           type="button"
           onClick={onConfirm}
-          className={cn(
-            "inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors",
-            danger
-              ? "bg-red-600 hover:bg-red-700"
-              : "bg-brand-600 hover:bg-brand-700"
-          )}
+          className={danger ? "btn-destructive" : "btn-primary"}
         >
           {confirmLabel}
         </button>

@@ -31,7 +31,7 @@ type NavSection = {
   items: NavItem[];
 };
 
-const sections: NavSection[] = [
+export const sections: NavSection[] = [
   {
     label: "Overview",
     items: [
@@ -60,17 +60,31 @@ const sections: NavSection[] = [
   },
 ];
 
+const allItems = sections.flatMap((s) => s.items);
+
+// Longest matching href wins, so /compliance/evidence beats /compliance.
+export function activeItem(pathname: string) {
+  return allItems
+    .filter((i) => pathname === i.href || pathname.startsWith(i.href + "/"))
+    .sort((a, b) => b.href.length - a.href.length)[0];
+}
+
 export function Sidebar({
   permissions,
   roleName,
   userName,
+  collapsed = false,
+  onNavigate,
 }: {
   permissions?: string[];
   roleName?: string;
   userName?: string;
+  collapsed?: boolean;
+  onNavigate?: () => void;
 }) {
   const pathname = usePathname();
   const permSet = new Set(permissions ?? []);
+  const current = activeItem(pathname);
 
   const initials = (userName ?? "U")
     .split(" ")
@@ -80,18 +94,22 @@ export function Sidebar({
     .toUpperCase();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-10 flex w-64 flex-col border-r border-sidebar-border bg-sidebar-bg text-sidebar-foreground">
-      <div className="flex items-center gap-2.5 px-4 py-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
-          <Shield className="h-4 w-4 text-sidebar-primary-foreground" />
+    <div className="flex h-full w-full flex-col bg-sidebar-bg text-sidebar-foreground">
+      <div className="flex items-center gap-2 p-2">
+        <div className="flex h-12 w-full items-center gap-2 overflow-hidden rounded-md px-2 group-data-[collapsed=true]:px-0">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary">
+            <Shield className="h-4 w-4 text-sidebar-primary-foreground" />
+          </div>
+          {!collapsed && (
+            <div className="grid flex-1 text-left leading-tight">
+              <span className="truncate text-sm font-semibold text-foreground">GRC Platform</span>
+              <span className="truncate text-xs text-muted-foreground">Governance & compliance</span>
+            </div>
+          )}
         </div>
-        <span className="text-sm font-semibold text-foreground tracking-tight">
-          GRC Platform
-        </span>
       </div>
 
-      {/* Navigation sections */}
-      <nav className="flex-1 overflow-y-auto px-2 pb-4">
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 pb-4">
         {sections.map((section) => {
           const visible = section.items.filter(
             (item) => !item.requiredPermission || permSet.has(item.requiredPermission)
@@ -99,57 +117,72 @@ export function Sidebar({
           if (visible.length === 0) return null;
 
           return (
-            <div key={section.label}>
-              <div className="flex h-8 items-center px-2 pt-3 text-xs font-medium text-sidebar-foreground/70">
-                {section.label}
+            <div key={section.label} className="pt-2">
+              <div
+                className={cn(
+                  "flex h-8 items-center px-2 text-xs font-medium text-sidebar-foreground/70 transition-opacity",
+                  collapsed && "h-2 opacity-0"
+                )}
+              >
+                {!collapsed && section.label}
               </div>
-              {visible.map((item) => {
-                const isActive =
-                  pathname === item.href || pathname.startsWith(item.href + "/");
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={cn(
-                      "mb-1 flex h-8 items-center gap-2 rounded-md px-2 text-sm transition-colors",
-                      isActive
-                        ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-                        : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                    )}
-                  >
-                    <item.icon className="h-4 w-4 flex-shrink-0" />
-                    {item.name}
-                  </Link>
-                );
-              })}
+              <ul className="flex flex-col gap-1">
+                {visible.map((item) => {
+                  const isActive = current?.href === item.href;
+                  return (
+                    <li key={item.name}>
+                      <Link
+                        href={item.href}
+                        onClick={onNavigate}
+                        title={collapsed ? item.name : undefined}
+                        aria-current={isActive ? "page" : undefined}
+                        className={cn(
+                          "flex h-8 items-center gap-2 overflow-hidden rounded-md text-sm transition-colors",
+                          collapsed ? "w-8 justify-center" : "px-2",
+                          isActive
+                            ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                            : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        )}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span className="truncate">{item.name}</span>}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           );
         })}
       </nav>
 
-      {/* User + sign out */}
       <div className="border-t border-sidebar-border p-2">
-        <div className="flex items-center gap-2 rounded-md px-2 py-2">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-xs font-semibold text-sidebar-accent-foreground">
+        <div className={cn("flex items-center gap-2 rounded-md py-2", collapsed ? "justify-center" : "px-2")}>
+          <div
+            title={collapsed ? `${userName ?? "User"}${roleName ? ` · ${roleName}` : ""}` : undefined}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-xs font-semibold text-sidebar-accent-foreground"
+          >
             {initials}
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium text-foreground">
-              {userName ?? "User"}
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium text-foreground">{userName ?? "User"}</div>
+              {roleName && <div className="truncate text-xs text-muted-foreground">{roleName}</div>}
             </div>
-            {roleName && (
-              <div className="text-xs text-muted-foreground">{roleName}</div>
-            )}
-          </div>
+          )}
         </div>
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
-          className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          title={collapsed ? "Sign out" : undefined}
+          className={cn(
+            "flex h-8 items-center gap-2 rounded-md text-sm transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+            collapsed ? "w-8 justify-center" : "w-full px-2"
+          )}
         >
-          <LogOut className="h-4 w-4" />
-          Sign out
+          <LogOut className="h-4 w-4 shrink-0" />
+          {!collapsed && "Sign out"}
         </button>
       </div>
-    </aside>
+    </div>
   );
 }

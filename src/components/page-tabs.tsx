@@ -19,15 +19,17 @@ export function PageTabs({
   onTabChange: (key: string) => void;
 }) {
   return (
-    <div className="flex gap-1 border-b border-gray-200 mb-6">
+    <div role="tablist" className="mb-6 inline-flex h-9 w-fit items-center rounded-lg bg-muted p-[3px] text-muted-foreground">
       {tabs.map((tab) => (
         <button
           key={tab.key}
+          role="tab"
+          aria-selected={activeTab === tab.key}
           onClick={() => onTabChange(tab.key)}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+          className={`inline-flex h-full items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-transparent px-3 text-sm font-medium transition-all ${
             activeTab === tab.key
-              ? "border-brand-600 text-brand-700"
-              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-foreground/60 hover:text-foreground"
           }`}
         >
           <tab.icon className="h-4 w-4" />

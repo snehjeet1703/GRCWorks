@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { Sidebar } from "@/components/sidebar";
+import { cookies } from "next/headers";
+import { AppShell } from "@/components/app-shell";
+import { SIDEBAR_COOKIE } from "@/lib/sidebar-state";
 import { Providers } from "@/components/providers";
 import { prisma } from "@/lib/db";
 
@@ -26,18 +28,19 @@ export default async function AppLayout({
     redirect("/onboarding");
   }
 
+  const cookieStore = await cookies();
+  const defaultOpen = cookieStore.get(SIDEBAR_COOKIE)?.value !== "false";
+
   return (
     <Providers>
-      <div className="min-h-screen">
-        <Sidebar
-          permissions={user.permissions ?? []}
-          roleName={user.roleName ?? user.role}
-          userName={user.name ?? user.email}
-        />
-        <main className="pl-64">
-          <div className="mx-auto max-w-7xl px-6 py-8">{children}</div>
-        </main>
-      </div>
+      <AppShell
+        defaultOpen={defaultOpen}
+        permissions={user.permissions ?? []}
+        roleName={user.roleName ?? user.role}
+        userName={user.name ?? user.email}
+      >
+        {children}
+      </AppShell>
     </Providers>
   );
 }

@@ -98,31 +98,31 @@
 
 @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
 @keyframes slideIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
+@keyframes popIn { from { opacity:0; transform:scale(0.95) translateY(-4px); } to { opacity:1; transform:scale(1) translateY(0); } }
 .anim-fade { animation: fadeIn 0.2s ease-out; }
+.anim-pop { animation: popIn 0.15s ease-out; }
 .anim-slide { animation: slideIn 0.18s ease-out; }
 
 @layer components {
-  .btn-primary {
-    @apply inline-flex items-center justify-center rounded-[var(--radius)] bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed;
+  .btn {
+    @apply inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 text-sm font-medium transition-all outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50;
   }
-  .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:ring-offset-2 transition-all;
-  }
-  .btn-destructive {
-    @apply inline-flex items-center justify-center rounded-[var(--radius)] bg-[var(--destructive)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[var(--destructive)] focus:ring-offset-2 transition-all;
-  }
-  .btn-ghost {
-    @apply inline-flex items-center justify-center rounded-[var(--radius)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] transition-all;
-  }
+  .btn svg { @apply h-4 w-4 shrink-0; }
+  .btn-primary { @apply btn bg-primary text-primary-foreground hover:bg-primary/90; }
+  .btn-secondary { @apply btn border border-border bg-background shadow-sm hover:bg-accent hover:text-accent-foreground; }
+  .btn-destructive { @apply btn bg-destructive text-white hover:bg-destructive/90; }
+  .btn-ghost { @apply btn hover:bg-accent hover:text-accent-foreground; }
+  .btn-sm { @apply h-8 gap-1.5 px-3; }
   .card {
-    @apply rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow)];
+    @apply rounded-xl border border-border bg-card p-6 text-card-foreground shadow-sm;
   }
   .badge {
-    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border;
+    @apply inline-flex w-fit shrink-0 items-center gap-1 whitespace-nowrap rounded-md border px-2 py-0.5 text-xs font-medium;
   }
   .input {
-    @apply block w-full rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-3 py-2 text-sm placeholder:text-[var(--muted-foreground)] focus:border-[var(--ring)] focus:outline-none focus:ring-1 focus:ring-[var(--ring)] transition-colors;
+    @apply block h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50;
   }
+  textarea.input { @apply h-auto py-2; }
   .data-mono {
     font-family: "Overpass Mono", "IBM Plex Mono", monospace;
     font-variant-numeric: tabular-nums;

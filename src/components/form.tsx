@@ -14,15 +14,15 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <div>
+    <div className="grid gap-2">
       <label
         htmlFor={htmlFor}
-        className="block text-sm font-medium text-gray-700 mb-1"
+        className="text-sm font-medium leading-none"
       >
         {label}
       </label>
       {children}
-      {hint && <p className="mt-1 text-xs text-gray-500">{hint}</p>}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -47,7 +47,7 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
 export function FormError({ message }: { message?: string | null }) {
   if (!message) return null;
   return (
-    <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+    <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
       {message}
     </p>
   );
