@@ -6,6 +6,7 @@ import { PanelLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SIDEBAR_COOKIE } from "@/lib/sidebar-state";
 import { Sidebar, activeItem } from "./sidebar";
+import { ThemeCustomizer } from "./theme-customizer";
 
 export function AppShell({
   children,
@@ -25,16 +26,18 @@ export function AppShell({
   const pathname = usePathname();
   const title = activeItem(pathname)?.name;
 
+  const setSidebar = useCallback((next: boolean) => {
+    setOpen(next);
+    document.cookie = `${SIDEBAR_COOKIE}=${next}; path=/; max-age=${60 * 60 * 24 * 365}`;
+  }, []);
+
   const toggle = useCallback(() => {
     if (window.matchMedia("(max-width: 767px)").matches) {
       setMobileOpen((o) => !o);
       return;
     }
-    setOpen((o) => {
-      document.cookie = `${SIDEBAR_COOKIE}=${!o}; path=/; max-age=${60 * 60 * 24 * 365}`;
-      return !o;
-    });
-  }, []);
+    setSidebar(!open);
+  }, [open, setSidebar]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -89,6 +92,9 @@ export function AppShell({
           </button>
           <div className="mx-2 h-4 w-px bg-border" />
           <span className="text-sm font-medium text-muted-foreground">{title}</span>
+          <div className="ml-auto">
+            <ThemeCustomizer sidebarOpen={open} onSidebarChange={setSidebar} />
+          </div>
         </header>
         <main className="flex-1">
           <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8">{children}</div>

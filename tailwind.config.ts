@@ -21,17 +21,21 @@ const config: Config = {
         border: v("border"),
         input: v("input"),
         ring: v("ring"),
+        gray: Object.fromEntries(
+          [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map((n) => [n, v(`gray-${n}`)])
+        ),
+        // Legacy `brand-*` classes follow the active preset's primary colour.
         brand: {
-          50: v("base-50"),
-          100: v("base-100"),
-          200: v("base-200"),
-          300: v("base-300"),
-          400: v("base-400"),
-          500: v("base-600"),
-          600: v("base-950"),
-          700: v("base-800"),
-          800: v("base-900"),
-          900: v("base-950"),
+          50: "color-mix(in oklab, var(--primary) calc(<alpha-value> * 6%), var(--background))",
+          100: "color-mix(in oklab, var(--primary) calc(<alpha-value> * 12%), var(--background))",
+          200: "color-mix(in oklab, var(--primary) calc(<alpha-value> * 25%), var(--background))",
+          300: "color-mix(in oklab, var(--primary) calc(<alpha-value> * 45%), var(--background))",
+          400: "color-mix(in oklab, var(--primary) calc(<alpha-value> * 70%), var(--background))",
+          500: v("primary"),
+          600: v("primary"),
+          700: v("primary"),
+          800: v("primary"),
+          900: v("primary"),
         },
         sidebar: {
           bg: v("sidebar-bg"),
@@ -44,7 +48,7 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ["var(--text-family)", "system-ui", "sans-serif"],
         mono: ["Overpass Mono", "IBM Plex Mono", "monospace"],
       },
       borderRadius: {

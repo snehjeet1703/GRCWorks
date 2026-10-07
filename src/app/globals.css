@@ -36,6 +36,20 @@
     --input: var(--base-300);
     --ring: var(--base-800);
     --radius: 0.5rem;
+    --text-family: "Inter", sans-serif;
+
+    /* Legacy gray-* utilities map onto the theme's tinted base scale; inverted in dark mode. */
+    --gray-50: var(--base-50);
+    --gray-100: var(--base-100);
+    --gray-200: var(--base-200);
+    --gray-300: var(--base-300);
+    --gray-400: var(--base-400);
+    --gray-500: var(--base-500);
+    --gray-600: var(--base-600);
+    --gray-700: var(--base-700);
+    --gray-800: var(--base-800);
+    --gray-900: var(--base-900);
+    --gray-950: var(--base-950);
 
     --sidebar-bg: var(--base-100);
     --sidebar-foreground: var(--base-600);
@@ -51,6 +65,18 @@
   }
 
   .dark {
+    --gray-50: var(--base-900);
+    --gray-100: var(--base-900);
+    --gray-200: var(--base-800);
+    --gray-300: var(--base-700);
+    --gray-400: var(--base-500);
+    --gray-500: var(--base-400);
+    --gray-600: var(--base-300);
+    --gray-700: var(--base-300);
+    --gray-800: var(--base-200);
+    --gray-900: var(--base-100);
+    --gray-950: var(--base-50);
+
     --background: var(--base-950);
     --foreground: var(--base-200);
     --card: var(--base-950);
@@ -95,6 +121,9 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 }
+
+.dark .bg-white { background-color: var(--card); }
+.dark { color-scheme: dark; }
 
 @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
 @keyframes slideIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
