@@ -3,33 +3,131 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --base-50: oklch(0.985 0.0013 286.84);
+    --base-100: oklch(0.967 0.0027 286.38);
+    --base-200: oklch(0.92 0.0053 286.32);
+    --base-300: oklch(0.871 0.008 286.29);
+    --base-400: oklch(0.705 0.012 286.07);
+    --base-500: oklch(0.552 0.016 285.94);
+    --base-600: oklch(0.442 0.0147 285.79);
+    --base-700: oklch(0.37 0.012 285.81);
+    --base-800: oklch(0.274 0.008 286.03);
+    --base-900: oklch(0.21 0.0053 285.89);
+    --base-950: oklch(0.141 0.004 285.83);
+
+    --background: white;
+    --foreground: var(--base-800);
+    --card: white;
+    --card-foreground: var(--base-800);
+    --popover: white;
+    --popover-foreground: var(--base-800);
+    --primary: var(--base-950);
+    --primary-foreground: white;
+    --secondary: var(--base-300);
+    --secondary-foreground: var(--base-800);
+    --muted: var(--base-100);
+    --muted-foreground: var(--base-500);
+    --accent: var(--base-200);
+    --accent-foreground: var(--base-800);
+    --destructive: oklch(0.577 0.245 27.325);
+    --destructive-foreground: white;
+    --border: var(--base-200);
+    --input: var(--base-300);
+    --ring: var(--base-800);
+    --radius: 0.5rem;
+
+    --sidebar-bg: var(--base-100);
+    --sidebar-foreground: var(--base-600);
+    --sidebar-primary: var(--base-950);
+    --sidebar-primary-foreground: white;
+    --sidebar-accent: var(--base-200);
+    --sidebar-accent-foreground: var(--base-950);
+    --sidebar-border: var(--base-200);
+
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.05);
+  }
+
+  .dark {
+    --background: var(--base-950);
+    --foreground: var(--base-200);
+    --card: var(--base-950);
+    --card-foreground: var(--base-200);
+    --popover: var(--base-950);
+    --popover-foreground: var(--base-200);
+    --primary: var(--base-50);
+    --primary-foreground: var(--base-900);
+    --secondary: var(--base-500);
+    --secondary-foreground: var(--base-200);
+    --muted: var(--base-900);
+    --muted-foreground: var(--base-400);
+    --accent: var(--base-900);
+    --accent-foreground: var(--base-200);
+    --destructive: oklch(0.704 0.191 22.216);
+    --destructive-foreground: white;
+    --border: var(--base-800);
+    --input: var(--base-700);
+    --ring: var(--base-200);
+
+    --sidebar-bg: var(--base-900);
+    --sidebar-foreground: var(--base-200);
+    --sidebar-primary: var(--base-50);
+    --sidebar-primary-foreground: var(--base-900);
+    --sidebar-accent: var(--base-800);
+    --sidebar-accent-foreground: var(--base-50);
+    --sidebar-border: var(--base-800);
+
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+    --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+    --shadow-md: 0 4px 6px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2);
+  }
+
+  * {
+    @apply border-[var(--border)];
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    @apply bg-[var(--background)] text-[var(--foreground)] antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 }
 
+@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+@keyframes slideIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
+.anim-fade { animation: fadeIn 0.2s ease-out; }
+.anim-slide { animation: slideIn 0.18s ease-out; }
+
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center rounded-[var(--radius)] bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 transition-colors;
+    @apply inline-flex items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:ring-offset-2 transition-all;
+  }
+  .btn-destructive {
+    @apply inline-flex items-center justify-center rounded-[var(--radius)] bg-[var(--destructive)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[var(--destructive)] focus:ring-offset-2 transition-all;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-[var(--radius)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] transition-all;
   }
   .card {
-    @apply rounded-[10px] border border-gray-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(0,0,0,0.04)];
+    @apply rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow)];
   }
   .badge {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border;
   }
   .input {
-    @apply block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm placeholder-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 transition-colors;
+    @apply block w-full rounded-[var(--radius)] border border-[var(--input)] bg-[var(--background)] px-3 py-2 text-sm placeholder:text-[var(--muted-foreground)] focus:border-[var(--ring)] focus:outline-none focus:ring-1 focus:ring-[var(--ring)] transition-colors;
   }
   .data-mono {
-    font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+    font-family: "Overpass Mono", "IBM Plex Mono", monospace;
     font-variant-numeric: tabular-nums;
   }
   .section-label {
-    @apply font-mono text-[10px] font-medium uppercase tracking-wider;
+    @apply text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)];
   }
 }

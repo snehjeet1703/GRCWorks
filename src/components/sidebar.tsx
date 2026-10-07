@@ -80,13 +80,12 @@ export function Sidebar({
     .toUpperCase();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-10 flex w-64 flex-col bg-sidebar-bg">
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 px-5 py-5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600">
-          <Shield className="h-[18px] w-[18px] text-white" />
+    <aside className="fixed inset-y-0 left-0 z-10 flex w-64 flex-col border-r border-sidebar-border bg-sidebar-bg text-sidebar-foreground">
+      <div className="flex items-center gap-2.5 px-4 py-4">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
+          <Shield className="h-4 w-4 text-sidebar-primary-foreground" />
         </div>
-        <span className="text-[15px] font-semibold text-sidebar-text-active tracking-tight">
+        <span className="text-sm font-semibold text-foreground tracking-tight">
           GRC Platform
         </span>
       </div>
@@ -101,7 +100,7 @@ export function Sidebar({
 
           return (
             <div key={section.label}>
-              <div className="section-label px-3 pb-1.5 pt-5 text-sidebar-text/50">
+              <div className="flex h-8 items-center px-2 pt-3 text-xs font-medium text-sidebar-foreground/70">
                 {section.label}
               </div>
               {visible.map((item) => {
@@ -112,18 +111,13 @@ export function Sidebar({
                     key={item.name}
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-2.5 rounded-lg px-3 py-[7px] text-[13.5px] font-medium transition-colors mb-px",
+                      "mb-1 flex h-8 items-center gap-2 rounded-md px-2 text-sm transition-colors",
                       isActive
-                        ? "bg-sidebar-active-bg text-sidebar-active-accent"
-                        : "text-sidebar-text hover:bg-sidebar-hover hover:text-sidebar-text-active"
+                        ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                        : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                     )}
                   >
-                    <item.icon
-                      className={cn(
-                        "h-[18px] w-[18px] flex-shrink-0",
-                        isActive ? "opacity-100" : "opacity-55"
-                      )}
-                    />
+                    <item.icon className="h-4 w-4 flex-shrink-0" />
                     {item.name}
                   </Link>
                 );
@@ -134,25 +128,25 @@ export function Sidebar({
       </nav>
 
       {/* User + sign out */}
-      <div className="border-t border-sidebar-border p-3">
-        <div className="flex items-center gap-2.5 rounded-lg px-2.5 py-2">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-600 to-purple-600 text-xs font-semibold text-white">
+      <div className="border-t border-sidebar-border p-2">
+        <div className="flex items-center gap-2 rounded-md px-2 py-2">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-xs font-semibold text-sidebar-accent-foreground">
             {initials}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-medium text-sidebar-text-active">
+            <div className="truncate text-sm font-medium text-foreground">
               {userName ?? "User"}
             </div>
             {roleName && (
-              <div className="text-[11px] text-sidebar-text/70">{roleName}</div>
+              <div className="text-xs text-muted-foreground">{roleName}</div>
             )}
           </div>
         </div>
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
-          className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-[7px] text-[13.5px] font-medium text-sidebar-text hover:bg-sidebar-hover hover:text-sidebar-text-active transition-colors"
+          className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
-          <LogOut className="h-[18px] w-[18px] opacity-55" />
+          <LogOut className="h-4 w-4" />
           Sign out
         </button>
       </div>
