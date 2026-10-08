@@ -2,6 +2,7 @@ import { PrismaClient, UserRole } from "@prisma/client";
 import { hash } from "bcryptjs";
 import { CONTROL_MAPPINGS, FrameworkName } from "./control-mappings";
 import { BUILT_IN_ROLES } from "../src/lib/permissions";
+import { TRUST_CONTROL_SUGGESTIONS } from "../src/lib/trust-controls";
 
 const prisma = new PrismaClient();
 
@@ -411,6 +412,50 @@ const SAMPLE_POLICIES: {
   { title: "Business Continuity Plan", status: "DRAFT" },
 ];
 
+const SAMPLE_SUBPROCESSORS = [
+  { name: "Amazon Web Services", purpose: "Cloud hosting and storage", location: "India", website: "https://aws.amazon.com" },
+  { name: "Cloudflare", purpose: "CDN and DDoS protection", location: "United States", website: "https://www.cloudflare.com" },
+  { name: "SendGrid", purpose: "Transactional email", location: "United States", website: "https://sendgrid.com" },
+  { name: "Google Workspace", purpose: "Internal collaboration", location: "United States", website: "https://workspace.google.com" },
+  { name: "Atlassian", purpose: "Issue tracking and support", location: "Australia", website: "https://www.atlassian.com" },
+  { name: "Datadog", purpose: "Infrastructure monitoring", location: "United States", website: "https://www.datadoghq.com" },
+  { name: "Stripe", purpose: "Payment processing", location: "Ireland", website: "https://stripe.com" },
+];
+
+// Demo-only: real orgs load suggestions disabled from the admin UI and opt in per control.
+async function seedTrustVault(organizationId: string) {
+  const config =
+    (await prisma.trustVaultConfig.findUnique({ where: { organizationId } })) ??
+    (await prisma.trustVaultConfig.create({
+      data: {
+        organizationId,
+        enabled: true,
+        heroTitle: "Demo Organization",
+        heroDescription:
+          "We are committed to the highest standards of security, privacy, and compliance. Our platform undergoes rigorous testing and certification to ensure your data is protected.",
+      },
+    }));
+
+  let controls = 0;
+  if ((await prisma.trustControl.count({ where: { configId: config.id } })) === 0) {
+    const rows = TRUST_CONTROL_SUGGESTIONS.flatMap(({ category, items }, ci) =>
+      items.map((name, i) => ({ configId: config.id, category, name, enabled: true, sortOrder: ci * 100 + i }))
+    );
+    controls = (await prisma.trustControl.createMany({ data: rows })).count;
+  }
+
+  let subprocessors = 0;
+  if ((await prisma.trustSubprocessor.count({ where: { configId: config.id } })) === 0) {
+    subprocessors = (
+      await prisma.trustSubprocessor.createMany({
+        data: SAMPLE_SUBPROCESSORS.map((s, i) => ({ ...s, configId: config.id, sortOrder: i })),
+      })
+    ).count;
+  }
+
+  return { controls, subprocessors };
+}
+
 // ── Mapping-aware seeder (idempotent) ────────────────────────
 
 async function main() {
@@ -634,6 +679,8 @@ async function main() {
     }
   }
 
+  const trust = await seedTrustVault(org.id);
+
   const totalCitations = FRAMEWORKS.reduce((n, f) => n + f.controls.length, 0);
   const distinctControls = await prisma.control.count({ where: { organizationId: org.id } });
   const sharedControls = distinctControls - (totalCitations - framework_linksAdded); // rough log info
@@ -648,6 +695,7 @@ async function main() {
   console.log(`  Sample risks : ${riskCount === 0 ? SAMPLE_RISKS.length : `${riskCount} already present`}`);
   console.log(`  Sample policies: ${policyCount === 0 ? SAMPLE_POLICIES.length : `${policyCount} already present`}`);
   console.log(`  Roles        : ${roleIdByName.size} built-in roles seeded`);
+  console.log(`  Trust Vault  : ${trust.controls} controls, ${trust.subprocessors} sub-processors added (0 = already present)`);
   void sharedControls;
 }
 
