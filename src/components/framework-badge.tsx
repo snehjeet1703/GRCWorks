@@ -22,7 +22,7 @@ const BADGES: { match: RegExp; badge: Badge }[] = [
   { match: /dpdp/i, badge: { top: "INDIA", main: "DPDP", bg: "#ffffff", fg: "#000080", decor: "india-stripes" } },
 ];
 
-function badgeFor(name: string): Badge {
+function badgeFor(name: string, fallbackColor?: string): Badge {
   const hit = BADGES.find((b) => b.match.test(name));
   if (hit) return hit.badge;
   const initials = name
@@ -33,17 +33,23 @@ function badgeFor(name: string): Badge {
     .map((w) => w[0])
     .join("")
     .toUpperCase();
-  return { main: initials || "?", bg: "var(--muted)", fg: "var(--foreground)" };
+  return fallbackColor
+    ? { main: initials || "?", bg: fallbackColor, fg: "#ffffff" }
+    : { main: initials || "?", bg: "var(--muted)", fg: "var(--foreground)" };
 }
 
-// 12 stars on a circle, like the EU flag.
+// EU-flag star ring; rounded because server and browser trig differ in the last digits (hydration).
+const EU_STARS = Array.from({ length: 12 }, (_, i) => {
+  const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+  return { cx: Math.round((24 + Math.cos(a) * 17) * 100) / 100, cy: Math.round((24 + Math.sin(a) * 17) * 100) / 100 };
+});
+
 function EuStars() {
   return (
     <g fill="#FFCC00">
-      {Array.from({ length: 12 }, (_, i) => {
-        const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
-        return <circle key={i} cx={24 + Math.cos(a) * 17} cy={24 + Math.sin(a) * 17} r={1.5} />;
-      })}
+      {EU_STARS.map((s, i) => (
+        <circle key={i} cx={s.cx} cy={s.cy} r={1.5} />
+      ))}
     </g>
   );
 }
@@ -51,13 +57,15 @@ function EuStars() {
 export function FrameworkBadge({
   name,
   size = 44,
+  fallbackColor,
   className,
 }: {
   name: string;
   size?: number;
+  fallbackColor?: string;
   className?: string;
 }) {
-  const b = badgeFor(name);
+  const b = badgeFor(name, fallbackColor);
   const mainSize = b.decor === "eu-stars" ? 10 : b.main.length >= 5 ? 10.5 : b.main.length === 4 ? 12 : 13;
 
   return (

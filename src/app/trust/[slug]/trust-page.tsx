@@ -5,6 +5,7 @@ import {
   Shield, CheckCircle, FileText, Globe, Lock, Download,
   Search, ChevronDown, ChevronUp, X, Send, Eye,
 } from "lucide-react";
+import { FrameworkBadge } from "@/components/framework-badge";
 
 type TrustData = {
   organization: { name: string; slug: string };
@@ -287,13 +288,13 @@ export function TrustPage({ slug }: { slug: string }) {
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                 {badges.map((b) => (
                   <div key={b.id} className="flex items-center gap-3 rounded-xl border border-gray-100 p-4 hover:shadow-sm transition-shadow">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: primary }}>
-                      {b.iconUrl ? (
+                    {b.iconUrl ? (
+                      <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: primary }}>
                         <img src={b.iconUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
-                      ) : (
-                        b.name.slice(0, 4).toUpperCase()
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      <FrameworkBadge name={b.name} size={56} fallbackColor={primary} />
+                    )}
                     <span className="font-medium text-gray-900">{b.name}</span>
                     <CheckCircle className="ml-auto h-5 w-5 flex-shrink-0 text-green-500" />
                   </div>

@@ -15,6 +15,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 const axisTick = { fontSize: 11, fill: "var(--muted-foreground)" };
@@ -172,9 +173,11 @@ export type HorizontalBar = { label: string; value: number; total: number };
 export function HorizontalBarChart({
   bars,
   highlightLabel,
+  renderIcon,
 }: {
   bars: HorizontalBar[];
   highlightLabel?: string;
+  renderIcon?: (label: string) => ReactNode;
 }) {
   return (
     <ul className="space-y-3">
@@ -182,7 +185,9 @@ export function HorizontalBarChart({
         const pct = b.total > 0 ? Math.round((b.value / b.total) * 100) : 0;
         const isHi = highlightLabel === b.label;
         return (
-          <li key={b.label}>
+          <li key={b.label} className="flex items-center gap-3">
+            {renderIcon?.(b.label)}
+            <div className="min-w-0 flex-1">
             <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
               <span className={cn("truncate font-medium", isHi ? "text-foreground" : "text-muted-foreground")}>
                 {b.label}
@@ -203,6 +208,7 @@ export function HorizontalBarChart({
                 className={cn("h-full rounded-full transition-all", isHi ? "bg-primary" : "bg-primary/70")}
                 style={{ width: `${pct}%` }}
               />
+            </div>
             </div>
           </li>
         );

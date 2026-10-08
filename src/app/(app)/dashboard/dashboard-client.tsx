@@ -6,6 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ShieldCheck, AlertTriangle, FileCheck, FileSearch, Activity, ArrowRight } from "lucide-react";
 import { cn, getRiskScore, getRiskLevel, getRiskColor } from "@/lib/utils";
 import { AreaTrendChart, DonutChart, GroupedBarChart, HorizontalBarChart } from "@/components/charts";
+import { FrameworkBadge } from "@/components/framework-badge";
 
 type Framework = {
   id: string;
@@ -441,7 +442,11 @@ export function DashboardClient({
             </Link>
           }
         >
-          <HorizontalBarChart bars={frameworkBars} highlightLabel={selectedFramework?.name} />
+          <HorizontalBarChart
+            bars={frameworkBars}
+            highlightLabel={selectedFramework?.name}
+            renderIcon={(label) => <FrameworkBadge name={label} size={28} />}
+          />
         </Panel>
       </div>
 

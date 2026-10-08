@@ -9,6 +9,7 @@ import {
 import { PageTabs, type TabDef } from "@/components/page-tabs";
 import { Modal, ConfirmDialog } from "@/components/modal";
 import { useToast } from "@/components/toast";
+import { FrameworkBadge } from "@/components/framework-badge";
 
 const TABS: TabDef[] = [
   { key: "settings", label: "Settings", icon: Settings },
@@ -380,13 +381,13 @@ function BadgesTab({ badges, canManage, onRefresh, toast }: {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {badges.map((b) => (
           <div key={b.id} className="rounded-lg border border-gray-200 p-4 flex items-start gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-700 font-bold text-sm flex-shrink-0">
-              {b.iconUrl ? (
+            {b.iconUrl ? (
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-brand-50">
                 <img src={b.iconUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
-              ) : (
-                b.name.slice(0, 3).toUpperCase()
-              )}
-            </div>
+              </div>
+            ) : (
+              <FrameworkBadge name={b.name} size={48} />
+            )}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-medium text-gray-900 truncate">{b.name}</span>
