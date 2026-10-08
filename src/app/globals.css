@@ -3,7 +3,8 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  /* .theme-light pins a subtree (the public trust page) to the default light theme. */
+  :root, .theme-light {
     --base-50: oklch(0.985 0.0013 286.84);
     --base-100: oklch(0.967 0.0027 286.38);
     --base-200: oklch(0.92 0.0053 286.32);
@@ -134,8 +135,9 @@
   }
 }
 
-.dark .bg-white { background-color: var(--card); }
+.dark .bg-white:not(.theme-light *) { background-color: var(--card); }
 .dark { color-scheme: dark; }
+.theme-light { color-scheme: light; }
 
 @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
 @keyframes slideIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
