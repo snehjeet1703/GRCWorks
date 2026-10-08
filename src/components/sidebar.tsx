@@ -5,16 +5,17 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Shield,
-  SlidersHorizontal,
-  AlertTriangle,
+  ShieldCheck,
+  ListChecks,
+  TriangleAlert,
   FileCheck,
   ScrollText,
   Settings,
   LogOut,
-  Bug,
-  ShieldOff,
+  FileSearch,
+  ShieldAlert,
   Building2,
-  Globe,
+  Vault,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "next-auth/react";
@@ -36,9 +37,9 @@ export const sections: NavSection[] = [
     label: "Overview",
     items: [
       { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, requiredPermission: "dashboard:view" },
-      { name: "Compliance", href: "/compliance", icon: Shield, requiredPermission: "controls:read" },
-      { name: "Controls", href: "/controls", icon: SlidersHorizontal, requiredPermission: "controls:read" },
-      { name: "Risks", href: "/risks", icon: AlertTriangle, requiredPermission: "risks:read" },
+      { name: "Compliance", href: "/compliance", icon: ShieldCheck, requiredPermission: "controls:read" },
+      { name: "Controls", href: "/controls", icon: ListChecks, requiredPermission: "controls:read" },
+      { name: "Risks", href: "/risks", icon: TriangleAlert, requiredPermission: "risks:read" },
     ],
   },
   {
@@ -46,10 +47,10 @@ export const sections: NavSection[] = [
     items: [
       { name: "Policies", href: "/governance", icon: ScrollText, requiredPermission: "policies:read" },
       { name: "Evidence", href: "/compliance/evidence", icon: FileCheck, requiredPermission: "evidence:read" },
-      { name: "Findings", href: "/findings", icon: Bug, requiredPermission: "findings:read" },
-      { name: "Exceptions", href: "/exceptions", icon: ShieldOff, requiredPermission: "exceptions:read" },
+      { name: "Findings", href: "/findings", icon: FileSearch, requiredPermission: "findings:read" },
+      { name: "Exceptions", href: "/exceptions", icon: ShieldAlert, requiredPermission: "exceptions:read" },
       { name: "Vendors", href: "/vendors", icon: Building2, requiredPermission: "vendors:read" },
-      { name: "Trust Vault", href: "/trust-vault", icon: Globe, requiredPermission: "trust_vault:read" },
+      { name: "Trust Vault", href: "/trust-vault", icon: Vault, requiredPermission: "trust_vault:read" },
     ],
   },
   {

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Bug, Plus, AlertTriangle, History } from "lucide-react";
+import { FileSearch, Plus, AlertTriangle, History } from "lucide-react";
 import { Modal, ConfirmDialog } from "@/components/modal";
 import { Field, Select, TextArea, FormError } from "@/components/form";
 import { FilterBar } from "@/components/filter-bar";
@@ -213,7 +213,7 @@ export function FindingsClient({
 
       <PageTabs
         tabs={[
-          { key: "content", label: "Findings", icon: Bug },
+          { key: "content", label: "Findings", icon: FileSearch },
           { key: "audit", label: "Audit Log", icon: History },
         ]}
         activeTab={activeTab}
@@ -309,7 +309,7 @@ export function FindingsClient({
         </div>
         {filtered.length === 0 && (
           <div className="py-12 text-center">
-            <Bug className="mx-auto h-8 w-8 text-gray-300" />
+            <FileSearch className="mx-auto h-8 w-8 text-gray-300" />
             <p className="mt-2 text-sm text-gray-400">No findings match the current filters.</p>
           </div>
         )}

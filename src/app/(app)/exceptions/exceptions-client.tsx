@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldOff, Plus, CheckCircle, XCircle, History } from "lucide-react";
+import { ShieldAlert, Plus, CheckCircle, XCircle, History } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { Field, Select, TextArea, FormError } from "@/components/form";
 import { FilterBar } from "@/components/filter-bar";
@@ -190,7 +190,7 @@ export function ExceptionsClient({
 
       <PageTabs
         tabs={[
-          { key: "content", label: "Exceptions", icon: ShieldOff },
+          { key: "content", label: "Exceptions", icon: ShieldAlert },
           { key: "audit", label: "Audit Log", icon: History },
         ]}
         activeTab={activeTab}
@@ -284,7 +284,7 @@ export function ExceptionsClient({
         </div>
         {filtered.length === 0 && (
           <div className="py-12 text-center">
-            <ShieldOff className="mx-auto h-8 w-8 text-gray-300" />
+            <ShieldAlert className="mx-auto h-8 w-8 text-gray-300" />
             <p className="mt-2 text-sm text-gray-400">No exceptions match the current filters.</p>
           </div>
         )}

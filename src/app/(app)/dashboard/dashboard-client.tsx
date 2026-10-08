@@ -3,7 +3,7 @@
 import { ReactNode, useMemo, useState } from "react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import { Shield, AlertTriangle, FileCheck, Bug, Activity, ArrowRight } from "lucide-react";
+import { ShieldCheck, AlertTriangle, FileCheck, FileSearch, Activity, ArrowRight } from "lucide-react";
 import { cn, getRiskScore, getRiskLevel, getRiskColor } from "@/lib/utils";
 import { AreaTrendChart, DonutChart, GroupedBarChart, HorizontalBarChart } from "@/components/charts";
 
@@ -115,7 +115,7 @@ function StatCard({
   label: string;
   value: ReactNode;
   footer: ReactNode;
-  icon: typeof Shield;
+  icon: typeof ShieldCheck;
   href: string;
 }) {
   return (
@@ -383,7 +383,7 @@ export function DashboardClient({
           label={selectedFramework ? "Requirements met" : "Controls implemented"}
           value={<>{statusCounts.IMPLEMENTED}<span className="text-lg text-muted-foreground">/{scopedCitations.length}</span></>}
           footer={`${coveragePercent}% of applicable controls`}
-          icon={Shield}
+          icon={ShieldCheck}
           href="/compliance"
         />
         <StatCard
@@ -397,7 +397,7 @@ export function DashboardClient({
           label="Open findings"
           value={openFindings}
           footer={<span className={criticalFindings > 0 ? "font-medium text-red-600" : undefined}>{criticalFindings} critical</span>}
-          icon={Bug}
+          icon={FileSearch}
           href="/findings"
         />
         <StatCard

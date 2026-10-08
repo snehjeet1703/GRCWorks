@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { FileCheck, AlertTriangle, ScrollText, ClipboardCheck, Clock, History } from "lucide-react";
+import { FileCheck, ListChecks, AlertTriangle, ScrollText, ClipboardCheck, Clock, History } from "lucide-react";
 import { getControlStatusColor } from "@/lib/utils";
 import { FilterBar } from "@/components/filter-bar";
 import { Modal } from "@/components/modal";
@@ -160,7 +160,7 @@ export function FrameworkControlsClient({
     <div>
       <PageTabs
         tabs={[
-          { key: "content", label: "Controls", icon: FileCheck },
+          { key: "content", label: "Controls", icon: ListChecks },
           { key: "audit", label: "Audit Log", icon: History },
         ]}
         activeTab={activeTab}

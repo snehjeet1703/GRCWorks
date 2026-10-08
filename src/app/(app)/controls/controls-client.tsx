@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Shield,
+  ListChecks,
   Plus,
   Pencil,
   Trash2,
@@ -229,7 +229,7 @@ export function ControlsClient({
 
       <PageTabs
         tabs={[
-          { key: "content", label: "Controls", icon: Shield },
+          { key: "content", label: "Controls", icon: ListChecks },
           { key: "audit", label: "Audit Log", icon: History },
         ]}
         activeTab={activeTab}
@@ -359,7 +359,7 @@ export function ControlsClient({
             </div>
             {filtered.length === 0 && (
               <div className="py-12 text-center">
-                <Shield className="mx-auto h-8 w-8 text-gray-300" />
+                <ListChecks className="mx-auto h-8 w-8 text-gray-300" />
                 <p className="mt-2 text-sm text-gray-400">
                   No controls match the current filters.
                 </p>
