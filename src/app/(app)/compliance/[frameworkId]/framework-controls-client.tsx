@@ -212,7 +212,7 @@ export function FrameworkControlsClient({
               {filteredControls.map((control) => {
                 const test = testBadge(control);
                 return (
-                  <tr key={control.id} className="transition-colors hover:bg-muted/50">
+                  <tr key={`${control.code}:${control.id}`} className="transition-colors hover:bg-muted/50">
                     <td className="px-4 py-3 text-sm font-mono text-gray-700 whitespace-nowrap">
                       {control.code}
                     </td>

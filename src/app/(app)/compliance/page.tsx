@@ -2,7 +2,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
-import { Shield, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { FrameworkBadge } from "@/components/framework-badge";
 
 export default async function CompliancePage() {
   const session = await getServerSession(authOptions);
@@ -35,7 +36,7 @@ export default async function CompliancePage() {
         </div>
       </div>
 
-      <div className="grid gap-4">
+      <div className="grid gap-3">
         {frameworks.map((fw) => {
           const allMappings = fw.requirements.flatMap((r) => r.controlMappings);
           const total = allMappings.length;
@@ -48,35 +49,38 @@ export default async function CompliancePage() {
             <Link
               key={fw.id}
               href={`/compliance/${fw.id}`}
-              className="card hover:border-brand-300 transition-colors group"
+              className="card group !p-4 transition-colors hover:bg-accent/40"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="rounded-lg bg-brand-50 p-2.5">
-                    <Shield className="h-5 w-5 text-brand-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-900 group-hover:text-brand-700">
-                      {fw.name}
-                    </h3>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {fw.description}
-                    </p>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-4">
+                  <FrameworkBadge name={fw.name} />
+                  <div className="min-w-0">
+                    <h3 className="font-semibold leading-tight group-hover:underline">{fw.name}</h3>
+                    {fw.description && (
+                      <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">{fw.description}</p>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex shrink-0 items-center gap-4">
                   <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">
-                      {implemented}/{total} controls
+                    <p className="font-mono text-sm font-semibold tabular-nums">
+                      {percent}%
+                      <span className="ml-1.5 font-sans text-xs font-normal text-muted-foreground">
+                        {implemented}/{total}
+                      </span>
                     </p>
-                    <div className="mt-1 h-1.5 w-24 rounded-full bg-gray-100">
-                      <div
-                        className="h-1.5 rounded-full bg-brand-500 transition-all"
-                        style={{ width: `${percent}%` }}
-                      />
+                    <div
+                      className="mt-1.5 h-1.5 w-28 overflow-hidden rounded-full bg-muted"
+                      role="progressbar"
+                      aria-label={`${fw.name} controls implemented`}
+                      aria-valuenow={percent}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${percent}%` }} />
                     </div>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-gray-400" />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </div>
               </div>
             </Link>

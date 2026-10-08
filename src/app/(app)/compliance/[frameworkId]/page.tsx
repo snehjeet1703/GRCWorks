@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChevronLeft, FileDown } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { FrameworkBadge } from "@/components/framework-badge";
 import { FrameworkControlsClient } from "./framework-controls-client";
 
 export default async function FrameworkDetailPage({
@@ -99,10 +100,15 @@ export default async function FrameworkDetailPage({
 
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{framework.name}</h1>
-          {framework.description && (
-            <p className="mt-1 text-sm text-gray-500">{framework.description}</p>
-          )}
+          <div className="flex items-center gap-4">
+            <FrameworkBadge name={framework.name} size={52} />
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">{framework.name}</h1>
+              {framework.description && (
+                <p className="mt-1 text-sm text-gray-500">{framework.description}</p>
+              )}
+            </div>
+          </div>
           <div className="mt-4 flex items-center gap-3">
             <div className="h-2 w-48 rounded-full bg-gray-100">
               <div

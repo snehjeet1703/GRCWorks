@@ -222,7 +222,7 @@ export function ReportView({
         {controls.map((c) => {
           const statusColor = getControlStatusColor(c.status);
           return (
-            <div key={c.id} className="control-block">
+            <div key={`${c.code}:${c.id}`} className="control-block">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-sm">
