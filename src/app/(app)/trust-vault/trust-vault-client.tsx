@@ -129,7 +129,7 @@ export function TrustVaultClient({ canManage, orgSlug }: { canManage: boolean; o
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Trust Vault</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Trust Vault</h1>
           <p className="mt-1 text-sm text-gray-500">
             Manage your public-facing trust & compliance portal
           </p>
@@ -246,7 +246,7 @@ function SettingsTab({ config, canManage, onSave, toast }: {
             onChange={(e) => setForm({ ...form, heroTitle: e.target.value })}
             disabled={!canManage}
             placeholder="Your Company Name"
-            className="input-field"
+            className="input"
           />
         </div>
         <div>
@@ -257,7 +257,7 @@ function SettingsTab({ config, canManage, onSave, toast }: {
             disabled={!canManage}
             rows={4}
             placeholder="Describe your company's commitment to security and compliance..."
-            className="input-field"
+            className="input"
           />
         </div>
         <div>
@@ -417,15 +417,15 @@ function BadgesTab({ badges, canManage, onRefresh, toast }: {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field" placeholder="SOC 2 Type II" />
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" placeholder="SOC 2 Type II" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input-field" />
+            <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Icon URL</label>
-            <input value={form.iconUrl} onChange={(e) => setForm({ ...form, iconUrl: e.target.value })} className="input-field" placeholder="https://..." />
+            <input value={form.iconUrl} onChange={(e) => setForm({ ...form, iconUrl: e.target.value })} className="input" placeholder="https://..." />
           </div>
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-brand-600" />
@@ -540,7 +540,7 @@ function DocumentsTab({ docs, canManage, onRefresh, toast }: {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200 text-left text-gray-500">
+            <tr className="border-b border-border text-left text-muted-foreground">
               <th className="pb-3 font-medium">Name</th>
               <th className="pb-3 font-medium">Category</th>
               <th className="pb-3 font-medium">Visibility</th>
@@ -601,27 +601,27 @@ function DocumentsTab({ docs, canManage, onRefresh, toast }: {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-            <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="input-field" />
+            <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="input" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} rows={3} className="input-field" />
+            <textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} rows={3} className="input" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-            <input value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} className="input-field" />
+            <input value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} className="input" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Visibility</label>
-              <select value={editForm.visibility} onChange={(e) => setEditForm({ ...editForm, visibility: e.target.value })} className="input-field">
+              <select value={editForm.visibility} onChange={(e) => setEditForm({ ...editForm, visibility: e.target.value })} className="input">
                 <option value="PUBLIC">Public</option>
                 <option value="ACCESS_REQUIRED">Restricted</option>
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Permission</label>
-              <select value={editForm.permission} onChange={(e) => setEditForm({ ...editForm, permission: e.target.value })} className="input-field">
+              <select value={editForm.permission} onChange={(e) => setEditForm({ ...editForm, permission: e.target.value })} className="input">
                 <option value="VIEW_ONLY">View Only</option>
                 <option value="DOWNLOADABLE">Downloadable</option>
               </select>
@@ -629,7 +629,7 @@ function DocumentsTab({ docs, canManage, onRefresh, toast }: {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Valid Until</label>
-            <input type="date" value={editForm.validUntil} onChange={(e) => setEditForm({ ...editForm, validUntil: e.target.value })} className="input-field" />
+            <input type="date" value={editForm.validUntil} onChange={(e) => setEditForm({ ...editForm, validUntil: e.target.value })} className="input" />
             <p className="text-xs text-gray-400 mt-1">Leave blank for no expiry</p>
           </div>
           <label className="flex items-center gap-2">
@@ -730,19 +730,19 @@ function SubprocessorsTab({ subs, canManage, onRefresh, toast }: {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field" placeholder="AWS" />
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" placeholder="AWS" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Purpose</label>
-            <input value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} className="input-field" placeholder="Cloud infrastructure" />
+            <input value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} className="input" placeholder="Cloud infrastructure" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-            <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="input-field" placeholder="United States" />
+            <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="input" placeholder="United States" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
-            <input value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} className="input-field" placeholder="https://aws.amazon.com" />
+            <input value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} className="input" placeholder="https://aws.amazon.com" />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
@@ -979,27 +979,27 @@ function NdaTab({ canManage, toast }: { canManage: boolean; toast: any }) {
 
       <div className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="min-w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead>
             <tr>
-              <th className="px-4 py-3 text-left font-medium text-gray-500">Title</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-500">Version</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-500">Status</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-500">Created</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-500">Actions</th>
+              <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Title</th>
+              <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Version</th>
+              <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Status</th>
+              <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Created</th>
+              <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-border">
             {ndas.map((n) => (
               <tr key={n.id}>
                 <td className="px-4 py-3 text-gray-900">{n.title}</td>
                 <td className="px-4 py-3 text-gray-500">v{n.version}</td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 align-middle">
                   <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${n.active ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                     {n.active ? "Active" : "Inactive"}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-gray-500">{new Date(n.createdAt).toLocaleDateString()}</td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 align-middle">
                   <button onClick={() => setViewNda(n)} className="text-brand-600 hover:underline text-xs">View</button>
                 </td>
               </tr>
@@ -1016,11 +1016,11 @@ function NdaTab({ canManage, toast }: { canManage: boolean; toast: any }) {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-              <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-field" />
+              <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">NDA Content</label>
-              <textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} rows={12} className="input-field font-mono text-xs" placeholder="Enter the full NDA text..." />
+              <textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} rows={12} className="input font-mono text-xs" placeholder="Enter the full NDA text..." />
             </div>
             <p className="text-xs text-amber-600">Creating a new NDA will deactivate any previous version. Users who accepted the old version will need to re-accept.</p>
             <div className="flex justify-end gap-3">
@@ -1104,15 +1104,15 @@ function GrcTab({ docs, canManage, toast }: { docs: Doc[]; canManage: boolean; t
 
       <div className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="min-w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead>
             <tr>
-              <th className="px-4 py-3 text-left font-medium text-gray-500">Document</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-500">Category</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-500">Linked Controls</th>
-              {canManage && <th className="px-4 py-3 text-left font-medium text-gray-500">Actions</th>}
+              <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Document</th>
+              <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Category</th>
+              <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Linked Controls</th>
+              {canManage && <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Actions</th>}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-border">
             {docs.map((doc) => {
               const linkedIds = docLinks[doc.id] || [];
               const linkedControls = controls.filter((c) => linkedIds.includes(c.id));
@@ -1120,7 +1120,7 @@ function GrcTab({ docs, canManage, toast }: { docs: Doc[]; canManage: boolean; t
                 <tr key={doc.id}>
                   <td className="px-4 py-3 text-gray-900">{doc.name}</td>
                   <td className="px-4 py-3 text-gray-500">{doc.category}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 align-middle">
                     {linkedControls.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
                         {linkedControls.map((c) => (
@@ -1132,7 +1132,7 @@ function GrcTab({ docs, canManage, toast }: { docs: Doc[]; canManage: boolean; t
                     )}
                   </td>
                   {canManage && (
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-middle">
                       <button onClick={() => startEdit(doc.id)} className="text-brand-600 hover:underline text-xs flex items-center gap-1">
                         <Link2 className="h-3 w-3" /> Manage
                       </button>

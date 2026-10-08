@@ -334,7 +334,7 @@ export function ReportView({
       ) : (
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-gray-200 text-gray-500">
+            <tr className="border-b border-border text-left text-muted-foreground">
               <th className="py-1.5 text-left">Risk</th>
               <th className="py-1.5 text-left">Category</th>
               <th className="py-1.5 text-center">L</th>
@@ -374,7 +374,7 @@ export function ReportView({
       ) : (
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-gray-200 text-gray-500">
+            <tr className="border-b border-border text-left text-muted-foreground">
               <th className="py-1.5 text-left">Policy</th>
               <th className="py-1.5 text-left">Status</th>
               <th className="py-1.5 text-left">Version</th>
@@ -414,7 +414,7 @@ export function ReportView({
       ) : (
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-gray-200 text-gray-500">
+            <tr className="border-b border-border text-left text-muted-foreground">
               <th className="py-1.5 text-left">When</th>
               <th className="py-1.5 text-left">Who</th>
               <th className="py-1.5 text-left">Action</th>

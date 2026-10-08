@@ -197,26 +197,26 @@ export function FrameworkControlsClient({
 
       <div className="card !p-0 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full caption-bottom text-sm">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Code</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Title</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Owner</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Testing</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Coverage</th>
+              <tr className="border-b border-border">
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Code</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Title</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Owner</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Status</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Testing</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Coverage</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-border">
               {filteredControls.map((control) => {
                 const test = testBadge(control);
                 return (
-                  <tr key={control.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={control.id} className="transition-colors hover:bg-muted/50">
                     <td className="px-4 py-3 text-sm font-mono text-gray-700 whitespace-nowrap">
                       {control.code}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-middle">
                       <p className="text-sm text-gray-900">{control.title}</p>
                       {control.description && (
                         <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
@@ -241,7 +241,7 @@ export function FrameworkControlsClient({
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-middle">
                       {canEdit ? (
                         <select
                           disabled={pendingId === control.id}
@@ -264,7 +264,7 @@ export function FrameworkControlsClient({
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-middle">
                       {canEdit ? (
                         <select
                           disabled={pendingId === control.id}
@@ -292,7 +292,7 @@ export function FrameworkControlsClient({
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-middle">
                       <div className="flex items-center gap-1.5">
                         <span className={`text-xs font-medium ${test.color}`}>
                           {test.overdue && <Clock className="inline h-3 w-3 mr-0.5" />}
@@ -319,7 +319,7 @@ export function FrameworkControlsClient({
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-middle">
                       <div className="flex items-center gap-3 text-xs text-gray-500">
                         <Link
                           href={`/compliance/evidence?controlId=${control.id}`}

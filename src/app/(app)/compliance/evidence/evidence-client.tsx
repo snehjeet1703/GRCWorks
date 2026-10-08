@@ -367,7 +367,7 @@ export function EvidenceClient({
                   key={c.id}
                   type="button"
                   onClick={() => setControlId(c.id)}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 border-b border-border last:border-0"
                 >
                   <span className="font-mono text-xs text-gray-600 shrink-0">{c.code}</span>
                   <span className="text-sm text-gray-800 truncate">{c.title}</span>
@@ -384,7 +384,7 @@ export function EvidenceClient({
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Evidence</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Evidence</h1>
           <p className="mt-1 text-sm text-gray-500">
             Artifacts collected against your controls.
             {preselectedControlId && " Filtered to one control."}
@@ -466,24 +466,24 @@ export function EvidenceClient({
 
       <div className="card !p-0 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full caption-bottom text-sm">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Type</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">File / Policy</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Control</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Validity</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Reviewed</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Added by</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">Size</th>
-                <th className="px-4 py-3" />
+              <tr className="border-b border-border">
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Type</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">File / Policy</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Control</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Status</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Validity</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Reviewed</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Added by</th>
+                <th className="h-10 whitespace-nowrap px-4 text-right align-middle text-xs font-medium text-muted-foreground">Size</th>
+                <th className="h-10 px-4" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-border">
               {filteredEvidence.map((ev) => (
-                <tr key={ev.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3">
+                <tr key={ev.id} className="transition-colors hover:bg-muted/50">
+                  <td className="px-4 py-3 align-middle">
                     {ev.type === "POLICY" ? (
                       <span className="inline-flex items-center gap-1 rounded-md border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
                         <ScrollText className="h-3 w-3" />
@@ -496,7 +496,7 @@ export function EvidenceClient({
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 align-middle">
                     <p className="text-sm font-medium text-gray-900">{ev.fileName}</p>
                     {ev.policy && (
                       <span className="text-[10px] text-purple-600 capitalize">{ev.policy.status.toLowerCase()}</span>
@@ -509,7 +509,7 @@ export function EvidenceClient({
                     <span className="font-mono text-xs">{ev.control.code}</span>{" "}
                     <span className="text-gray-500">— {ev.control.title}</span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 align-middle">
                     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${evidenceStatusColor(ev.effectiveStatus)}`}>
                       {evidenceStatusIcon(ev.effectiveStatus)}
                       {ev.effectiveStatus.toLowerCase()}
@@ -664,7 +664,7 @@ export function EvidenceClient({
                           key={p.id}
                           type="button"
                           onClick={() => setPolicyId(p.id)}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 border-b border-border last:border-0"
                         >
                           <ScrollText className="h-3.5 w-3.5 text-purple-500 shrink-0" />
                           <span className="text-sm text-gray-800 truncate">{p.title}</span>

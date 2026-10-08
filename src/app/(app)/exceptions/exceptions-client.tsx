@@ -170,7 +170,7 @@ export function ExceptionsClient({
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Control Exceptions</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Control Exceptions</h1>
           <p className="mt-1 text-sm text-gray-500">
             {activeCount} active exception{activeCount !== 1 ? "s" : ""}
             {pendingCount > 0 && (
@@ -218,34 +218,34 @@ export function ExceptionsClient({
 
       <div className="card !p-0 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full caption-bottom text-sm">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Control</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valid period</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Requested by</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+              <tr className="border-b border-border">
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Control</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Reason</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Status</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Valid period</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Requested by</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-border">
               {filtered.map((ex) => {
                 const isExpired = new Date(ex.validUntil) < new Date() && ex.status === "APPROVED";
                 return (
                   <tr
                     key={ex.id}
-                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    className="transition-colors hover:bg-muted/50 cursor-pointer"
                     onClick={() => openEdit(ex)}
                   >
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-middle">
                       <p className="text-sm font-mono text-gray-700">{ex.control.code}</p>
                       <p className="text-xs text-gray-500">{ex.control.title}</p>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">
                       {ex.reason}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-middle">
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(isExpired ? "EXPIRED" : ex.status)}`}>
                         {humanLabel(isExpired ? "expired" : ex.status)}
                       </span>
@@ -256,7 +256,7 @@ export function ExceptionsClient({
                     <td className="px-4 py-3 text-sm text-gray-600">
                       {ex.requestedBy?.name ?? "—"}
                     </td>
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-3 align-middle" onClick={(e) => e.stopPropagation()}>
                       {canApprove && ex.status === "REQUESTED" && (
                         <div className="flex gap-1">
                           <button

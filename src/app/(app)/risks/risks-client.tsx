@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Plus, Pencil, Trash2, ChevronDown, ChevronRight, CheckCircle, History } from "lucide-react";
 import { getRiskScore, getRiskLevel, getRiskColor } from "@/lib/utils";
@@ -279,7 +279,7 @@ export function RisksClient({
     <div>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Risk register</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Risk register</h1>
           <p className="mt-1 text-sm text-gray-500">
             Identify, assess, and manage organizational risks.
           </p>
@@ -342,30 +342,30 @@ export function RisksClient({
 
       <div className="card overflow-hidden !p-0">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full caption-bottom text-sm">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-4 py-3 w-6" />
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Risk</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Controls</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wide">Inherent</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wide">Residual</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Treatment</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Owner</th>
-                {canEdit && <th className="px-4 py-3" />}
+              <tr className="border-b border-border">
+                <th className="h-10 px-4 w-6" />
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Risk</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Controls</th>
+                <th className="h-10 whitespace-nowrap px-4 text-center align-middle text-xs font-medium text-muted-foreground">Inherent</th>
+                <th className="h-10 whitespace-nowrap px-4 text-center align-middle text-xs font-medium text-muted-foreground">Residual</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Status</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Treatment</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Owner</th>
+                {canEdit && <th className="h-10 px-4" />}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-border">
               {filteredRisks.map((risk) => {
                 const score = getRiskScore(risk.likelihood, risk.impact);
                 const level = getRiskLevel(score);
                 const isExpanded = expandedRisk === risk.id;
                 const pendingActions = risk.actions.filter((a) => a.status === "PENDING" || a.status === "IN_PROGRESS").length;
                 return (
-                  <>
-                    <tr key={risk.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3">
+                  <Fragment key={risk.id}>
+                    <tr className="transition-colors hover:bg-muted/50">
+                      <td className="px-4 py-3 align-middle">
                         <button
                           onClick={() => setExpandedRisk(isExpanded ? null : risk.id)}
                           className="rounded p-0.5 text-gray-400 hover:text-gray-600"
@@ -373,13 +373,13 @@ export function RisksClient({
                           {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         </button>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 align-middle">
                         <p className="text-sm font-medium text-gray-900">{risk.title}</p>
                         <p className="text-xs text-gray-500">
                           {risk.category || "—"} · L {risk.likelihood}/5 · I {risk.impact}/5
                         </p>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 align-middle">
                         {risk.linkedControlCodes.length === 0 ? (
                           <span className="text-xs text-gray-400">None</span>
                         ) : (
@@ -416,7 +416,7 @@ export function RisksClient({
                           <p className="text-[10px] text-gray-400">residual</p>
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 align-middle">
                         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${riskStatusColor(risk.status)}`}>
                           {humanLabel(risk.status)}
                         </span>
@@ -496,7 +496,7 @@ export function RisksClient({
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>

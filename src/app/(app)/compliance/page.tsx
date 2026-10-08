@@ -28,7 +28,7 @@ export default async function CompliancePage() {
     <div>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Compliance</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Compliance</h1>
           <p className="mt-1 text-sm text-gray-500">
             Track your compliance posture across frameworks.
           </p>

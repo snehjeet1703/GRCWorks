@@ -73,6 +73,9 @@ const HREFS: Record<string, string> = {
 const VERBS: Record<string, string> = {
   CREATE: "created", UPDATE: "updated", DELETE: "deleted", APPROVE: "approved",
 };
+const MFA_PHRASES: Record<string, string> = {
+  CREATE: "enabled MFA", DELETE: "disabled MFA", LOGIN: "signed in with MFA",
+};
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function Panel({
@@ -492,7 +495,9 @@ export function DashboardClient({
                     <p className="leading-snug">
                       <span className="font-medium">{log.userName || "(deleted user)"}</span>{" "}
                       <span className="text-muted-foreground">
-                        {VERBS[log.action] ?? "acted on"} {ARTICLES[log.entityType] ?? "a"} {entity}
+                        {log.entityType === "MFA"
+                          ? MFA_PHRASES[log.action] ?? "updated MFA"
+                          : `${VERBS[log.action] ?? "acted on"} ${ARTICLES[log.entityType] ?? "a"} ${entity}`}
                       </span>
                       {log.entityName && (
                         <>

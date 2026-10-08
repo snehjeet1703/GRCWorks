@@ -99,7 +99,7 @@ export default async function FrameworkDetailPage({
 
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">{framework.name}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{framework.name}</h1>
           {framework.description && (
             <p className="mt-1 text-sm text-gray-500">{framework.description}</p>
           )}

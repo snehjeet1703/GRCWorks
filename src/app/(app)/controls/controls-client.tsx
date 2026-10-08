@@ -214,7 +214,7 @@ export function ControlsClient({
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Controls</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Controls</h1>
           <p className="mt-1 text-sm text-gray-500">
             {initialControls.length} control{initialControls.length !== 1 ? "s" : ""} total
           </p>
@@ -261,48 +261,48 @@ export function ControlsClient({
 
           <div className="card !p-0 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full caption-bottom text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <tr className="border-b border-border">
+                    <th className="h-10 w-px whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
                       Code
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="h-10 w-full min-w-[16rem] whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
                       Title
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
                       Owner
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
                       Status
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
                       Frequency
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
                       Applicability
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
                       Deps
                     </th>
                     {canEdit && (
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
                         Actions
                       </th>
                     )}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {filtered.map((c) => (
                     <tr
                       key={c.id}
-                      className="hover:bg-gray-50 transition-colors cursor-pointer"
+                      className="transition-colors hover:bg-muted/50 cursor-pointer"
                       onClick={() => canEdit ? openEdit(c) : undefined}
                     >
                       <td className="px-4 py-3 text-sm font-mono text-gray-700 whitespace-nowrap">
                         {c.code}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 align-middle">
                         <p className="text-sm text-gray-900">{c.title}</p>
                         {c.description && (
                           <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">
@@ -313,17 +313,17 @@ export function ControlsClient({
                       <td className="px-4 py-3 text-sm text-gray-600">
                         {c.ownerName || "—"}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 align-middle">
                         <span
                           className={`badge ${getControlStatusColor(c.status)}`}
                         >
                           {humanLabel(c.status)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 capitalize">
+                      <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 capitalize">
                         {humanLabel(c.frequency)}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 capitalize">
+                      <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 capitalize">
                         {humanLabel(c.applicability)}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500">
@@ -527,8 +527,7 @@ export function ControlsClient({
             }
             confirmLabel="Delete"
             onConfirm={handleDelete}
-            onCancel={() => setDeleteTarget(null)}
-            destructive
+            onClose={() => setDeleteTarget(null)}
           />
         </>
       )}

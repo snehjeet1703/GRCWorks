@@ -7,6 +7,7 @@ import { Modal, ConfirmDialog } from "@/components/modal";
 import { Field, TextInput, TextArea, Select, FormError } from "@/components/form";
 import { PasswordInput } from "@/components/password-input";
 import { useToast } from "@/components/toast";
+import { PageTabs } from "@/components/page-tabs";
 import { PERMISSION_CATEGORIES, type Permission } from "@/lib/permissions";
 
 type Org = { id: string; name: string; slug: string };
@@ -281,35 +282,19 @@ export function SettingsClient({
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Settings</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
         <p className="mt-1 text-sm text-gray-500">
           Manage your organization, team, and roles.
         </p>
       </div>
 
-      {/* Tab bar */}
-      <div className="flex gap-1 border-b border-gray-200 mb-6">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.key
-                ? "border-brand-600 text-brand-700"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
-          >
-            <tab.icon className="h-4 w-4" />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <PageTabs tabs={[...TABS]} activeTab={activeTab} onTabChange={(k) => setActiveTab(k as Tab)} />
 
       {/* ── Team Tab ── */}
       {activeTab === "team" && (
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-medium text-gray-900">Team members</h2>
+            <h2 className="font-semibold leading-none">Team members</h2>
             {canManageUsers && (
               <button className="btn-primary" onClick={openCreateUser}>
                 <Plus className="h-4 w-4 mr-2" />
@@ -318,16 +303,16 @@ export function SettingsClient({
             )}
           </div>
           <div className="overflow-hidden rounded-lg border border-gray-100">
-            <table className="w-full">
+            <table className="w-full caption-bottom text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Email</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Role</th>
-                  {canManageUsers && <th className="px-4 py-3" />}
+                <tr className="border-b border-border">
+                  <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Name</th>
+                  <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Email</th>
+                  <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Role</th>
+                  {canManageUsers && <th className="h-10 px-4" />}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {users.map((u) => (
                   <tr key={u.id}>
                     <td className="px-4 py-3 text-sm text-gray-900">
@@ -377,7 +362,7 @@ export function SettingsClient({
         <div className="card">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-base font-medium text-gray-900">Roles &amp; Permissions</h2>
+              <h2 className="font-semibold leading-none">Roles &amp; Permissions</h2>
               <p className="mt-0.5 text-xs text-gray-500">
                 Built-in roles ship with the platform. Create custom roles for your team&apos;s workflow.
               </p>
@@ -440,7 +425,7 @@ export function SettingsClient({
       {/* ── Organization Tab ── */}
       {activeTab === "org" && (
         <div className="card">
-          <h2 className="text-base font-medium text-gray-900 mb-4">Organization</h2>
+          <h2 className="font-semibold leading-none mb-4">Organization</h2>
           <form onSubmit={saveOrg} className="space-y-4 max-w-md">
             <FormError message={orgError} />
             {orgSaved && (
@@ -588,7 +573,7 @@ export function SettingsClient({
                     <button
                       type="button"
                       onClick={() => toggleCategory(cat.label)}
-                      className="flex items-center justify-between w-full px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors"
+                      className="flex items-center justify-between w-full px-4 py-2.5 text-sm transition-colors hover:bg-muted/50"
                     >
                       <div className="flex items-center gap-2">
                         {isExpanded ? (
@@ -617,7 +602,7 @@ export function SettingsClient({
                         {cat.permissions.map((perm) => (
                           <label
                             key={perm.key}
-                            className="flex items-start gap-3 cursor-pointer rounded-md px-3 py-2 hover:bg-gray-50 transition-colors"
+                            className="flex items-start gap-3 cursor-pointer rounded-md px-3 py-2 transition-colors hover:bg-muted/50"
                           >
                             <div className="pt-0.5">
                               <div
@@ -846,7 +831,7 @@ function SecurityTab({ canManageOrg, toast }: { canManageOrg: boolean; toast: Re
       {/* Org enforcement */}
       {canManageOrg && (
         <div className="card">
-          <h2 className="text-base font-medium text-gray-900 mb-1">Organization Policy</h2>
+          <h2 className="font-semibold leading-none mb-2">Organization Policy</h2>
           <p className="text-sm text-gray-500 mb-4">Require all users to set up MFA before accessing the platform.</p>
           <label className="flex items-center gap-3 cursor-pointer">
             <button
@@ -876,7 +861,7 @@ function SecurityTab({ canManageOrg, toast }: { canManageOrg: boolean; toast: Re
       {recoveryCodes && (
         <div className="card border-amber-200 bg-amber-50/50">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-medium text-gray-900">Recovery Codes</h2>
+            <h2 className="font-semibold leading-none">Recovery Codes</h2>
             <button
               onClick={() => {
                 navigator.clipboard.writeText(recoveryCodes.join("\n"));
@@ -908,7 +893,7 @@ function SecurityTab({ canManageOrg, toast }: { canManageOrg: boolean; toast: Re
 
       {/* Personal MFA */}
       <div className="card">
-        <h2 className="text-base font-medium text-gray-900 mb-1">Multi-Factor Authentication</h2>
+        <h2 className="font-semibold leading-none mb-2">Multi-Factor Authentication</h2>
         <p className="text-sm text-gray-500 mb-4">
           {mfaStatus.mfaEnabled
             ? `MFA is enabled using ${methodLabel[mfaStatus.mfaMethod] || mfaStatus.mfaMethod}.`

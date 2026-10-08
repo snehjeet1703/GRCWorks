@@ -325,7 +325,7 @@ export function QuestionnairesClient({
             <Link href="/vendors" className="text-gray-400 hover:text-gray-600 transition-colors">
               <ArrowLeft className="h-4 w-4" />
             </Link>
-            <h1 className="text-[22px] font-bold tracking-tight text-gray-900">
+            <h1 className="text-2xl font-bold tracking-tight">
               Vendor Questionnaires
             </h1>
           </div>

@@ -193,7 +193,7 @@ export function FindingsClient({
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Findings</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Findings</h1>
           <p className="mt-1 text-sm text-gray-500">
             {openCount} open finding{openCount !== 1 ? "s" : ""}
             {criticalCount > 0 && (
@@ -247,28 +247,28 @@ export function FindingsClient({
 
       <div className="card !p-0 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full caption-bottom text-sm">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Control</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Severity</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Owner</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+              <tr className="border-b border-border">
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Title</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Control</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Severity</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Status</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Owner</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Due</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Created</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-border">
               {filtered.map((f) => {
                 const overdue = f.dueDate && new Date(f.dueDate) < new Date() && f.status !== "CLOSED" && f.status !== "RESOLVED";
                 return (
                   <tr
                     key={f.id}
-                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    className="transition-colors hover:bg-muted/50 cursor-pointer"
                     onClick={() => canWrite ? openEdit(f) : undefined}
                   >
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-middle">
                       <p className="text-sm font-medium text-gray-900">{f.title}</p>
                       {f.description && (
                         <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{f.description}</p>
@@ -277,12 +277,12 @@ export function FindingsClient({
                     <td className="px-4 py-3 text-sm text-gray-600 font-mono">
                       {f.control?.code ?? "—"}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-middle">
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${severityColor(f.severity)}`}>
                         {humanLabel(f.severity)}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-middle">
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(f.status)}`}>
                         {humanLabel(f.status)}
                       </span>
