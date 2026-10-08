@@ -19,7 +19,7 @@ export function PageTabs({
   onTabChange: (key: string) => void;
 }) {
   return (
-    <div role="tablist" className="mb-6 inline-flex h-9 w-fit items-center rounded-lg bg-muted p-[3px] text-muted-foreground">
+    <div role="tablist" className="mb-6 inline-flex h-9 w-fit max-w-full items-center overflow-x-auto rounded-lg bg-muted p-[3px] text-muted-foreground">
       {tabs.map((tab) => (
         <button
           key={tab.key}

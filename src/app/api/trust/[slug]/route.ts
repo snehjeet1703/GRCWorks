@@ -32,12 +32,13 @@ export async function GET(
       : [];
 
     const now = new Date();
+    const activeDocs = {
+      configId: config.id, enabled: true,
+      OR: [{ validUntil: null }, { validUntil: { gt: now } }],
+    };
     const documents = config.showDocuments
       ? await prisma.trustVaultDocument.findMany({
-          where: {
-            configId: config.id, enabled: true, visibility: "PUBLIC",
-            OR: [{ validUntil: null }, { validUntil: { gt: now } }],
-          },
+          where: { ...activeDocs, visibility: "PUBLIC" },
           select: {
             id: true, name: true, description: true, category: true,
             permission: true, fileSize: true, visibility: true, validUntil: true,
@@ -46,11 +47,20 @@ export async function GET(
         })
       : [];
 
+    // Restricted files are listed by name so visitors know what to request; downloads stay token-gated.
+    const lockedDocuments = config.showDocuments
+      ? await prisma.trustVaultDocument.findMany({
+          where: { ...activeDocs, visibility: "ACCESS_REQUIRED" },
+          select: { id: true, name: true, category: true, visibility: true },
+          orderBy: { sortOrder: "asc" },
+        })
+      : [];
+
     const controls = config.showControls
-      ? await prisma.control.findMany({
-          where: { organizationId: org.id, status: "IMPLEMENTED" },
-          select: { id: true, code: true, title: true },
-          orderBy: [{ code: "asc" }],
+      ? await prisma.trustControl.findMany({
+          where: { configId: config.id, enabled: true },
+          select: { id: true, category: true, name: true },
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         })
       : [];
 
@@ -73,19 +83,14 @@ export async function GET(
         showControls: config.showControls,
         showSubprocessors: config.showSubprocessors,
         requireNda: config.requireNda,
+        hasLogo: !!config.logoStorageKey,
       },
       badges,
       documents,
+      lockedDocuments,
       controls,
       subprocessors,
-      hasRestrictedDocs: config.showDocuments
-        ? (await prisma.trustVaultDocument.count({
-            where: {
-              configId: config.id, enabled: true, visibility: "ACCESS_REQUIRED",
-              OR: [{ validUntil: null }, { validUntil: { gt: now } }],
-            },
-          })) > 0
-        : false,
+      hasRestrictedDocs: lockedDocuments.length > 0,
     });
   } catch (err) {
     console.error("[trust] error:", err);

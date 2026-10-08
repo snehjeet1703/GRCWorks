@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Settings, Award, FileText, Globe, Users, Plus, Trash2, Edit2,
   CheckCircle, XCircle, Clock, ExternalLink, Copy, Eye, Download,
-  Shield, Link2,
+  Shield, Link2, ListChecks, ImageUp, Sparkles,
 } from "lucide-react";
+import { TrustControlIcon } from "@/components/trust-control-icon";
 import { PageTabs, type TabDef } from "@/components/page-tabs";
 import { Modal, ConfirmDialog } from "@/components/modal";
 import { useToast } from "@/components/toast";
@@ -15,6 +16,7 @@ const TABS: TabDef[] = [
   { key: "settings", label: "Settings", icon: Settings },
   { key: "badges", label: "Compliance Badges", icon: Award },
   { key: "documents", label: "Documents", icon: FileText },
+  { key: "controls", label: "Controls", icon: ListChecks },
   { key: "subprocessors", label: "Sub-processors", icon: Globe },
   { key: "requests", label: "Access Requests", icon: Users },
   { key: "nda", label: "NDA", icon: Shield },
@@ -32,6 +34,15 @@ type Config = {
   showControls: boolean;
   showSubprocessors: boolean;
   requireNda: boolean;
+  logoStorageKey: string | null;
+};
+
+type TrustControl = {
+  id: string;
+  category: string;
+  name: string;
+  enabled: boolean;
+  sortOrder: number;
 };
 
 type Badge = {
@@ -91,24 +102,27 @@ export function TrustVaultClient({ canManage, orgSlug }: { canManage: boolean; o
   const [badges, setBadges] = useState<Badge[]>([]);
   const [docs, setDocs] = useState<Doc[]>([]);
   const [subs, setSubs] = useState<SubProcessor[]>([]);
+  const [controls, setControls] = useState<TrustControl[]>([]);
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [c, b, d, s, r] = await Promise.all([
+      const [c, b, d, s, r, ctl] = await Promise.all([
         fetch("/api/trust-vault/config").then((r) => r.json()),
         fetch("/api/trust-vault/badges").then((r) => r.json()),
         fetch("/api/trust-vault/documents").then((r) => r.json()),
         fetch("/api/trust-vault/subprocessors").then((r) => r.json()),
         fetch("/api/trust-vault/access-requests").then((r) => r.json()),
+        fetch("/api/trust-vault/controls").then((r) => r.json()),
       ]);
       setConfig(c);
       setBadges(b);
       setDocs(d);
       setSubs(s);
       setRequests(Array.isArray(r) ? r : []);
+      setControls(Array.isArray(ctl) ? ctl : []);
     } catch {
       toast.error("Failed to load trust vault data");
     } finally {
@@ -118,7 +132,7 @@ export function TrustVaultClient({ canManage, orgSlug }: { canManage: boolean; o
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading) {
+  if (loading && !config) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-600 border-t-transparent" />
@@ -157,6 +171,9 @@ export function TrustVaultClient({ canManage, orgSlug }: { canManage: boolean; o
       )}
       {tab === "documents" && (
         <DocumentsTab docs={docs} canManage={canManage} onRefresh={load} toast={toast} />
+      )}
+      {tab === "controls" && (
+        <ControlsTab controls={controls} canManage={canManage} onRefresh={load} toast={toast} />
       )}
       {tab === "subprocessors" && (
         <SubprocessorsTab subs={subs} canManage={canManage} onRefresh={load} toast={toast} />
@@ -237,6 +254,8 @@ function SettingsTab({ config, canManage, onSave, toast }: {
         </div>
       </div>
 
+      <LogoCard hasLogo={!!config.logoStorageKey} canManage={canManage} onChange={onSave} toast={toast} />
+
       <div className="rounded-lg border border-gray-200 p-6 space-y-4">
         <h3 className="font-medium text-gray-900">Hero Section</h3>
         <div>
@@ -316,6 +335,84 @@ function SettingsTab({ config, canManage, onSave, toast }: {
           {saving ? "Saving..." : "Save Settings"}
         </button>
       )}
+    </div>
+  );
+}
+
+function LogoCard({ hasLogo, canManage, onChange, toast }: {
+  hasLogo: boolean; canManage: boolean; onChange: () => void; toast: any;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [version, setVersion] = useState(() => Date.now());
+
+  const upload = async (file: File) => {
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/trust-vault/logo", { method: "POST", body });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      setVersion(Date.now());
+      toast.success("Logo updated");
+      onChange();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/trust-vault/logo", { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.success("Logo removed");
+      onChange();
+    } catch {
+      toast.error("Failed to remove logo");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-gray-200 p-6">
+      <h3 className="font-medium text-gray-900">Logo</h3>
+      <p className="mb-4 text-sm text-gray-500">Shown in the trust page header. PNG, JPEG or WebP, up to 1MB.</p>
+      <div className="flex items-center gap-4">
+        <div className="flex h-16 w-40 items-center justify-center rounded-md border border-dashed border-gray-300 bg-gray-50 p-2">
+          {hasLogo ? (
+            <img src={`/api/trust-vault/logo?v=${version}`} alt="Current logo" className="max-h-full max-w-full object-contain" />
+          ) : (
+            <span className="text-xs text-gray-400">No logo</span>
+          )}
+        </div>
+        {canManage && (
+          <div className="flex gap-2">
+            <label className={`btn-secondary btn-sm cursor-pointer ${busy ? "pointer-events-none opacity-50" : ""}`}>
+              <ImageUp className="h-4 w-4" /> {hasLogo ? "Replace" : "Upload"}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="sr-only"
+                disabled={busy}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) upload(f);
+                }}
+              />
+            </label>
+            {hasLogo && (
+              <button type="button" onClick={remove} disabled={busy} className="btn-ghost btn-sm text-red-600">
+                Remove
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -753,6 +850,211 @@ function SubprocessorsTab({ subs, canManage, onRefresh, toast }: {
       </Modal>
 
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={remove} title="Delete Sub-processor" message={`Delete "${deleting?.name}"?`} />
+    </div>
+  );
+}
+
+// ─── Controls Tab ────────────────────────────────────────────
+
+function ControlsTab({ controls, canManage, onRefresh, toast }: {
+  controls: TrustControl[]; canManage: boolean; onRefresh: () => void; toast: any;
+}) {
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState<TrustControl | null>(null);
+  const [deleting, setDeleting] = useState<TrustControl | null>(null);
+  const [form, setForm] = useState({ category: "", name: "" });
+  const [busy, setBusy] = useState(false);
+
+  const categories = [...new Set(controls.map((c) => c.category))];
+  const visibleCount = controls.filter((c) => c.enabled).length;
+
+  const openCreate = (category = "") => {
+    setEditing(null);
+    setForm({ category, name: "" });
+    setShowModal(true);
+  };
+  const openEdit = (c: TrustControl) => {
+    setEditing(c);
+    setForm({ category: c.category, name: c.name });
+    setShowModal(true);
+  };
+
+  const request = async (url: string, method: string, body?: unknown) => {
+    const res = await fetch(url, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  };
+
+  const save = async () => {
+    try {
+      if (editing) await request(`/api/trust-vault/controls/${editing.id}`, "PUT", form);
+      else {
+        const sortOrder = Math.max(0, ...controls.map((c) => c.sortOrder)) + 1;
+        await request("/api/trust-vault/controls", "POST", { ...form, sortOrder });
+      }
+      toast.success(editing ? "Control updated" : "Control added");
+      setShowModal(false);
+      onRefresh();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const toggle = async (c: TrustControl) => {
+    try {
+      await request(`/api/trust-vault/controls/${c.id}`, "PUT", { enabled: !c.enabled });
+      onRefresh();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const remove = async () => {
+    if (!deleting) return;
+    try {
+      await request(`/api/trust-vault/controls/${deleting.id}`, "DELETE");
+      toast.success("Control deleted");
+      setDeleting(null);
+      onRefresh();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const loadSuggested = async () => {
+    setBusy(true);
+    try {
+      const { created } = await request("/api/trust-vault/controls/suggested", "POST");
+      toast.success(`Added ${created} suggested controls (hidden until you switch them on)`);
+      onRefresh();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-gray-500">
+          Security practices shown publicly, grouped by category.{" "}
+          {controls.length > 0 && <>{visibleCount} of {controls.length} visible.</>}
+        </p>
+        {canManage && controls.length > 0 && (
+          <button onClick={() => openCreate()} className="btn-primary">
+            <Plus className="h-4 w-4" /> Add control
+          </button>
+        )}
+      </div>
+
+      {controls.length === 0 && (
+        <div className="rounded-xl border border-dashed border-gray-300 px-6 py-12 text-center">
+          <ListChecks className="mx-auto h-8 w-8 text-gray-300" />
+          <p className="mt-3 font-medium text-gray-900">No public controls yet</p>
+          <p className="mx-auto mt-1 max-w-md text-sm text-gray-500">
+            Start from a suggested list of common practices. They&apos;re added hidden: switch on only the ones that are true for your organisation.
+          </p>
+          {canManage && (
+            <div className="mt-5 flex justify-center gap-2">
+              <button onClick={loadSuggested} disabled={busy} className="btn-primary">
+                <Sparkles className="h-4 w-4" /> {busy ? "Adding…" : "Load suggested controls"}
+              </button>
+              <button onClick={() => openCreate()} className="btn-secondary">
+                <Plus className="h-4 w-4" /> Add manually
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {categories.map((category) => (
+          <section key={category} className="rounded-xl border border-gray-200 p-4">
+            <header className="mb-3 flex items-center gap-2">
+              <TrustControlIcon category={category} className="h-4 w-4 text-gray-500" />
+              <h3 className="flex-1 font-medium text-gray-900">{category}</h3>
+              {canManage && (
+                <button onClick={() => openCreate(category)} className="btn-ghost btn-sm h-7 px-2" aria-label={`Add control to ${category}`}>
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </header>
+            <ul className="divide-y divide-gray-100">
+              {controls.filter((c) => c.category === category).map((c) => (
+                <li key={c.id} className="flex items-center gap-2 py-2">
+                  <span className={`flex-1 text-sm ${c.enabled ? "text-gray-900" : "text-gray-400"}`}>{c.name}</span>
+                  {canManage ? (
+                    <>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={c.enabled}
+                        aria-label={`${c.enabled ? "Hide" : "Show"} ${c.name} on the public page`}
+                        title={c.enabled ? "Visible on the public page" : "Hidden from the public page"}
+                        onClick={() => toggle(c)}
+                        className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${c.enabled ? "bg-emerald-500" : "bg-gray-300"}`}
+                      >
+                        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${c.enabled ? "left-[18px]" : "left-0.5"}`} />
+                      </button>
+                      <button onClick={() => openEdit(c)} className="rounded p-1 text-gray-400 hover:text-gray-700" aria-label={`Edit ${c.name}`}>
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => setDeleting(c)} className="rounded p-1 text-gray-400 hover:text-red-600" aria-label={`Delete ${c.name}`}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  ) : (
+                    !c.enabled && <span className="text-xs text-gray-400">hidden</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={editing ? "Edit control" : "Add control"}>
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="tc-category" className="mb-1 block text-sm font-medium text-gray-700">Category *</label>
+            <input
+              id="tc-category"
+              list="tc-categories"
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+              className="input"
+              placeholder="e.g. Data Security"
+            />
+            <datalist id="tc-categories">
+              {categories.map((c) => <option key={c} value={c} />)}
+            </datalist>
+          </div>
+          <div>
+            <label htmlFor="tc-name" className="mb-1 block text-sm font-medium text-gray-700">Control *</label>
+            <input
+              id="tc-name"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="input"
+              placeholder="e.g. Encryption at rest"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
+            <button onClick={save} disabled={!form.category.trim() || !form.name.trim()} className="btn-primary">
+              {editing ? "Update" : "Add"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={remove} title="Delete control" message={`Delete "${deleting?.name}"?`} />
     </div>
   );
 }

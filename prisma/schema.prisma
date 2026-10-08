@@ -799,6 +799,8 @@ model TrustVaultConfig {
   showControls      Boolean  @default(true) @map("show_controls")
   showSubprocessors Boolean  @default(true) @map("show_subprocessors")
   requireNda        Boolean  @default(false) @map("require_nda")
+  logoStorageKey    String?  @map("logo_storage_key")
+  logoMimeType      String?  @map("logo_mime_type")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
@@ -806,6 +808,7 @@ model TrustVaultConfig {
   badges            TrustComplianceBadge[]
   documents         TrustVaultDocument[]
   subprocessors     TrustSubprocessor[]
+  trustControls     TrustControl[]
   accessRequests    TrustAccessRequest[]
   ndas              TrustNda[]
 
@@ -858,6 +861,21 @@ model TrustVaultDocument {
 
   @@index([configId])
   @@map("trust_vault_documents")
+}
+
+// Curated, public-facing security practices shown on the trust page (not framework controls).
+model TrustControl {
+  id        String  @id @default(uuid())
+  configId  String  @map("config_id")
+  category  String
+  name      String
+  enabled   Boolean @default(true)
+  sortOrder Int     @default(0) @map("sort_order")
+
+  config TrustVaultConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  @@index([configId])
+  @@map("trust_controls")
 }
 
 model TrustSubprocessor {
