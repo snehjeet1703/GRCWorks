@@ -5,11 +5,15 @@ import { prisma } from "@/lib/db";
 import { generateEmailOtp } from "@/lib/mfa";
 import { sendOtpEmail } from "@/lib/email";
 import { hash } from "bcryptjs";
+import { limitOrNull } from "@/lib/rate-limit";
 
 export async function POST() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const limited = limitOrNull(`mfa-email:${session.user.id}`, 3, 10 * 60 * 1000);
+    if (limited) return limited;
 
     const otp = generateEmailOtp();
     const hashedOtp = await hash(otp, 10);

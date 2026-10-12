@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { gatePendingEnrolment } from "@/lib/mfa-session";
 import { generateEmailOtp, generateRecoveryCodes, hashRecoveryCodes } from "@/lib/mfa";
 import { sendOtpEmail } from "@/lib/email";
 import { logAudit } from "@/lib/audit";
 import { hash, compare } from "bcryptjs";
 import { z } from "zod";
+import { limitOrNull } from "@/lib/rate-limit";
 
 const verifySchema = z.object({ code: z.string().length(6) });
 
@@ -14,6 +16,9 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const pendingGate = await gatePendingEnrolment(session.user as any);
+    if (pendingGate) return pendingGate;
 
     const body = await req.json().catch(() => ({}));
 
@@ -42,7 +47,10 @@ export async function POST(req: Request) {
 
       await prisma.user.update({
         where: { id: session.user.id },
-        data: { mfaEnabled: true, mfaMethod: "EMAIL_OTP", recoveryCodes: hashedCodes },
+        data: {
+          mfaEnabled: true, mfaMethod: "EMAIL_OTP", recoveryCodes: hashedCodes,
+          ...((session.user as any).mfaPending ? { mfaVerifiedAt: new Date() } : {}),
+        },
       });
 
       const user = await prisma.user.findUnique({
@@ -61,6 +69,9 @@ export async function POST(req: Request) {
 
       return NextResponse.json({ success: true, recoveryCodes: plainCodes });
     }
+
+    const limited = limitOrNull(`mfa-email:${session.user.id}`, 3, 10 * 60 * 1000);
+    if (limited) return limited;
 
     const otp = generateEmailOtp();
     const hashedOtp = await hash(otp, 10);

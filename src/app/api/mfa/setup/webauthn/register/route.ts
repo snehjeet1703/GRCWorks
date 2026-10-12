@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { gatePendingEnrolment } from "@/lib/mfa-session";
 import { verifyRegistrationResponse } from "@simplewebauthn/server";
 import { generateRecoveryCodes, hashRecoveryCodes } from "@/lib/mfa";
 import { logAudit } from "@/lib/audit";
@@ -19,6 +20,9 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const pendingGate = await gatePendingEnrolment(session.user as any);
+    if (pendingGate) return pendingGate;
 
     const body = await req.json();
     const { credential, deviceName } = schema.parse(body);
@@ -72,7 +76,10 @@ export async function POST(req: Request) {
       const hashedCodes = await hashRecoveryCodes(plainCodes);
       await prisma.user.update({
         where: { id: session.user.id },
-        data: { mfaEnabled: true, mfaMethod: "WEBAUTHN", recoveryCodes: hashedCodes },
+        data: {
+          mfaEnabled: true, mfaMethod: "WEBAUTHN", recoveryCodes: hashedCodes,
+          ...((session.user as any).mfaPending ? { mfaVerifiedAt: new Date() } : {}),
+        },
       });
       recoveryCodes = plainCodes;
     }

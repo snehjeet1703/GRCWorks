@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { clientIp, limitOrNull } from "@/lib/rate-limit";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
+    const limited = limitOrNull(`trust-page:${clientIp(req.headers)}`, 120, 60000);
+    if (limited) return limited;
+
     const { slug } = await params;
 
     const org = await prisma.organization.findUnique({

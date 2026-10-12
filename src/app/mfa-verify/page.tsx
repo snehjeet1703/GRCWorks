@@ -102,7 +102,14 @@ export default function MfaVerifyPage() {
   }
 
   if (mode === "setup") {
-    return <MfaSetupInline onComplete={() => router.push("/dashboard")} />;
+    return (
+      <MfaSetupInline
+        onComplete={async () => {
+          await updateSession({ mfaPending: false });
+          router.push("/dashboard");
+        }}
+      />
+    );
   }
 
   const method = status.mfaMethod;
@@ -244,7 +251,39 @@ export default function MfaVerifyPage() {
   );
 }
 
-function MfaSetupInline({ onComplete }: { onComplete: () => void }) {
+// Settings is unreachable until MFA passes, so org-mandated enrolment happens here.
+function MfaSetupInline({ onComplete }: { onComplete: () => Promise<void> }) {
+  const [setup, setSetup] = useState<{ qrCode: string; secret: string } | null>(null);
+  const [code, setCode] = useState("");
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const start = async () => {
+    setBusy(true);
+    setError("");
+    const res = await fetch("/api/mfa/setup/totp", { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) setSetup(data);
+    else setError(data.error || "Could not start setup");
+    setBusy(false);
+  };
+
+  const confirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    const res = await fetch("/api/mfa/setup/totp/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) setRecoveryCodes(data.recoveryCodes ?? []);
+    else setError(data.error || "Invalid code");
+    setBusy(false);
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
@@ -252,24 +291,52 @@ function MfaSetupInline({ onComplete }: { onComplete: () => void }) {
           <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500 shadow">
             <Shield className="h-6 w-6 text-white" />
           </div>
-          <h1 className="mt-5 text-xl font-semibold tracking-tight text-gray-900">
-            MFA Setup Required
-          </h1>
+          <h1 className="mt-5 text-xl font-semibold tracking-tight text-gray-900">MFA Setup Required</h1>
           <p className="mt-1.5 text-sm text-gray-500">
-            Your organization requires multi-factor authentication. Set up MFA to continue.
+            Your organization requires multi-factor authentication. Set up an authenticator app to continue.
           </p>
         </div>
-        <div className="card space-y-3">
-          <a
-            href="/settings"
-            className="flex items-center gap-3 rounded-lg border border-gray-200 p-4 hover:border-brand-300 hover:bg-brand-50/50 transition"
-          >
-            <Smartphone className="h-5 w-5 text-brand-600" />
-            <div>
-              <div className="font-medium text-gray-900 text-sm">Go to Settings</div>
-              <div className="text-xs text-gray-500">Set up MFA in the Security tab</div>
-            </div>
-          </a>
+        <div className="card space-y-4">
+          {recoveryCodes ? (
+            <>
+              <p className="text-sm text-gray-700">
+                MFA is enabled. Save these recovery codes somewhere safe: each works once if you lose your device.
+              </p>
+              <ul className="grid grid-cols-2 gap-2 rounded-md bg-gray-50 p-3 font-mono text-sm">
+                {recoveryCodes.map((c) => <li key={c}>{c}</li>)}
+              </ul>
+              <button onClick={() => { setBusy(true); onComplete(); }} disabled={busy} className="btn-primary w-full">
+                I&apos;ve saved them, continue
+              </button>
+            </>
+          ) : setup ? (
+            <form onSubmit={confirm} className="space-y-4">
+              <p className="text-sm text-gray-700">Scan this QR code with Google Authenticator, Microsoft Authenticator, 1Password or similar.</p>
+              <img src={setup.qrCode} alt="Authenticator QR code" className="mx-auto h-44 w-44" />
+              <p className="break-all text-center font-mono text-xs text-gray-500">{setup.secret}</p>
+              <input
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="6-digit code"
+                aria-label="Authentication code"
+                className="input text-center font-mono tracking-[0.4em]"
+              />
+              {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+              <button type="submit" disabled={busy || code.length !== 6} className="btn-primary w-full">
+                {busy ? "Verifying…" : "Verify and enable"}
+              </button>
+            </form>
+          ) : (
+            <>
+              {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+              <button onClick={start} disabled={busy} className="btn-primary w-full">
+                <Smartphone className="h-4 w-4" /> {busy ? "Starting…" : "Set up authenticator app"}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { compare } from "bcryptjs";
 import { logAudit } from "@/lib/audit";
 import { z } from "zod";
+import { limitOrNull } from "@/lib/rate-limit";
 
 const schema = z.object({ password: z.string().min(1) });
 
@@ -12,6 +13,11 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if ((session.user as any).mfaPending) {
+      return NextResponse.json({ error: "Complete MFA verification first" }, { status: 403 });
+    }
+    const limited = limitOrNull(`mfa-password:${session.user.id}`, 5, 15 * 60 * 1000);
+    if (limited) return limited;
 
     const body = await req.json();
     const { password } = schema.parse(body);

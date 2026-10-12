@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { clientIp, limitOrNull } from "@/lib/rate-limit";
 
 const acceptSchema = z.object({
   token: z.string().uuid(),
@@ -48,6 +49,9 @@ export async function POST(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
+    const limited = limitOrNull(`trust-nda:${clientIp(req.headers)}`, 20, 3600000);
+    if (limited) return limited;
+
     const { slug } = await params;
     const org = await prisma.organization.findUnique({ where: { slug } });
     if (!org) return NextResponse.json({ error: "Not found" }, { status: 404 });

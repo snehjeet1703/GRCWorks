@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { clientIp, limitOrNull } from "@/lib/rate-limit";
 
 const BLOCKED_DOMAINS = new Set([
   "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com",
@@ -20,6 +21,9 @@ export async function POST(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
+    const limited = limitOrNull(`trust-request:${clientIp(req.headers)}`, 5, 3600000);
+    if (limited) return limited;
+
     const { slug } = await params;
 
     const org = await prisma.organization.findUnique({ where: { slug } });

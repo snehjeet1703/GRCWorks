@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes, createHash } from "crypto";
+import { createCipheriv, createDecipheriv, randomBytes, randomInt, createHash } from "crypto";
 import { hash, compare } from "bcryptjs";
 import * as OTPAuth from "otpauth";
 
@@ -69,6 +69,5 @@ export async function verifyRecoveryCode(
 }
 
 export function generateEmailOtp(): string {
-  const num = Math.floor(100000 + Math.random() * 900000);
-  return num.toString();
+  return randomInt(100000, 1000000).toString();
 }

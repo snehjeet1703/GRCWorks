@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { clientIp, limitOrNull } from "@/lib/rate-limit";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
+    const limited = limitOrNull(`trust-verify:${clientIp(req.headers)}`, 30, 60000);
+    if (limited) return limited;
+
     const { slug } = await params;
     const { searchParams } = new URL(req.url);
     const token = searchParams.get("token");

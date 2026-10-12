@@ -5,6 +5,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { verifyTotpCode, decryptSecret, verifyRecoveryCode } from "@/lib/mfa";
 import { logAudit } from "@/lib/audit";
+import { limitOrNull } from "@/lib/rate-limit";
+import { markMfaVerified } from "@/lib/mfa-session";
 import { compare } from "bcryptjs";
 import { verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { z } from "zod";
@@ -21,6 +23,10 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // 6-digit codes are guessable without a tight cap.
+    const limited = limitOrNull(`mfa-verify:${session.user.id}`, 10, 15 * 60 * 1000);
+    if (limited) return limited;
 
     const body = await req.json();
     const method = body.method;
@@ -39,6 +45,9 @@ export async function POST(req: Request) {
       },
     });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (!user.mfaEnabled) {
+      return NextResponse.json({ error: "MFA is not set up for this account" }, { status: 400 });
+    }
 
     let verified = false;
     let auditMethod = method;
@@ -110,6 +119,8 @@ export async function POST(req: Request) {
     if (!verified) {
       return NextResponse.json({ error: "Invalid code" }, { status: 400 });
     }
+
+    await markMfaVerified(user.id);
 
     await logAudit({
       organizationId: user.organizationId,

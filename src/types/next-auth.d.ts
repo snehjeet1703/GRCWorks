@@ -23,5 +23,6 @@ declare module "next-auth/jwt" {
     organizationName: string;
     mfaPending?: boolean;
     mfaMethod?: string;
+    authTime?: number;
   }
 }

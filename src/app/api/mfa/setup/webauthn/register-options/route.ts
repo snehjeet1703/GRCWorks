@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { gatePendingEnrolment } from "@/lib/mfa-session";
 import { generateRegistrationOptions } from "@simplewebauthn/server";
 
 const RP_NAME = process.env.WEBAUTHN_RP_NAME || "GRC Platform";
@@ -11,6 +12,9 @@ export async function POST() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const pendingGate = await gatePendingEnrolment(session.user as any);
+    if (pendingGate) return pendingGate;
 
     const existingCreds = await prisma.webAuthnCredential.findMany({
       where: { userId: session.user.id },

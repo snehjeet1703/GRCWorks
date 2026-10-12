@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { readUpload } from "@/lib/storage";
+import { clientIp, limitOrNull } from "@/lib/rate-limit";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ slug: string; docId: string }> }
 ) {
   try {
+    const limited = limitOrNull(`trust-download:${clientIp(req.headers)}`, 120, 3600000);
+    if (limited) return limited;
+
     const { slug, docId } = await params;
     const { searchParams } = new URL(req.url);
     const token = searchParams.get("token");

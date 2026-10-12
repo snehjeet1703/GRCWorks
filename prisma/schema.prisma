@@ -96,6 +96,8 @@ model User {
   mfaMethod      MfaMethod? @map("mfa_method")
   totpSecret     String?    @map("totp_secret")
   totpVerifiedAt DateTime?  @map("totp_verified_at")
+  // Set by the server on a successful MFA check; the session's MFA gate only clears when this postdates login.
+  mfaVerifiedAt  DateTime?  @map("mfa_verified_at")
   recoveryCodes  Json?      @map("recovery_codes")
   createdAt      DateTime   @default(now()) @map("created_at")
   updatedAt      DateTime   @updatedAt @map("updated_at")

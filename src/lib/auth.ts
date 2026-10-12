@@ -4,6 +4,7 @@ import AzureADProvider from "next-auth/providers/azure-ad";
 import { compare } from "bcryptjs";
 import { prisma } from "./db";
 import { resolvePermissions } from "./permissions";
+import { clientIp, rateLimit } from "./rate-limit";
 
 const PLACEHOLDER_SECRETS = new Set([
   "generate-a-random-secret-here",
@@ -24,6 +25,17 @@ if (process.env.NODE_ENV === "production") {
   );
 }
 
+// SSO auto-provisions users, so it must be pinned to the organisation's own tenant.
+// Multi-tenant authorities would let any Microsoft account in.
+const azureTenant = process.env.AZURE_AD_TENANT_ID?.trim().toLowerCase() ?? "";
+const azureSsoEnabled =
+  !!process.env.AZURE_AD_CLIENT_ID && !!azureTenant && !["common", "organizations", "consumers"].includes(azureTenant);
+if (process.env.AZURE_AD_CLIENT_ID && !azureSsoEnabled) {
+  console.error(
+    "[auth] Microsoft SSO disabled: AZURE_AD_TENANT_ID must be your organisation's tenant ID, not common/organizations/consumers."
+  );
+}
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
@@ -32,7 +44,7 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
   providers: [
-    ...(process.env.AZURE_AD_CLIENT_ID
+    ...(azureSsoEnabled
       ? [
           AzureADProvider({
             clientId: process.env.AZURE_AD_CLIENT_ID!,
@@ -47,13 +59,15 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const { rateLimit } = await import("./rate-limit");
-        const key = `login:${credentials.email.toLowerCase()}`;
-        const { ok } = rateLimit(key, 10, 15 * 60 * 1000);
-        if (!ok) return null;
+        // Per-account limit stops guessing one password; per-IP limit stops credential stuffing across accounts.
+        const window = 15 * 60 * 1000;
+        const ip = clientIp((req?.headers ?? {}) as Record<string, string>);
+        const byAccount = rateLimit(`login:${credentials.email.toLowerCase()}`, 10, window);
+        const byIp = rateLimit(`login-ip:${ip}`, 30, window);
+        if (!byAccount.ok || !byIp.ok) return null;
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
@@ -140,8 +154,10 @@ export const authOptions: NextAuthOptions = {
           token.frameworkScopeIds = resolved.frameworkScopeIds;
           token.mfaPending = false;
           token.mfaMethod = dbUser.mfaMethod as any;
+          token.authTime = Date.now();
         }
       } else if (user) {
+        token.authTime = Date.now();
         token.role = (user as any).role;
         token.roleId = (user as any).roleId;
         token.organizationId = (user as any).organizationId;
@@ -152,9 +168,18 @@ export const authOptions: NextAuthOptions = {
         token.mfaPending = (user as any).mfaPending;
         token.mfaMethod = (user as any).mfaMethod;
       }
-      if (trigger === "update" && session) {
-        if (session.mfaPending !== undefined) token.mfaPending = session.mfaPending;
-        if (session.mfaMethod !== undefined) token.mfaMethod = session.mfaMethod;
+      // The browser can only *ask* to clear the MFA gate; it clears only if the server
+      // recorded a successful MFA check after this login (see markMfaVerified).
+      if (trigger === "update" && session?.mfaPending === false && token.mfaPending && token.sub) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.sub },
+          select: { mfaVerifiedAt: true, mfaMethod: true },
+        });
+        const authTime = typeof token.authTime === "number" ? token.authTime : Infinity;
+        if (dbUser?.mfaVerifiedAt && dbUser.mfaVerifiedAt.getTime() >= authTime) {
+          token.mfaPending = false;
+          token.mfaMethod = dbUser.mfaMethod as any;
+        }
       }
       return token;
     },

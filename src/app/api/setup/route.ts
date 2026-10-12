@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { handleError, HttpError, parseBody } from "@/lib/api";
 import { ensureBuiltInRoles } from "@/lib/built-in-roles";
 import { slugify } from "@/lib/install-slug";
+import { clientIp, limitOrNull } from "@/lib/rate-limit";
 
 const setupSchema = z.object({
   organizationName: z.string().trim().min(2).max(120),
@@ -18,6 +19,9 @@ const SETUP_LOCK_KEY = 815_001;
 
 export async function POST(req: Request) {
   try {
+    const limited = limitOrNull(`setup:${clientIp(req.headers)}`, 5, 3600000);
+    if (limited) return limited;
+
     const data = await parseBody(req, setupSchema);
     const passwordHash = await hash(data.password, 12);
 

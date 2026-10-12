@@ -1,20 +1,23 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { generateTotpSecret, encryptSecret } from "@/lib/mfa";
+import { forbidIfPendingWithExistingMfa, getMfaSessionUser } from "@/lib/mfa-session";
 import QRCode from "qrcode";
 
 export async function POST() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getMfaSessionUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { secret, uri } = generateTotpSecret(session.user.email);
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id }, select: { mfaEnabled: true } });
+    const blocked = forbidIfPendingWithExistingMfa(user, !!dbUser?.mfaEnabled);
+    if (blocked) return blocked;
+
+    const { secret, uri } = generateTotpSecret(user.email);
     const qrCode = await QRCode.toDataURL(uri);
 
     await prisma.user.update({
-      where: { id: session.user.id },
+      where: { id: user.id },
       data: { totpSecret: encryptSecret(secret) },
     });
 

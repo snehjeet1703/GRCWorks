@@ -23,6 +23,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     const { status, documentIds } = await parseBody(req, reviewSchema);
 
+    const grantIds = [...new Set(documentIds ?? [])];
+    if (grantIds.length > 0) {
+      const owned = await prisma.trustVaultDocument.count({
+        where: { id: { in: grantIds }, configId: existing.configId },
+      });
+      if (owned !== grantIds.length) throw new HttpError(400, "Unknown document in grant");
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
       const data: any = {
         status,
