@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { hashTrustToken } from "@/lib/trust-token";
 import { readUpload } from "@/lib/storage";
 import { clientIp, limitOrNull } from "@/lib/rate-limit";
 
@@ -48,7 +49,7 @@ export async function GET(
       const accessRequest = await prisma.trustAccessRequest.findFirst({
         where: {
           configId: config.id,
-          accessToken: token,
+          accessTokenHash: hashTrustToken(token),
           status: "APPROVED",
           documentAccess: { some: { documentId: docId } },
         },

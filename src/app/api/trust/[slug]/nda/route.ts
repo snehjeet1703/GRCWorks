@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { hashTrustToken } from "@/lib/trust-token";
 import { clientIp, limitOrNull } from "@/lib/rate-limit";
 
 const acceptSchema = z.object({
@@ -71,7 +72,7 @@ export async function POST(
     }
 
     const accessRequest = await prisma.trustAccessRequest.findFirst({
-      where: { configId: config.id, accessToken: data.token, status: "APPROVED" },
+      where: { configId: config.id, accessTokenHash: hashTrustToken(data.token), status: "APPROVED" },
     });
     if (!accessRequest) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });

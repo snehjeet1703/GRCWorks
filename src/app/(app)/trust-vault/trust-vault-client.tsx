@@ -88,7 +88,8 @@ type AccessRequest = {
   company: string;
   reason: string;
   status: "PENDING" | "APPROVED" | "DENIED";
-  accessToken: string | null;
+  linkIssued: boolean;
+  tokenExpiresAt: string | null;
   createdAt: string;
   reviewedAt: string | null;
   documentAccess: { documentId: string; document: { name: string } }[];
@@ -180,6 +181,7 @@ export function TrustVaultClient({ canManage, orgSlug }: { canManage: boolean; o
       )}
       {tab === "requests" && (
         <AccessRequestsTab
+          orgSlug={orgSlug}
           requests={requests}
           docs={docs}
           canManage={canManage}
@@ -1061,32 +1063,55 @@ function ControlsTab({ controls, canManage, onRefresh, toast }: {
 
 // ─── Access Requests Tab ─────────────────────────────────────
 
-function AccessRequestsTab({ requests, docs, canManage, onRefresh, toast }: {
-  requests: AccessRequest[]; docs: Doc[]; canManage: boolean; onRefresh: () => void; toast: any;
+function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toast }: {
+  orgSlug: string; requests: AccessRequest[]; docs: Doc[]; canManage: boolean; onRefresh: () => void; toast: any;
 }) {
   const [reviewing, setReviewing] = useState<AccessRequest | null>(null);
   const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
   const [filter, setFilter] = useState<"ALL" | "PENDING" | "APPROVED" | "DENIED">("ALL");
+  const [issuedLink, setIssuedLink] = useState<{ email: string; url: string } | null>(null);
 
   const openReview = (r: AccessRequest) => {
     setReviewing(r);
     setSelectedDocs(r.documentAccess.map((da) => da.documentId));
   };
 
+  const submitReview = async (request: AccessRequest, status: "APPROVED" | "DENIED", documentIds: string[]) => {
+    const res = await fetch(`/api/trust-vault/access-requests/${request.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, documentIds: status === "APPROVED" ? documentIds : [] }),
+    });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    // The server keeps only a hash, so this response is the only time the link is available.
+    if (status === "APPROVED" && data.accessToken) {
+      setIssuedLink({
+        email: request.email,
+        url: `${window.location.origin}/trust/${orgSlug}?token=${encodeURIComponent(data.accessToken)}`,
+      });
+    }
+  };
+
   const review = async (status: "APPROVED" | "DENIED") => {
     if (!reviewing) return;
     try {
-      const res = await fetch(`/api/trust-vault/access-requests/${reviewing.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, documentIds: status === "APPROVED" ? selectedDocs : [] }),
-      });
-      if (!res.ok) throw new Error();
+      await submitReview(reviewing, status, selectedDocs);
       toast.success(`Request ${status.toLowerCase()}`);
       setReviewing(null);
       onRefresh();
     } catch {
       toast.error("Failed to update request");
+    }
+  };
+
+  const reissueLink = async (r: AccessRequest) => {
+    if (!confirm(`Issue a new access link for ${r.email}? Their previous link will stop working.`)) return;
+    try {
+      await submitReview(r, "APPROVED", r.documentAccess.map((da) => da.documentId));
+      onRefresh();
+    } catch {
+      toast.error("Failed to issue a new link");
     }
   };
 
@@ -1120,15 +1145,17 @@ function AccessRequestsTab({ requests, docs, canManage, onRefresh, toast }: {
                 <p className="text-sm text-gray-500 mt-0.5">{r.email}</p>
                 <p className="text-xs text-gray-400">{r.company} &middot; {new Date(r.createdAt).toLocaleDateString()}</p>
                 {r.reason && <p className="text-sm text-gray-600 mt-2">{r.reason}</p>}
-                {r.accessToken && r.status === "APPROVED" && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <code className="bg-gray-50 px-2 py-1 rounded text-xs text-gray-600 font-mono">{r.accessToken.slice(0, 12)}...</code>
-                    <button
-                      onClick={() => { navigator.clipboard.writeText(r.accessToken!); toast.success("Token copied"); }}
-                      className="text-gray-400 hover:text-gray-600"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </button>
+                {r.linkIssued && r.status === "APPROVED" && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                    <span>
+                      Access link issued
+                      {r.tokenExpiresAt && <> · expires {new Date(r.tokenExpiresAt).toLocaleDateString()}</>}
+                    </span>
+                    {canManage && (
+                      <button onClick={() => reissueLink(r)} className="font-medium text-brand-600 hover:text-brand-800">
+                        New link
+                      </button>
+                    )}
                   </div>
                 )}
                 {r.documentAccess.length > 0 && (
@@ -1168,6 +1195,27 @@ function AccessRequestsTab({ requests, docs, canManage, onRefresh, toast }: {
         ))}
       </div>
       {filtered.length === 0 && <div className="text-center py-12 text-gray-500">No access requests.</div>}
+
+      <Modal open={!!issuedLink} onClose={() => setIssuedLink(null)} title="Access link">
+        {issuedLink && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Send this link to <strong>{issuedLink.email}</strong>. For security it is shown only once; if it&apos;s
+              lost, use <em>New link</em> to issue a replacement.
+            </p>
+            <input readOnly value={issuedLink.url} onFocus={(e) => e.target.select()} aria-label="Access link" className="input font-mono text-xs" />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setIssuedLink(null)} className="btn-secondary">Done</button>
+              <button
+                onClick={() => { navigator.clipboard.writeText(issuedLink.url); toast.success("Link copied"); }}
+                className="btn-primary"
+              >
+                <Copy className="h-4 w-4" /> Copy link
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal open={!!reviewing} onClose={() => setReviewing(null)} title="Review Access Request" size="lg">
         {reviewing && (

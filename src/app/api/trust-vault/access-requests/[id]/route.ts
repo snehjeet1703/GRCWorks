@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { randomUUID } from "crypto";
+import { generateTrustToken, hashTrustToken } from "@/lib/trust-token";
 import { prisma } from "@/lib/db";
 import { handleError, HttpError, parseBody, requirePermission } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
@@ -31,6 +31,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       if (owned !== grantIds.length) throw new HttpError(400, "Unknown document in grant");
     }
 
+    // Only the hash is stored; the plain token is returned once so the admin can send the link.
+    const plainToken = status === "APPROVED" ? generateTrustToken() : null;
+
     const updated = await prisma.$transaction(async (tx) => {
       const data: any = {
         status,
@@ -39,7 +42,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       };
 
       if (status === "APPROVED") {
-        data.accessToken = randomUUID();
+        data.accessTokenHash = hashTrustToken(plainToken!);
         data.tokenExpiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
 
         await tx.trustDocumentAccess.deleteMany({ where: { accessRequestId: id } });
@@ -52,7 +55,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           });
         }
       } else if (status === "DENIED") {
-        data.accessToken = null;
+        data.accessTokenHash = null;
         data.tokenExpiresAt = null;
         await tx.trustDocumentAccess.deleteMany({ where: { accessRequestId: id } });
       }
@@ -68,7 +71,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       afterJson: { status, email: existing.email, documentIds },
     });
 
-    return NextResponse.json(updated);
+    const { accessTokenHash, ...safe } = updated;
+    return NextResponse.json({ ...safe, linkIssued: !!accessTokenHash, accessToken: plainToken });
   } catch (err) {
     return handleError(err);
   }

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { isInstalled } from "@/lib/install";
-import { authOptions } from "@/lib/auth";
+import { azureSsoEnabled } from "@/lib/sso-config";
 import { LoginForm } from "./login-form";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ export default async function LoginPage() {
   return (
     <LoginForm
       demoMode={process.env.DEMO_MODE === "true"}
-      microsoftSso={authOptions.providers.some((p) => p.id === "azure-ad")}
+      microsoftSso={azureSsoEnabled}
     />
   );
 }

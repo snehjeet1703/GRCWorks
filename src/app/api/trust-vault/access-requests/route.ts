@@ -21,7 +21,9 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(requests);
+    return NextResponse.json(
+      requests.map(({ accessTokenHash, ...r }) => ({ ...r, linkIssued: !!accessTokenHash }))
+    );
   } catch (err) {
     return handleError(err);
   }

@@ -5,6 +5,7 @@ import { compare } from "bcryptjs";
 import { prisma } from "./db";
 import { resolvePermissions } from "./permissions";
 import { clientIp, rateLimit } from "./rate-limit";
+import { azureSsoEnabled } from "./sso-config";
 
 const PLACEHOLDER_SECRETS = new Set([
   "generate-a-random-secret-here",
@@ -25,20 +26,15 @@ if (process.env.NODE_ENV === "production") {
   );
 }
 
-// SSO auto-provisions users, so it must be pinned to the organisation's own tenant.
-// Multi-tenant authorities would let any Microsoft account in.
-const azureTenant = process.env.AZURE_AD_TENANT_ID?.trim().toLowerCase() ?? "";
-const azureSsoEnabled =
-  !!process.env.AZURE_AD_CLIENT_ID && !!azureTenant && !["common", "organizations", "consumers"].includes(azureTenant);
-if (process.env.AZURE_AD_CLIENT_ID && !azureSsoEnabled) {
-  console.error(
-    "[auth] Microsoft SSO disabled: AZURE_AD_TENANT_ID must be your organisation's tenant ID, not common/organizations/consumers."
-  );
-}
+const sessionHours = Number(process.env.SESSION_MAX_AGE_HOURS);
+const sessionMaxAgeSeconds = Math.round((sessionHours > 0 && sessionHours <= 720 ? sessionHours : 12) * 3600);
 
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
+    maxAge: sessionMaxAgeSeconds,
+    // updateAge >= maxAge disables rolling renewal, so sessions end a fixed time after sign-in.
+    updateAge: sessionMaxAgeSeconds,
   },
   pages: {
     signIn: "/login",

@@ -904,7 +904,7 @@ model TrustAccessRequest {
   company        String             @default("")
   reason         String             @default("")
   status         TrustAccessStatus  @default(PENDING)
-  accessToken    String?            @unique @map("access_token")
+  accessTokenHash String?           @unique @map("access_token_hash")
   tokenExpiresAt DateTime?          @map("token_expires_at")
   reviewedAt     DateTime?          @map("reviewed_at")
   reviewedBy     String?            @map("reviewed_by")
