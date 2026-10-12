@@ -44,6 +44,8 @@ Those are what expensive incumbents bolt on to justify enterprise pricing. Skipp
 
 For every hosted path: point the "Deploy to Render/Railway" button at your fork of this repo, then set `NEXTAUTH_URL` to the URL the platform gives you. The Postgres URL and `NEXTAUTH_SECRET` are provisioned automatically.
 
+**First run.** Each deployment serves one organisation. On a fresh database, open the app and you'll be taken to `/setup` to name your organisation and create the first administrator; the onboarding wizard then builds your compliance program. `/setup` locks itself once used — invite everyone else from **Settings → Team**.
+
 ## Local quick start
 
 ```bash
@@ -57,16 +59,12 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
 
 docker compose up -d          # starts Postgres
 npx prisma migrate deploy     # applies migrations
-npx prisma db seed            # seeds 6 frameworks + demo org
 npm run dev
 ```
 
-Open <http://localhost:3000> and sign in with:
+Open <http://localhost:3000>: you'll land on `/setup` to create your organisation and admin account.
 
-- **Email:** `admin@demo.com`
-- **Password:** `admin123` (change it via Settings → Team on first login)
-
-Re-running `npx prisma db seed` is safe — it skips frameworks that already exist, never overwrites your admin password, and won't duplicate sample risks/policies.
+**Want a pre-filled demo instead?** Before visiting `/setup`, run `npx prisma db seed` and set `DEMO_MODE="true"` in `.env`, then sign in as `admin@demo.com` / `admin123`. The seed loads all 8 frameworks plus sample risks, policies and Trust Vault content. It is for development databases only: it refuses to run once a real organisation exists, and re-running it on the demo database is safe.
 
 ## What runs where
 

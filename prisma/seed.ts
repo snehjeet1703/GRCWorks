@@ -1,7 +1,7 @@
 import { PrismaClient, UserRole } from "@prisma/client";
 import { hash } from "bcryptjs";
 import { CONTROL_MAPPINGS, FrameworkName } from "./control-mappings";
-import { BUILT_IN_ROLES } from "../src/lib/permissions";
+import { ensureBuiltInRoles } from "../src/lib/built-in-roles";
 import { TRUST_CONTROL_SUGGESTIONS } from "../src/lib/trust-controls";
 
 const prisma = new PrismaClient();
@@ -461,6 +461,14 @@ async function seedTrustVault(organizationId: string) {
 async function main() {
   console.log("Seeding database…");
 
+  // Each install is single-tenant: never add the demo org next to a real organisation.
+  const realOrg = await prisma.organization.findFirst({ where: { slug: { not: "demo" } } });
+  if (realOrg) {
+    throw new Error(
+      `This database belongs to "${realOrg.name}". The demo seed is for development databases only.`
+    );
+  }
+
   const org = await prisma.organization.upsert({
     where: { slug: "demo" },
     update: {},
@@ -480,34 +488,7 @@ async function main() {
         },
       });
 
-  // ── Seed built-in roles ──────────────────────────────────────
-  const roleIdByName = new Map<string, string>();
-  for (const template of BUILT_IN_ROLES) {
-    const existing = await prisma.role.findUnique({
-      where: { organizationId_name: { organizationId: org.id, name: template.name } },
-    });
-    if (existing) {
-      // Update permissions if the template changed, but keep custom edits on non-built-in roles
-      if (existing.isBuiltIn) {
-        await prisma.role.update({
-          where: { id: existing.id },
-          data: { description: template.description, permissions: template.permissions },
-        });
-      }
-      roleIdByName.set(template.name, existing.id);
-    } else {
-      const role = await prisma.role.create({
-        data: {
-          organizationId: org.id,
-          name: template.name,
-          description: template.description,
-          isBuiltIn: true,
-          permissions: template.permissions,
-        },
-      });
-      roleIdByName.set(template.name, role.id);
-    }
-  }
+  const roleIdByName = await ensureBuiltInRoles(prisma, org.id);
 
   // Assign admin user to Admin role if they don't have one yet
   if (!admin.roleId && roleIdByName.has("Admin")) {

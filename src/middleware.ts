@@ -2,7 +2,8 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_PREFIXES = ["/login", "/api/auth", "/trust/", "/onboarding"];
+// "/api/trust/" is the public trust page API; admin endpoints live under "/api/trust-vault".
+const PUBLIC_PREFIXES = ["/login", "/setup", "/api/setup", "/api/auth", "/trust/", "/api/trust/", "/onboarding"];
 const MFA_PREFIXES = ["/mfa-verify", "/api/mfa"];
 
 export async function middleware(req: NextRequest) {
