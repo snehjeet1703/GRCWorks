@@ -70,6 +70,22 @@ export async function sendVendorOtpEmail(to: string, code: string, orgName: stri
   });
 }
 
+export async function sendTrustOtpEmail(to: string, code: string, orgName: string) {
+  await transporter.sendMail({
+    from: FROM,
+    to,
+    subject: `Your sign-in code for ${orgName}'s Trust Center`,
+    text: `Your sign-in code is: ${code}\n\nIt expires in 10 minutes. If you didn't ask for it, you can ignore this email.`,
+    html: `
+      <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:24px">
+        <p>Your sign-in code for <strong>${escapeHtml(orgName)}</strong>'s Trust Center:</p>
+        <p style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#111;margin:16px 0">${code}</p>
+        <p style="color:#666;font-size:14px">It expires in 10 minutes. If you didn't ask for it, you can ignore this email.</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendOtpEmail(to: string, code: string) {
   await transporter.sendMail({
     from: FROM,

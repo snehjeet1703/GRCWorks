@@ -374,7 +374,7 @@ export function TrustPage({ slug }: { slug: string }) {
               <p className="mt-5 rounded-lg bg-gray-50 p-3 text-center text-sm text-gray-600">
                 Some documents require access approval.{" "}
                 <button onClick={() => setShowRequestModal(true)} className="font-medium underline" style={{ color: primary }}>
-                  Request access
+                  Get access
                 </button>
               </p>
             )}
@@ -488,7 +488,7 @@ export function TrustPage({ slug }: { slug: string }) {
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white"
               style={{ backgroundColor: primary }}
             >
-              <Lock className="h-4 w-4" /> Request access to restricted documents
+              <Lock className="h-4 w-4" /> Get access to restricted documents
             </button>
           )}
         </Dialog>
@@ -570,7 +570,16 @@ export function TrustPage({ slug }: { slug: string }) {
       )}
 
       {showRequestModal && (
-        <RequestAccessModal slug={slug} primary={primary} onClose={() => setShowRequestModal(false)} />
+        <RequestAccessModal
+          slug={slug}
+          primary={primary}
+          onClose={() => setShowRequestModal(false)}
+          onSignedIn={(t) => {
+            try { localStorage.setItem(`trust_token_${slug}`, t); } catch {}
+            setToken(t);
+            setShowRequestModal(false);
+          }}
+        />
       )}
     </div>
   );
@@ -611,7 +620,10 @@ function Dialog({ title, onClose, children }: { title: string; onClose: () => vo
   );
 }
 
-function RequestAccessModal({ slug, primary, onClose }: { slug: string; primary: string; onClose: () => void }) {
+function RequestAccessModal({ slug, primary, onClose, onSignedIn }: {
+  slug: string; primary: string; onClose: () => void; onSignedIn: (token: string) => void;
+}) {
+  const [mode, setMode] = useState<"signin" | "request">("signin");
   const [form, setForm] = useState({ email: "", name: "", company: "", reason: "" });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -643,13 +655,29 @@ function RequestAccessModal({ slug, primary, onClose }: { slug: string; primary:
       <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-md rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-          <h3 className="text-lg font-semibold text-gray-900">Request Access</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Get Access</h3>
           <button onClick={onClose} className="rounded p-1 text-gray-400 hover:bg-gray-100" aria-label="Close">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {submitted ? (
+        <div role="tablist" className="mx-6 mt-4 grid grid-cols-2 rounded-lg bg-gray-100 p-1 text-sm font-medium">
+          {([["signin", "I have access"], ["request", "Request access"]] as const).map(([m, label]) => (
+            <button
+              key={m}
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => setMode(m)}
+              className={`rounded-md py-1.5 transition-colors ${mode === m ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {mode === "signin" ? (
+          <SignInForm slug={slug} primary={primary} onSignedIn={onSignedIn} onCancel={onClose} />
+        ) : submitted ? (
           <div className="px-6 py-10 text-center">
             <CheckCircle2 className="mx-auto h-12 w-12 text-green-500" />
             <h4 className="mt-4 text-lg font-medium text-gray-900">Request Submitted</h4>
@@ -703,5 +731,118 @@ function RequestAccessModal({ slug, primary, onClose }: { slug: string; primary:
         )}
       </div>
     </div>
+  );
+}
+
+function SignInForm({ slug, primary, onSignedIn, onCancel }: {
+  slug: string; primary: string; onSignedIn: (token: string) => void; onCancel: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState<"email" | "code">("email");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const post = async (path: string, body: object) => {
+    const res = await fetch(`/api/trust/${slug}/sign-in/${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Something went wrong. Please try again.");
+    return data;
+  };
+
+  const sendCode = async () => {
+    setError("");
+    setBusy(true);
+    try {
+      await post("send", { email });
+      setCode("");
+      setStep("code");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verify = async () => {
+    setError("");
+    setBusy(true);
+    try {
+      const { token } = await post("verify", { email, code });
+      onSignedIn(token);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const inputClass = "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100";
+  const primaryBtn = "rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50";
+
+  return (
+    <form
+      className="space-y-4 px-6 py-4"
+      onSubmit={(e) => { e.preventDefault(); step === "email" ? sendCode() : verify(); }}
+    >
+      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+      {step === "email" ? (
+        <>
+          <p className="text-sm text-gray-500">
+            Already approved? Enter the email you requested access with and we&apos;ll send you a sign-in code.
+          </p>
+          <div>
+            <label htmlFor="si-email" className="mb-1 block text-sm font-medium text-gray-700">Company Email</label>
+            <input id="si-email" type="email" autoComplete="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} placeholder="john@company.com" />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onCancel} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={busy || !email} className={primaryBtn} style={{ backgroundColor: primary }}>
+              {busy ? "Sending..." : "Send code"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-gray-500">
+            If <strong>{email}</strong> has active access, a 6-digit code is on its way. It expires in 10 minutes.
+          </p>
+          <div>
+            <label htmlFor="si-code" className="mb-1 block text-sm font-medium text-gray-700">Sign-in code</label>
+            <input
+              id="si-code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              maxLength={6}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+              className={`${inputClass} text-center font-mono text-lg tracking-[0.5em]`}
+              placeholder="000000"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-2 pt-2">
+            <button type="button" onClick={() => { setStep("email"); setError(""); }} className="text-sm font-medium text-gray-500 hover:text-gray-700">
+              Use a different email
+            </button>
+            <div className="flex gap-2">
+              <button type="button" onClick={sendCode} disabled={busy} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                Resend
+              </button>
+              <button type="submit" disabled={busy || code.length !== 6} className={primaryBtn} style={{ backgroundColor: primary }}>
+                {busy ? "Checking..." : "Sign in"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </form>
   );
 }
