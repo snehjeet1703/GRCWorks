@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { HttpError, handleError, parseBody, requirePermission } from "@/lib/api";
 import { logAudit, diffChanges, snapshotEntity } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
+import { deleteUpload } from "@/lib/storage";
 
 const SNAP_KEYS = [
   "name", "description", "website", "category", "status", "criticality",
@@ -108,8 +109,12 @@ export async function DELETE(
   try {
     const { resolved, ...user } = await requirePermission(PERMISSIONS.VENDORS_WRITE);
     const { id } = await params;
-    await prisma.$transaction(async (tx) => {
+    const storageKeys = await prisma.$transaction(async (tx) => {
       const existing = await findVendor(id, user.organizationId);
+      const files = await tx.vendorResponseFile.findMany({
+        where: { response: { vendorId: id } },
+        select: { storageKey: true },
+      });
       await tx.vendor.delete({ where: { id } });
       await logAudit({
         organizationId: user.organizationId,
@@ -121,7 +126,10 @@ export async function DELETE(
         action: "DELETE",
         beforeJson: snapshotEntity(existing as any, SNAP_KEYS),
       }, tx);
+      return files.map((f) => f.storageKey);
     });
+    // Cascades remove the file rows; the stored vendor documents must go too.
+    await Promise.all(storageKeys.map(deleteUpload));
     return NextResponse.json({ ok: true });
   } catch (err) {
     return handleError(err);

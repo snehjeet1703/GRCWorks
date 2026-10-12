@@ -19,7 +19,7 @@ export default async function QuestionnairesPage() {
 
   const vendors = await prisma.vendor.findMany({
     where: { organizationId: orgId },
-    select: { id: true, name: true, category: true },
+    select: { id: true, name: true, category: true, contactEmail: true },
     orderBy: { name: "asc" },
   });
 

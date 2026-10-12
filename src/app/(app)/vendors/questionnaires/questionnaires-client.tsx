@@ -12,6 +12,7 @@ import { Field, Select, TextArea, FormError } from "@/components/form";
 import { useToast } from "@/components/toast";
 import { AuditLogPanel } from "@/components/audit-log-panel";
 import { PageTabs } from "@/components/page-tabs";
+import { IssuedLinkDialog, ResponsesPanel } from "./responses-panel";
 
 type QuestionnaireRow = {
   id: string;
@@ -34,7 +35,7 @@ type Question = {
   category: string;
 };
 
-type VendorOption = { id: string; name: string; category: string };
+type VendorOption = { id: string; name: string; category: string; contactEmail: string };
 
 const QUESTION_TYPES = [
   { value: "TEXT", label: "Free text" },
@@ -42,6 +43,7 @@ const QUESTION_TYPES = [
   { value: "SINGLE_CHOICE", label: "Single choice" },
   { value: "MULTI_CHOICE", label: "Multiple choice" },
   { value: "RATING", label: "Rating (1-5)" },
+  { value: "FILE_UPLOAD", label: "File upload" },
 ] as const;
 
 const Q_CATEGORIES = ["GENERAL", "SECURITY", "COMPLIANCE", "DATA_PRIVACY", "BUSINESS_CONTINUITY", "ACCESS_CONTROL", "INCIDENT_RESPONSE"] as const;
@@ -97,6 +99,9 @@ export function QuestionnairesClient({
 
   // Send modal
   const [sendVendorId, setSendVendorId] = useState("");
+  const [sendEmail, setSendEmail] = useState("");
+  const [issued, setIssued] = useState<{ link: string; email: string; emailSent: boolean } | null>(null);
+  const [responsesTarget, setResponsesTarget] = useState<QuestionnaireRow | null>(null);
 
   function resetForm() {
     setTitle(""); setDescription(""); setCategory("GENERAL");
@@ -292,15 +297,14 @@ export function QuestionnairesClient({
       const res = await fetch(`/api/vendors/${sendVendorId}/questionnaire-responses`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questionnaireId: sendTarget.id }),
+        body: JSON.stringify({ questionnaireId: sendTarget.id, contactEmail: sendEmail.trim() || undefined }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Failed to send");
-      }
-      toast.success(`Questionnaire sent to vendor`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Failed to send");
+      setIssued({ link: data.inviteLink, email: data.contactEmail, emailSent: data.emailSent });
       setSendTarget(null);
       setSendVendorId("");
+      setSendEmail("");
       startTransition(() => router.refresh());
     } catch (e: any) {
       setError(e.message);
@@ -410,9 +414,15 @@ export function QuestionnairesClient({
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setResponsesTarget(q)}
+                    className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                  >
+                    Responses
+                  </button>
                   {canWrite && q.status === "PUBLISHED" && (
                     <button
-                      onClick={() => { setSendTarget(q); setSendVendorId(""); setError(""); }}
+                      onClick={() => { setSendTarget(q); setSendVendorId(""); setSendEmail(""); setError(""); }}
                       className="rounded-lg border border-brand-200 px-2.5 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-50"
                     >
                       <Send className="mr-1 inline h-3 w-3" /> Send
@@ -615,25 +625,42 @@ export function QuestionnairesClient({
       >
         <div className="space-y-3">
           <p className="text-sm text-gray-500">
-            Select a vendor to send this questionnaire to. The vendor will appear in their responses list.
+            The vendor contact gets a secure link and must confirm a code sent to their email before answering.
+            Links expire after 30 days.
           </p>
           <Field label="Vendor">
-            <Select value={sendVendorId} onChange={(e) => setSendVendorId(e.target.value)}>
+            <Select
+              value={sendVendorId}
+              onChange={(e) => {
+                setSendVendorId(e.target.value);
+                setSendEmail(vendors.find((v) => v.id === e.target.value)?.contactEmail ?? "");
+              }}
+            >
               <option value="">Select a vendor...</option>
               {vendors.map((v) => (
                 <option key={v.id} value={v.id}>{v.name}</option>
               ))}
             </Select>
           </Field>
+          <Field label="Vendor contact email" htmlFor="send-email" hint="The questionnaire and verification codes go to this address.">
+            <input id="send-email" type="email" value={sendEmail} onChange={(e) => setSendEmail(e.target.value)} placeholder="security@vendor.com" className="input" />
+          </Field>
           <FormError message={error} />
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setSendTarget(null)} className="btn-secondary">Cancel</button>
-            <button onClick={handleSend} disabled={saving || !sendVendorId} className="btn-primary">
+            <button onClick={handleSend} disabled={saving || !sendVendorId || !sendEmail.trim()} className="btn-primary">
               {saving ? "Sending..." : "Send questionnaire"}
             </button>
           </div>
         </div>
       </Modal>
+
+      <IssuedLinkDialog issued={issued} onClose={() => { setIssued(null); startTransition(() => router.refresh()); }} />
+      <ResponsesPanel
+        questionnaire={responsesTarget}
+        canWrite={canWrite}
+        onClose={() => { setResponsesTarget(null); startTransition(() => router.refresh()); }}
+      />
 
       {/* Delete confirm */}
       <ConfirmDialog

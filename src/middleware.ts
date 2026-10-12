@@ -3,7 +3,11 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 // "/api/trust/" is the public trust page API; admin endpoints live under "/api/trust-vault".
-const PUBLIC_PREFIXES = ["/login", "/setup", "/api/setup", "/api/auth", "/trust/", "/api/trust/", "/onboarding"];
+// Vendor portal routes authenticate themselves (link token + email-verified cookie).
+const PUBLIC_PREFIXES = [
+  "/login", "/setup", "/api/setup", "/api/auth", "/trust/", "/api/trust/", "/onboarding",
+  "/vendor-portal/", "/api/vendor-portal/",
+];
 const MFA_PREFIXES = ["/mfa-verify", "/api/mfa"];
 
 export async function middleware(req: NextRequest) {

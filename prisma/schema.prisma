@@ -734,15 +734,39 @@ model QuestionnaireResponse {
   reviewedBy        String?        @map("reviewed_by")
   reviewNotes       String         @default("") @map("review_notes")
   score             Int?
+  // External vendor portal: the invited contact, a hashed link token, and a hashed email OTP.
+  contactEmail      String         @default("") @map("contact_email")
+  inviteTokenHash   String?        @unique @map("invite_token_hash")
+  inviteExpiresAt   DateTime?      @map("invite_expires_at")
+  otpHash           String?        @map("otp_hash")
+  otpExpiresAt      DateTime?      @map("otp_expires_at")
+  otpAttempts       Int            @default(0) @map("otp_attempts")
   createdAt         DateTime       @default(now()) @map("created_at")
   updatedAt         DateTime       @updatedAt @map("updated_at")
 
   questionnaire VendorQuestionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
   vendor        Vendor              @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  files         VendorResponseFile[]
 
   @@unique([questionnaireId, vendorId])
   @@index([vendorId])
   @@map("questionnaire_responses")
+}
+
+model VendorResponseFile {
+  id         String   @id @default(uuid())
+  responseId String   @map("response_id")
+  questionId String   @map("question_id")
+  fileName   String   @map("file_name")
+  storageKey String   @map("storage_key")
+  fileSize   Int      @map("file_size")
+  mimeType   String   @map("mime_type")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  response QuestionnaireResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@index([responseId])
+  @@map("vendor_response_files")
 }
 
 // ─── Audit Trail ─────────────────────────────────────────────

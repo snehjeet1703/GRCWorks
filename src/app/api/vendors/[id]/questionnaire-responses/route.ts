@@ -4,10 +4,20 @@ import { prisma } from "@/lib/db";
 import { HttpError, handleError, parseBody, requirePermission } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
+import { sendVendorInviteEmail } from "@/lib/email";
+import { generateTrustToken, hashTrustToken } from "@/lib/trust-token";
+import { inviteExpiry, portalBaseUrl } from "@/lib/vendor-portal";
 
 const sendSchema = z.object({
   questionnaireId: z.string().uuid(),
+  contactEmail: z.string().trim().toLowerCase().email().max(200).optional(),
 }).strict();
+
+// Never send link/OTP hashes to the browser.
+function stripSecrets<T extends { inviteTokenHash?: string | null; otpHash?: string | null }>(r: T) {
+  const { inviteTokenHash, otpHash, ...rest } = r;
+  return { ...rest, linkActive: !!inviteTokenHash };
+}
 
 const answerSchema = z.object({
   questionId: z.string().min(1),
@@ -38,7 +48,7 @@ export async function GET(
       },
       orderBy: { updatedAt: "desc" },
     });
-    return NextResponse.json(responses);
+    return NextResponse.json(responses.map(stripSecrets));
   } catch (err) {
     return handleError(err);
   }
@@ -85,12 +95,14 @@ export async function POST(
         }, tx);
         return updated;
       });
-      return NextResponse.json(response);
+      return NextResponse.json(stripSecrets(response));
     }
 
-    // Default: send a questionnaire to this vendor
+    // Default: send a questionnaire to this vendor's contact via the external portal
     const data = await parseBody(req, sendSchema);
-    const response = await prisma.$transaction(async (tx) => {
+    const token = generateTrustToken();
+    const expiresAt = inviteExpiry();
+    const { response, vendorName, title, orgName, contactEmail } = await prisma.$transaction(async (tx) => {
       const vendor = await tx.vendor.findUnique({ where: { id } });
       if (!vendor || vendor.organizationId !== user.organizationId) {
         throw new HttpError(404, "Vendor not found");
@@ -107,13 +119,20 @@ export async function POST(
       });
       if (existing) throw new HttpError(409, "Questionnaire already sent to this vendor");
 
+      const contactEmail = data.contactEmail || vendor.contactEmail.trim().toLowerCase();
+      if (!contactEmail) throw new HttpError(400, "Add a contact email for this vendor first");
+
       const created = await tx.questionnaireResponse.create({
         data: {
           questionnaireId: data.questionnaireId,
           vendorId: id,
           status: "NOT_STARTED",
+          contactEmail,
+          inviteTokenHash: hashTrustToken(token),
+          inviteExpiresAt: expiresAt,
         },
       });
+      const org = await tx.organization.findUnique({ where: { id: user.organizationId }, select: { name: true } });
       await logAudit({
         organizationId: user.organizationId,
         userId: user.id,
@@ -122,10 +141,21 @@ export async function POST(
         entityId: created.id,
         entityName: `${questionnaire.title} → ${vendor.name}`,
         action: "CREATE",
+        metadataJson: { event: "vendor_invited", contactEmail },
       }, tx);
-      return created;
+      return { response: created, vendorName: vendor.name, title: questionnaire.title, orgName: org?.name ?? "", contactEmail };
     });
-    return NextResponse.json(response, { status: 201 });
+
+    const inviteLink = `${portalBaseUrl(req)}/vendor-portal/${token}`;
+    let emailSent = true;
+    try {
+      await sendVendorInviteEmail(contactEmail, { orgName, vendorName, title, link: inviteLink, expiresAt });
+    } catch (err) {
+      emailSent = false;
+      console.error("[vendor invite] email failed:", err);
+    }
+    // The link is returned once so it can be shared manually when email isn't configured.
+    return NextResponse.json({ ...stripSecrets(response), inviteLink, emailSent }, { status: 201 });
   } catch (err) {
     return handleError(err);
   }
