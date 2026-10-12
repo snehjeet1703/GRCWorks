@@ -4,6 +4,7 @@ import { handleError, HttpError, requirePermission } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
 import { saveUpload } from "@/lib/storage";
+import { VIEWABLE_MIME_TYPES } from "@/lib/trust-access";
 
 async function getConfigId(organizationId: string) {
   let config = await prisma.trustVaultConfig.findUnique({ where: { organizationId } });
@@ -81,6 +82,9 @@ export async function POST(req: Request) {
     const category = (formData.get("category") as string) || "General";
     const visibility = (formData.get("visibility") as string) || "ACCESS_REQUIRED";
     const permission = (formData.get("permission") as string) || "VIEW_ONLY";
+    if (permission === "VIEW_ONLY" && !VIEWABLE_MIME_TYPES.has(file.type)) {
+      throw new HttpError(400, "Only PDFs and images can be view-only. Set this file to Downloadable or upload it as a PDF.");
+    }
     const validUntilStr = formData.get("validUntil") as string | null;
     const validUntil = validUntilStr ? new Date(validUntilStr) : null;
     const replaceDocId = formData.get("replaceDocId") as string | null;

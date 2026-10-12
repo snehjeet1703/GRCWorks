@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { clientIp, limitOrNull } from "@/lib/rate-limit";
+import { VIEWABLE_MIME_TYPES } from "@/lib/trust-access";
 
 export async function GET(
   req: Request,
@@ -44,11 +45,11 @@ export async function GET(
       ? await prisma.trustVaultDocument.findMany({
           where: { ...activeDocs, visibility: "PUBLIC" },
           select: {
-            id: true, name: true, description: true, category: true,
+            id: true, name: true, description: true, category: true, mimeType: true,
             permission: true, fileSize: true, visibility: true, validUntil: true,
           },
           orderBy: { sortOrder: "asc" },
-        })
+        }).then((docs) => docs.map(({ mimeType, ...d }) => ({ ...d, viewable: VIEWABLE_MIME_TYPES.has(mimeType) })))
       : [];
 
     // Restricted files are listed by name so visitors know what to request; downloads stay token-gated.

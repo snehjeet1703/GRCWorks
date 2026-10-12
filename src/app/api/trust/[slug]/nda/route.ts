@@ -5,7 +5,7 @@ import { hashTrustToken } from "@/lib/trust-token";
 import { clientIp, limitOrNull } from "@/lib/rate-limit";
 
 const acceptSchema = z.object({
-  token: z.string().uuid(),
+  token: z.string().min(16).max(128),
   ndaId: z.string().uuid(),
 }).strict();
 

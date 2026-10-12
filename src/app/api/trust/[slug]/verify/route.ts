@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { hashTrustToken } from "@/lib/trust-token";
+import { VIEWABLE_MIME_TYPES } from "@/lib/trust-access";
 import { clientIp, limitOrNull } from "@/lib/rate-limit";
 
 export async function GET(
@@ -40,8 +41,8 @@ export async function GET(
           include: {
             document: {
               select: {
-                id: true, name: true, description: true, category: true,
-                permission: true, fileSize: true, visibility: true, enabled: true, validUntil: true,
+                id: true, name: true, description: true, category: true, mimeType: true,
+                fileSize: true, visibility: true, enabled: true, validUntil: true,
               },
             },
           },
@@ -60,7 +61,11 @@ export async function GET(
     const now = new Date();
     const documents = accessRequest.documentAccess
       .filter((da) => da.document.enabled && (!da.document.validUntil || da.document.validUntil > now))
-      .map((da) => da.document);
+      .map(({ document: { mimeType, ...d }, permission }) => ({
+        ...d,
+        permission, // this customer's grant, not the document default
+        viewable: VIEWABLE_MIME_TYPES.has(mimeType),
+      }));
 
     let ndaAccepted = true;
     let ndaRequired = false;

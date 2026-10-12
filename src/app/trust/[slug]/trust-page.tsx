@@ -10,7 +10,7 @@ import { TrustControlIcon } from "@/components/trust-control-icon";
 
 type DocMeta = {
   id: string; name: string; description?: string; category: string;
-  permission?: string; fileSize?: number; visibility: string;
+  permission?: string; fileSize?: number; visibility: string; viewable?: boolean;
 };
 
 type TrustData = {
@@ -51,6 +51,7 @@ export function TrustPage({ slug }: { slug: string }) {
   const [showAllFolders, setShowAllFolders] = useState(false);
   const [openFolder, setOpenFolder] = useState<string | null>(null);
   const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<{ id: string; name: string } | null>(null);
   const [showAllSubs, setShowAllSubs] = useState(false);
   const [heroExpanded, setHeroExpanded] = useState(false);
   const [activeSection, setActiveSection] = useState("compliance");
@@ -180,6 +181,9 @@ export function TrustPage({ slug }: { slug: string }) {
 
   const downloadHref = (id: string) =>
     `/api/trust/${slug}/documents/${id}/download${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+  // toolbar=0 hides the browser PDF toolbar (download/print); the per-viewer watermark is the real control.
+  const viewHref = (id: string) =>
+    `/api/trust/${slug}/documents/${id}/view${token ? `?token=${encodeURIComponent(token)}` : ""}#toolbar=0&navpanes=0`;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -455,13 +459,24 @@ export function TrustPage({ slug }: { slug: string }) {
                   <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-gray-500">
                     <Lock className="h-3.5 w-3.5" /> Restricted
                   </span>
-                ) : d.permission === "DOWNLOADABLE" ? (
-                  <a href={downloadHref(d.id)} className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium" style={{ color: primary }}>
-                    <Download className="h-4 w-4" /> Download
-                  </a>
                 ) : (
-                  <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-gray-500">
-                    <Eye className="h-3.5 w-3.5" /> View only
+                  <span className="flex shrink-0 items-center gap-3">
+                    {d.viewable && (
+                      <button
+                        onClick={() => setViewing({ id: d.id, name: d.name })}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium"
+                        style={{ color: primary }}
+                      >
+                        <Eye className="h-4 w-4" /> View
+                      </button>
+                    )}
+                    {d.permission === "DOWNLOADABLE" ? (
+                      <a href={downloadHref(d.id)} className="inline-flex items-center gap-1.5 text-sm font-medium" style={{ color: primary }}>
+                        <Download className="h-4 w-4" /> Download
+                      </a>
+                    ) : (
+                      !d.viewable && <span className="text-xs text-gray-500">Ask the owner for access</span>
+                    )}
                   </span>
                 )}
               </li>
@@ -477,6 +492,27 @@ export function TrustPage({ slug }: { slug: string }) {
             </button>
           )}
         </Dialog>
+      )}
+
+      {viewing && (
+        <div className="fixed inset-0 z-[70] flex flex-col bg-gray-900/80 p-2 sm:p-6" role="dialog" aria-modal="true" aria-label={viewing.name}>
+          <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 rounded-t-xl bg-white px-4 py-3">
+            <p className="flex min-w-0 items-center gap-2 font-medium text-gray-900">
+              <Eye className="h-4 w-4 shrink-0 text-gray-500" />
+              <span className="truncate">{viewing.name}</span>
+              <span className="hidden shrink-0 text-xs font-normal text-gray-500 sm:inline">· watermarked, view only</span>
+            </p>
+            <button onClick={() => setViewing(null)} className="rounded p-1 text-gray-500 hover:bg-gray-100" aria-label="Close viewer">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <iframe
+            src={viewHref(viewing.id)}
+            title={viewing.name}
+            className="mx-auto w-full max-w-5xl flex-1 rounded-b-xl bg-gray-100"
+            onContextMenu={(e) => e.preventDefault()}
+          />
+        </div>
       )}
 
       {openCategory && (

@@ -62,6 +62,7 @@ type Doc = {
   category: string;
   fileName: string;
   fileSize: number;
+  mimeType: string;
   visibility: "PUBLIC" | "ACCESS_REQUIRED";
   permission: "VIEW_ONLY" | "DOWNLOADABLE";
   enabled: boolean;
@@ -81,6 +82,9 @@ type SubProcessor = {
   sortOrder: number;
 };
 
+type Permission = "VIEW_ONLY" | "DOWNLOADABLE";
+const VIEWABLE_TYPES = new Set(["application/pdf", "image/png", "image/jpeg"]);
+
 type AccessRequest = {
   id: string;
   email: string;
@@ -92,7 +96,7 @@ type AccessRequest = {
   tokenExpiresAt: string | null;
   createdAt: string;
   reviewedAt: string | null;
-  documentAccess: { documentId: string; document: { name: string } }[];
+  documentAccess: { documentId: string; permission: Permission; document: { name: string } }[];
 };
 
 export function TrustVaultClient({ canManage, orgSlug }: { canManage: boolean; orgSlug: string }) {
@@ -1067,20 +1071,25 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
   orgSlug: string; requests: AccessRequest[]; docs: Doc[]; canManage: boolean; onRefresh: () => void; toast: any;
 }) {
   const [reviewing, setReviewing] = useState<AccessRequest | null>(null);
-  const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
+  const [selectedDocs, setSelectedDocs] = useState<Record<string, Permission>>({});
   const [filter, setFilter] = useState<"ALL" | "PENDING" | "APPROVED" | "DENIED">("ALL");
   const [issuedLink, setIssuedLink] = useState<{ email: string; url: string } | null>(null);
 
   const openReview = (r: AccessRequest) => {
     setReviewing(r);
-    setSelectedDocs(r.documentAccess.map((da) => da.documentId));
+    setSelectedDocs(Object.fromEntries(r.documentAccess.map((da) => [da.documentId, da.permission])));
   };
 
-  const submitReview = async (request: AccessRequest, status: "APPROVED" | "DENIED", documentIds: string[]) => {
+  const submitReview = async (request: AccessRequest, status: "APPROVED" | "DENIED", grants: Record<string, Permission>) => {
     const res = await fetch(`/api/trust-vault/access-requests/${request.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status, documentIds: status === "APPROVED" ? documentIds : [] }),
+      body: JSON.stringify({
+        status,
+        grants: status === "APPROVED"
+          ? Object.entries(grants).map(([documentId, permission]) => ({ documentId, permission }))
+          : [],
+      }),
     });
     if (!res.ok) throw new Error();
     const data = await res.json();
@@ -1108,7 +1117,7 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
   const reissueLink = async (r: AccessRequest) => {
     if (!confirm(`Issue a new access link for ${r.email}? Their previous link will stop working.`)) return;
     try {
-      await submitReview(r, "APPROVED", r.documentAccess.map((da) => da.documentId));
+      await submitReview(r, "APPROVED", Object.fromEntries(r.documentAccess.map((da) => [da.documentId, da.permission])));
       onRefresh();
     } catch {
       toast.error("Failed to issue a new link");
@@ -1163,6 +1172,7 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
                     {r.documentAccess.map((da) => (
                       <span key={da.documentId} className="inline-flex items-center rounded bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700">
                         <FileText className="h-3 w-3 mr-1" />{da.document.name}
+                        <span className="ml-1 text-blue-500">· {da.permission === "DOWNLOADABLE" ? "download" : "view only"}</span>
                       </span>
                     ))}
                   </div>
@@ -1180,7 +1190,7 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
                     const res = await fetch(`/api/trust-vault/access-requests/${r.id}`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ status: "DENIED", documentIds: [] }),
+                      body: JSON.stringify({ status: "DENIED" }),
                     });
                     if (!res.ok) throw new Error();
                     toast.success("Access revoked");
@@ -1236,26 +1246,42 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
             <div>
               <p className="text-sm font-medium text-gray-700 mb-2">Grant access to documents:</p>
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {docs.filter((d) => d.visibility === "ACCESS_REQUIRED").map((d) => (
-                  <label key={d.id} className="flex items-center gap-2 rounded-lg border border-gray-100 px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedDocs.includes(d.id)}
-                      onChange={(e) => {
-                        setSelectedDocs(
-                          e.target.checked
-                            ? [...selectedDocs, d.id]
-                            : selectedDocs.filter((id) => id !== d.id)
-                        );
-                      }}
-                      className="h-4 w-4 rounded border-gray-300 text-brand-600"
-                    />
-                    <div>
-                      <span className="text-sm font-medium text-gray-900">{d.name}</span>
-                      <span className="text-xs text-gray-400 ml-2">{d.category}</span>
+                {docs.filter((d) => d.visibility === "ACCESS_REQUIRED").map((d) => {
+                  const viewable = VIEWABLE_TYPES.has(d.mimeType);
+                  const granted = selectedDocs[d.id];
+                  return (
+                    <div key={d.id} className="flex items-center gap-2 rounded-lg border border-gray-100 px-3 py-2 hover:bg-gray-50">
+                      <label className="flex flex-1 items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!granted}
+                          onChange={(e) => {
+                            const next = { ...selectedDocs };
+                            if (e.target.checked) next[d.id] = viewable ? d.permission : "DOWNLOADABLE";
+                            else delete next[d.id];
+                            setSelectedDocs(next);
+                          }}
+                          className="h-4 w-4 rounded border-gray-300 text-brand-600"
+                        />
+                        <div>
+                          <span className="text-sm font-medium text-gray-900">{d.name}</span>
+                          <span className="text-xs text-gray-400 ml-2">{d.category}</span>
+                        </div>
+                      </label>
+                      {granted && (
+                        <select
+                          value={granted}
+                          onChange={(e) => setSelectedDocs({ ...selectedDocs, [d.id]: e.target.value as Permission })}
+                          aria-label={`Access level for ${d.name}`}
+                          className="input w-auto py-1 text-xs"
+                        >
+                          <option value="VIEW_ONLY" disabled={!viewable}>View only{viewable ? "" : " (PDF/image only)"}</option>
+                          <option value="DOWNLOADABLE">Download</option>
+                        </select>
+                      )}
                     </div>
-                  </label>
-                ))}
+                  );
+                })}
               </div>
               {docs.filter((d) => d.visibility === "ACCESS_REQUIRED").length === 0 && (
                 <p className="text-sm text-gray-400">No restricted documents available.</p>

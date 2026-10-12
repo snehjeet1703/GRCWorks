@@ -948,6 +948,8 @@ model TrustDocumentAccess {
   id              String @id @default(uuid())
   accessRequestId String @map("access_request_id")
   documentId      String @map("document_id")
+  // Per-customer grant: VIEW_ONLY opens the watermarked viewer, DOWNLOADABLE also allows download.
+  permission      TrustDocPermission @default(VIEW_ONLY)
 
   accessRequest TrustAccessRequest @relation(fields: [accessRequestId], references: [id], onDelete: Cascade)
   document      TrustVaultDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)

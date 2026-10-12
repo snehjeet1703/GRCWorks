@@ -15,7 +15,7 @@ export async function GET() {
       where: { configId: config.id },
       include: {
         documentAccess: {
-          select: { documentId: true, document: { select: { name: true } } },
+          select: { documentId: true, permission: true, document: { select: { name: true } } },
         },
       },
       orderBy: { createdAt: "desc" },

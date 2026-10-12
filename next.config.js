@@ -16,9 +16,7 @@ const csp = [
   "frame-ancestors 'none'",
 ].join("; ");
 
-const securityHeaders = [
-  { key: "Content-Security-Policy", value: csp },
-  { key: "X-Frame-Options", value: "DENY" },
+const commonHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   // Trust Vault access tokens travel in query strings; never leak them to other sites.
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -26,12 +24,30 @@ const securityHeaders = [
   ...(isDev ? [] : [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }]),
 ];
 
+// The Trust Vault document viewer is the only resource framed (by our own trust page).
+const VIEWER_PATH = "/api/trust/:slug/documents/:docId/view";
+
+const pageHeaders = [
+  { key: "Content-Security-Policy", value: csp },
+  { key: "X-Frame-Options", value: "DENY" },
+  ...commonHeaders,
+];
+
+const viewerHeaders = [
+  { key: "Content-Security-Policy", value: "default-src 'none'; frame-ancestors 'self'" },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  ...commonHeaders,
+];
+
 const nextConfig = {
   serverExternalPackages: ["@prisma/client", "bcryptjs"],
   allowedDevOrigins: ["192.168.17.1"],
   poweredByHeader: false,
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/((?!api/trust/[^/]+/documents/[^/]+/view).*)", headers: pageHeaders },
+      { source: VIEWER_PATH, headers: viewerHeaders },
+    ];
   },
 };
 

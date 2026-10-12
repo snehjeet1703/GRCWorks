@@ -5,6 +5,7 @@ import { handleError, HttpError, parseBody, requirePermission } from "@/lib/api"
 import { logAudit, snapshotEntity, diffChanges } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
 import { deleteUpload } from "@/lib/storage";
+import { VIEWABLE_MIME_TYPES } from "@/lib/trust-access";
 
 const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -31,6 +32,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const { id } = await params;
     const existing = await findDoc(id, user.organizationId);
     const raw = await parseBody(req, updateSchema);
+    if (raw.permission === "VIEW_ONLY" && !VIEWABLE_MIME_TYPES.has(existing.mimeType)) {
+      throw new HttpError(400, "Only PDFs and images can be view-only. Keep this file Downloadable or re-upload it as a PDF.");
+    }
     const data: any = { ...raw };
     if (raw.validUntil !== undefined) {
       data.validUntil = raw.validUntil ? new Date(raw.validUntil) : null;

@@ -5,10 +5,16 @@ import { prisma } from "@/lib/db";
 import { handleError, HttpError, parseBody, requirePermission } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
+import { VIEWABLE_MIME_TYPES } from "@/lib/trust-access";
 
 const reviewSchema = z.object({
   status: z.enum(["APPROVED", "DENIED"]),
+  // Legacy shape: grants each document with its own default permission.
   documentIds: z.array(z.string().uuid()).optional().default([]),
+  // Per-customer permission for each granted document.
+  grants: z
+    .array(z.object({ documentId: z.string().uuid(), permission: z.enum(["VIEW_ONLY", "DOWNLOADABLE"]) }).strict())
+    .optional(),
 }).strict();
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -21,15 +27,27 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     });
     if (!existing) throw new HttpError(404, "Access request not found");
 
-    const { status, documentIds } = await parseBody(req, reviewSchema);
+    const { status, documentIds, grants } = await parseBody(req, reviewSchema);
 
-    const grantIds = [...new Set(documentIds ?? [])];
-    if (grantIds.length > 0) {
-      const owned = await prisma.trustVaultDocument.count({
-        where: { id: { in: grantIds }, configId: existing.configId },
-      });
-      if (owned !== grantIds.length) throw new HttpError(400, "Unknown document in grant");
-    }
+    const requested = new Map<string, "VIEW_ONLY" | "DOWNLOADABLE" | null>();
+    for (const id of documentIds ?? []) requested.set(id, null);
+    for (const g of grants ?? []) requested.set(g.documentId, g.permission);
+
+    const docs = requested.size
+      ? await prisma.trustVaultDocument.findMany({
+          where: { id: { in: [...requested.keys()] }, configId: existing.configId },
+          select: { id: true, name: true, mimeType: true, permission: true },
+        })
+      : [];
+    if (docs.length !== requested.size) throw new HttpError(400, "Unknown document in grant");
+
+    const grantRows = docs.map((d) => {
+      const permission = requested.get(d.id) ?? d.permission;
+      if (permission === "VIEW_ONLY" && !VIEWABLE_MIME_TYPES.has(d.mimeType)) {
+        throw new HttpError(400, `"${d.name}" can't be previewed in the browser; grant it as Download or upload it as a PDF`);
+      }
+      return { documentId: d.id, permission };
+    });
 
     // Only the hash is stored; the plain token is returned once so the admin can send the link.
     const plainToken = status === "APPROVED" ? generateTrustToken() : null;
@@ -46,12 +64,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         data.tokenExpiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
 
         await tx.trustDocumentAccess.deleteMany({ where: { accessRequestId: id } });
-        if (documentIds.length > 0) {
+        if (grantRows.length > 0) {
           await tx.trustDocumentAccess.createMany({
-            data: documentIds.map((documentId) => ({
-              accessRequestId: id,
-              documentId,
-            })),
+            data: grantRows.map((g) => ({ accessRequestId: id, ...g })),
           });
         }
       } else if (status === "DENIED") {
@@ -68,7 +83,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       userName: user.name,
       entityType: "TrustAccessRequest", entityId: id,
       action: status === "APPROVED" ? "APPROVE" : "UPDATE",
-      afterJson: { status, email: existing.email, documentIds },
+      afterJson: { status, email: existing.email, grants: status === "APPROVED" ? grantRows : [] },
     });
 
     const { accessTokenHash, ...safe } = updated;
