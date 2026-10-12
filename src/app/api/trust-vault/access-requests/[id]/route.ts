@@ -15,6 +15,8 @@ const reviewSchema = z.object({
   grants: z
     .array(z.object({ documentId: z.string().uuid(), permission: z.enum(["VIEW_ONLY", "DOWNLOADABLE"]) }).strict())
     .optional(),
+  // Days the access link stays valid; null means it never expires.
+  expiresInDays: z.union([z.literal(7), z.literal(15), z.literal(30), z.literal(60), z.null()]).optional().default(30),
 }).strict();
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -27,7 +29,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     });
     if (!existing) throw new HttpError(404, "Access request not found");
 
-    const { status, documentIds, grants } = await parseBody(req, reviewSchema);
+    const { status, documentIds, grants, expiresInDays } = await parseBody(req, reviewSchema);
 
     const requested = new Map<string, "VIEW_ONLY" | "DOWNLOADABLE" | null>();
     for (const id of documentIds ?? []) requested.set(id, null);
@@ -61,7 +63,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
       if (status === "APPROVED") {
         data.accessTokenHash = hashTrustToken(plainToken!);
-        data.tokenExpiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+        data.tokenExpiresAt = expiresInDays === null ? null : new Date(Date.now() + (expiresInDays ?? 30) *24 * 60 * 60 * 1000);
 
         await tx.trustDocumentAccess.deleteMany({ where: { accessRequestId: id } });
         if (grantRows.length > 0) {
@@ -83,7 +85,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       userName: user.name,
       entityType: "TrustAccessRequest", entityId: id,
       action: status === "APPROVED" ? "APPROVE" : "UPDATE",
-      afterJson: { status, email: existing.email, grants: status === "APPROVED" ? grantRows : [] },
+      afterJson: { status, email: existing.email, grants: status === "APPROVED" ? grantRows : [], expiresInDays: status === "APPROVED" ? expiresInDays : undefined },
     });
 
     const { accessTokenHash, ...safe } = updated;

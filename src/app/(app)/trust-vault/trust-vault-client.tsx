@@ -85,6 +85,23 @@ type SubProcessor = {
 type Permission = "VIEW_ONLY" | "DOWNLOADABLE";
 const VIEWABLE_TYPES = new Set(["application/pdf", "image/png", "image/jpeg"]);
 
+type Expiry = 7 | 15 | 30 | 60 | null;
+const EXPIRY_OPTIONS: { value: Expiry; label: string }[] = [
+  { value: 7, label: "7 days" },
+  { value: 15, label: "15 days" },
+  { value: 30, label: "30 days" },
+  { value: 60, label: "60 days" },
+  { value: null, label: "Always" },
+];
+
+// Recovers the duration an existing link was approved for, so a reissued link keeps it.
+function approvedExpiry(r: AccessRequest): Expiry {
+  if (!r.tokenExpiresAt) return null;
+  const days = (new Date(r.tokenExpiresAt).getTime() - new Date(r.reviewedAt ?? r.createdAt).getTime()) / 86400000;
+  const fixed = [7, 15, 30, 60] as const;
+  return fixed.reduce<number>((best, d) => (Math.abs(d - days) < Math.abs(best - days) ? d : best), fixed[0]) as Expiry;
+}
+
 type AccessRequest = {
   id: string;
   email: string;
@@ -1072,15 +1089,17 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
 }) {
   const [reviewing, setReviewing] = useState<AccessRequest | null>(null);
   const [selectedDocs, setSelectedDocs] = useState<Record<string, Permission>>({});
+  const [expiry, setExpiry] = useState<Expiry>(30);
   const [filter, setFilter] = useState<"ALL" | "PENDING" | "APPROVED" | "DENIED">("ALL");
   const [issuedLink, setIssuedLink] = useState<{ email: string; url: string } | null>(null);
 
   const openReview = (r: AccessRequest) => {
     setReviewing(r);
     setSelectedDocs(Object.fromEntries(r.documentAccess.map((da) => [da.documentId, da.permission])));
+    setExpiry(30);
   };
 
-  const submitReview = async (request: AccessRequest, status: "APPROVED" | "DENIED", grants: Record<string, Permission>) => {
+  const submitReview = async (request: AccessRequest, status: "APPROVED" | "DENIED", grants: Record<string, Permission>, expiresInDays: Expiry = 30) => {
     const res = await fetch(`/api/trust-vault/access-requests/${request.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -1089,6 +1108,7 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
         grants: status === "APPROVED"
           ? Object.entries(grants).map(([documentId, permission]) => ({ documentId, permission }))
           : [],
+        ...(status === "APPROVED" ? { expiresInDays } : {}),
       }),
     });
     if (!res.ok) throw new Error();
@@ -1105,7 +1125,7 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
   const review = async (status: "APPROVED" | "DENIED") => {
     if (!reviewing) return;
     try {
-      await submitReview(reviewing, status, selectedDocs);
+      await submitReview(reviewing, status, selectedDocs, expiry);
       toast.success(`Request ${status.toLowerCase()}`);
       setReviewing(null);
       onRefresh();
@@ -1117,7 +1137,7 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
   const reissueLink = async (r: AccessRequest) => {
     if (!confirm(`Issue a new access link for ${r.email}? Their previous link will stop working.`)) return;
     try {
-      await submitReview(r, "APPROVED", Object.fromEntries(r.documentAccess.map((da) => [da.documentId, da.permission])));
+      await submitReview(r, "APPROVED", Object.fromEntries(r.documentAccess.map((da) => [da.documentId, da.permission])), approvedExpiry(r));
       onRefresh();
     } catch {
       toast.error("Failed to issue a new link");
@@ -1158,7 +1178,7 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
                     <span>
                       Access link issued
-                      {r.tokenExpiresAt && <> · expires {new Date(r.tokenExpiresAt).toLocaleDateString()}</>}
+                      {r.tokenExpiresAt ? <> · expires {new Date(r.tokenExpiresAt).toLocaleDateString()}</> : <> · never expires</>}
                     </span>
                     {canManage && (
                       <button onClick={() => reissueLink(r)} className="font-medium text-brand-600 hover:text-brand-800">
@@ -1286,6 +1306,29 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
               {docs.filter((d) => d.visibility === "ACCESS_REQUIRED").length === 0 && (
                 <p className="text-sm text-gray-400">No restricted documents available.</p>
               )}
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Access expires after:</p>
+              <div role="radiogroup" aria-label="Access duration" className="flex flex-wrap gap-2">
+                {EXPIRY_OPTIONS.map((o) => (
+                  <button
+                    key={o.label}
+                    type="button"
+                    role="radio"
+                    aria-checked={expiry === o.value}
+                    onClick={() => setExpiry(o.value)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${expiry === o.value ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-xs text-gray-400">
+                {expiry === null
+                  ? "The link works until you revoke it."
+                  : `The link stops working on ${new Date(Date.now() + expiry * 86400000).toLocaleDateString()}. You can issue a new one any time.`}
+              </p>
             </div>
 
             <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
