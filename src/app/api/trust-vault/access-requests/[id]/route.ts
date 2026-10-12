@@ -6,6 +6,8 @@ import { handleError, HttpError, parseBody, requirePermission } from "@/lib/api"
 import { logAudit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
 import { VIEWABLE_MIME_TYPES } from "@/lib/trust-access";
+import { sendTrustAccessGrantedEmail } from "@/lib/email";
+import { portalBaseUrl } from "@/lib/vendor-portal";
 
 const reviewSchema = z.object({
   status: z.enum(["APPROVED", "DENIED"]),
@@ -88,8 +90,33 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       afterJson: { status, email: existing.email, grants: status === "APPROVED" ? grantRows : [], expiresInDays: status === "APPROVED" ? expiresInDays : undefined },
     });
 
+    // Email the link straight to the customer. The admin still sees it once, as a fallback if mail fails.
+    let emailed = false;
+    if (plainToken) {
+      try {
+        const org = await prisma.organization.findUniqueOrThrow({
+          where: { id: user.organizationId },
+          select: { name: true, slug: true },
+        });
+        const trustPageUrl = `${portalBaseUrl(req)}/trust/${org.slug}`;
+        await sendTrustAccessGrantedEmail(existing.email, {
+          orgName: org.name,
+          name: existing.name || existing.email,
+          link: `${trustPageUrl}?token=${encodeURIComponent(plainToken)}`,
+          trustPageUrl,
+          expiresAt: updated.tokenExpiresAt,
+          documents: docs
+            .filter((d) => grantRows.some((g) => g.documentId === d.id))
+            .map((d) => ({ name: d.name, permission: grantRows.find((g) => g.documentId === d.id)!.permission })),
+        });
+        emailed = true;
+      } catch (err) {
+        console.error("[trust-vault/access-requests] access email failed:", err);
+      }
+    }
+
     const { accessTokenHash, ...safe } = updated;
-    return NextResponse.json({ ...safe, linkIssued: !!accessTokenHash, accessToken: plainToken });
+    return NextResponse.json({ ...safe, linkIssued: !!accessTokenHash, accessToken: plainToken, emailed });
   } catch (err) {
     return handleError(err);
   }

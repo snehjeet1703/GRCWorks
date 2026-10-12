@@ -118,6 +118,12 @@ type AccessRequest = {
 
 export function TrustVaultClient({ canManage, orgSlug }: { canManage: boolean; orgSlug: string }) {
   const [tab, setTab] = useState("settings");
+
+  // Lets links (e.g. the new-request email) open a specific tab via ?tab=requests.
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get("tab");
+    if (wanted && TABS.some((t) => t.key === wanted)) setTab(wanted);
+  }, []);
   const toast = useToast();
 
   const [config, setConfig] = useState<Config | null>(null);
@@ -1091,7 +1097,7 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
   const [selectedDocs, setSelectedDocs] = useState<Record<string, Permission>>({});
   const [expiry, setExpiry] = useState<Expiry>(30);
   const [filter, setFilter] = useState<"ALL" | "PENDING" | "APPROVED" | "DENIED">("ALL");
-  const [issuedLink, setIssuedLink] = useState<{ email: string; url: string } | null>(null);
+  const [issuedLink, setIssuedLink] = useState<{ email: string; url: string; emailed: boolean } | null>(null);
 
   const openReview = (r: AccessRequest) => {
     setReviewing(r);
@@ -1117,6 +1123,7 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
     if (status === "APPROVED" && data.accessToken) {
       setIssuedLink({
         email: request.email,
+        emailed: !!data.emailed,
         url: `${window.location.origin}/trust/${orgSlug}?token=${encodeURIComponent(data.accessToken)}`,
       });
     }
@@ -1229,9 +1236,18 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
       <Modal open={!!issuedLink} onClose={() => setIssuedLink(null)} title="Access link">
         {issuedLink && (
           <div className="space-y-4">
+            {issuedLink.emailed ? (
+              <p className="flex items-start gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-800">
+                <CheckCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>We&apos;ve emailed this link to <strong>{issuedLink.email}</strong>. Nothing else to do.</span>
+              </p>
+            ) : (
+              <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+                We couldn&apos;t email <strong>{issuedLink.email}</strong>. Copy the link below and send it yourself.
+              </p>
+            )}
             <p className="text-sm text-gray-600">
-              Send this link to <strong>{issuedLink.email}</strong>. For security it is shown only once; if it&apos;s
-              lost, use <em>New link</em> to issue a replacement.
+              For security the link is shown only once; if it&apos;s lost, use <em>New link</em> to issue a replacement.
             </p>
             <input readOnly value={issuedLink.url} onFocus={(e) => e.target.select()} aria-label="Access link" className="input font-mono text-xs" />
             <div className="flex justify-end gap-2">

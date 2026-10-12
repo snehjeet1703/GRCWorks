@@ -70,6 +70,65 @@ export async function sendVendorOtpEmail(to: string, code: string, orgName: stri
   });
 }
 
+export async function sendTrustAccessGrantedEmail(
+  to: string,
+  d: {
+    orgName: string;
+    name: string;
+    link: string;
+    trustPageUrl: string;
+    expiresAt: Date | null;
+    documents: { name: string; permission: "VIEW_ONLY" | "DOWNLOADABLE" }[];
+  }
+) {
+  const expiry = d.expiresAt ? `It expires on ${d.expiresAt.toUTCString().slice(0, 16)}.` : "It doesn't expire unless access is revoked.";
+  const label = (p: string) => (p === "DOWNLOADABLE" ? "view & download" : "view only");
+  await transporter.sendMail({
+    from: FROM,
+    to,
+    subject: `Your access to ${d.orgName}'s Trust Center`,
+    text:
+      `Hi ${d.name},\n\n${d.orgName} has approved your request for access to its Trust Center.\n\n` +
+      `Open it here: ${d.link}\n\n` +
+      (d.documents.length ? `Documents shared with you:\n${d.documents.map((x) => `- ${x.name} (${label(x.permission)})`).join("\n")}\n\n` : "") +
+      `${expiry} Keep this link private; it's tied to your email.\n\n` +
+      `Lost this email? Go to ${d.trustPageUrl}, click "Get access" and sign in with a code sent to this address.`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#111">
+        <p>Hi ${escapeHtml(d.name)},</p>
+        <p><strong>${escapeHtml(d.orgName)}</strong> has approved your request for access to its Trust Center.</p>
+        <p><a href="${escapeHtml(d.link)}" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Open Trust Center</a></p>
+        ${d.documents.length ? `<p style="margin-bottom:4px">Documents shared with you:</p><ul style="margin-top:0">${d.documents.map((x) => `<li>${escapeHtml(x.name)} <span style="color:#666">(${label(x.permission)})</span></li>`).join("")}</ul>` : ""}
+        <p style="color:#666;font-size:13px">${escapeHtml(expiry)} Keep this link private; it's tied to your email.</p>
+        <p style="color:#666;font-size:13px">Lost this email? Go to <a href="${escapeHtml(d.trustPageUrl)}">${escapeHtml(d.trustPageUrl)}</a>, click <em>Get access</em> and sign in with a code sent to this address.</p>
+      </div>
+    `,
+  });
+}
+
+export async function sendTrustAccessRequestedEmail(
+  to: string[],
+  d: { orgName: string; name: string; email: string; company: string; reason: string; reviewUrl: string }
+) {
+  if (to.length === 0) return;
+  await transporter.sendMail({
+    from: FROM,
+    to: to.join(", "),
+    subject: `New Trust Center access request from ${d.company}`,
+    text:
+      `${d.name} (${d.email}) at ${d.company} has requested access to ${d.orgName}'s Trust Center.\n\n` +
+      (d.reason ? `Reason: ${d.reason}\n\n` : "") +
+      `Review it: ${d.reviewUrl}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#111">
+        <p><strong>${escapeHtml(d.name)}</strong> (${escapeHtml(d.email)}) at <strong>${escapeHtml(d.company)}</strong> has requested access to ${escapeHtml(d.orgName)}'s Trust Center.</p>
+        ${d.reason ? `<p style="background:#f5f5f5;padding:12px;border-radius:6px;white-space:pre-wrap">${escapeHtml(d.reason)}</p>` : ""}
+        <p><a href="${escapeHtml(d.reviewUrl)}" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Review request</a></p>
+      </div>
+    `,
+  });
+}
+
 export async function sendTrustOtpEmail(to: string, code: string, orgName: string) {
   await transporter.sendMail({
     from: FROM,

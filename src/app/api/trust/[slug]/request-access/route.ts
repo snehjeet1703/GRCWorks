@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { clientIp, limitOrNull } from "@/lib/rate-limit";
+import { sendTrustAccessRequestedEmail } from "@/lib/email";
+import { PERMISSIONS, resolvePermissions } from "@/lib/permissions";
+import { portalBaseUrl } from "@/lib/vendor-portal";
 
 const BLOCKED_DOMAINS = new Set([
   "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com",
@@ -61,7 +64,7 @@ export async function POST(
       );
     }
 
-    await prisma.trustAccessRequest.create({
+    const created = await prisma.trustAccessRequest.create({
       data: {
         configId: config.id,
         email: data.email.toLowerCase(),
@@ -70,6 +73,27 @@ export async function POST(
         reason: data.reason,
       },
     });
+
+    // Tell everyone who can approve it. A mail failure must not lose the customer's request.
+    try {
+      const users = await prisma.user.findMany({
+        where: { organizationId: org.id },
+        select: { email: true, role: true, customRole: { select: { name: true, permissions: true } } },
+      });
+      const approvers = users
+        .filter((u) => resolvePermissions(u).permissions.has(PERMISSIONS.TRUST_VAULT_MANAGE))
+        .map((u) => u.email);
+      await sendTrustAccessRequestedEmail(approvers, {
+        orgName: org.name,
+        name: created.name,
+        email: created.email,
+        company: created.company,
+        reason: created.reason,
+        reviewUrl: `${portalBaseUrl(req)}/trust-vault?tab=requests`,
+      });
+    } catch (err) {
+      console.error("[trust/request-access] admin notification failed:", err);
+    }
 
     return NextResponse.json({ success: true, message: "Access request submitted successfully" }, { status: 201 });
   } catch (err) {
