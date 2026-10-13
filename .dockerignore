@@ -1,11 +1,12 @@
 node_modules
 .next
 .git
+.claude
 uploads
 *.log
 .env
-.env.local
-.env.example
-README.md
+.env.*
+!.env.example
+tsconfig.tsbuildinfo
 .vscode
 .idea

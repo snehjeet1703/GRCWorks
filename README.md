@@ -1,119 +1,154 @@
 # GRC Platform
 
-Open-source governance, risk, and compliance for teams under 50 people.
+Open-source governance, risk and compliance for small teams.
 
-**MIT-licensed. Self-hosted. No telemetry. All frameworks included, no upcharges.**
+**MIT-licensed. Self-hosted. No telemetry. Every framework included, no upcharges.**
 
-Built because the vendors that promised "SOC 2 in a weekend" for $8k turn into a $20k+ renewal the moment you add a second framework. This runs on your own hardware or a $7/mo Fly.io machine, and every framework we ship is in the base image.
+Built because the vendors that promise "SOC 2 in a weekend" for $8k turn into a $20k+ renewal the moment you add a second framework. This runs on your own server or a small cloud machine, and each deployment belongs to one organisation: your data never shares a database with anyone else's.
 
 ## What's in the box
 
-- **Compliance** — Ship-ready seed for **6 frameworks**, all included:
-  - SOC 2 Type II (33 controls)
-  - ISO 27001:2022 (45 Annex A controls)
-  - HIPAA Security Rule (46 controls)
-  - PCI-DSS v4.0.1 (62 sub-requirements across 12 top-level requirements)
-  - GDPR (31 operationally-relevant articles)
-  - NIST CSF 2.0 (22 categories across 6 functions)
-- **Risk register** with likelihood × impact scoring, treatments, owners, and control links.
-- **Governance** — Policy lifecycle: draft → in-review → approved, with version bumps on approved-content edits and expiry tracking.
-- **Evidence** — Upload artifacts against controls. Type-whitelisted (pdf, png, jpg, docx, xlsx, csv, txt, md, json, zip) with a 20MB cap and locally-stored files.
-- **Multi-framework control mapping** — One control can satisfy requirements in multiple frameworks (SOC 2 CC6.1 + ISO A.8.5 + HIPAA §164.312(d), etc.).
-- **Audit trail** — Every change logged with the actor, entity name, and before/after diff. Survives user deletion.
-- **RBAC** — Admin / Editor / Viewer. Last-admin protection built in.
+- **Compliance**: 8 frameworks ready to go: SOC 2 Type II, ISO 27001:2022, ISO 27701:2019, HIPAA Security Rule, PCI-DSS v4.0.1, GDPR, NIST CSF 2.0 and India's DPDP Act 2023.
+- **Cross-framework controls**: implement a control once and it counts towards every framework that cites it (SOC 2 CC6.1 + ISO A.8.5 + HIPAA §164.312(d), and so on).
+- **Evidence**: upload proof against controls (type-checked, 20 MB cap).
+- **Risk register** with likelihood × impact scoring, treatments, owners and control links.
+- **Policies**: draft → review → approved, with versioning and expiry tracking.
+- **Findings and exceptions**: track gaps and time-boxed, approved exceptions.
+- **Vendor risk**: vendor inventory, security questionnaires, and an **external vendor portal** where vendors answer and upload files after verifying their email with a one-time code.
+- **Trust Center** (`/trust/<your-slug>`): a public page for your badges, controls, sub-processors and documents.
+  - Customers request access to private documents.
+  - You approve per file (**view only** or **download**) for 7, 15, 30 or 60 days, or with no expiry.
+  - View-only files are shown in the browser, watermarked with the viewer's email.
+  - Customers get their link by email and can sign back in later with an emailed code.
+  - Optional NDA click-through before private documents open.
+- **Audit trail**: every change logged with who, what, and a before/after diff.
+- **Access control**: 7 built-in roles (Admin, Compliance Manager, Editor, Auditor, Risk Analyst, Policy Admin, Viewer) plus custom roles, optionally scoped to specific frameworks.
+- **Sign-in security**: MFA (authenticator app, email code, or passkeys/security keys) with recovery codes, optional Microsoft Entra ID SSO, and organisation-wide MFA enforcement.
 
-## What we deliberately do not ship (yet)
+## Quick start with Docker
 
-- No workflow builder.
-- No trust center.
-- No AI-scored risk narratives.
-- No third-party attestation marketplace.
-- No telemetry, and never any phone-home.
-
-Those are what expensive incumbents bolt on to justify enterprise pricing. Skipping them is the whole point.
-
-## Deploy in one click
-
-| Platform | One-click | What you get |
-|---|---|---|
-| **Render** | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy) | Web service + managed Postgres + 1 GB persistent disk for evidence, wired automatically. |
-| **Railway** | [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template) | App + Postgres in a single project. |
-| **Fly.io** | `fly launch --copy-config` then `fly deploy` | Global machines + Fly Postgres, uses [fly.toml](./fly.toml). |
-| **Docker Compose** | `docker compose up -d` after building | Local or your own VPS. |
-| **Bare metal** | See below | Any Linux + Node 18+ + Postgres 14+. |
-
-For every hosted path: point the "Deploy to Render/Railway" button at your fork of this repo, then set `NEXTAUTH_URL` to the URL the platform gives you. The Postgres URL and `NEXTAUTH_SECRET` are provisioned automatically.
-
-**First run.** Each deployment serves one organisation. On a fresh database, open the app and you'll be taken to `/setup` to name your organisation and create the first administrator; the onboarding wizard then builds your compliance program. `/setup` locks itself once used — invite everyone else from **Settings → Team**.
-
-## Local quick start
+You need Docker with Compose.
 
 ```bash
-git clone <your-fork>
+git clone <your-fork> grc-platform
 cd grc-platform
-npm install
 cp .env.example .env
-# Generate a real secret (the app refuses to boot in production with the placeholder):
-node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
-# → paste as NEXTAUTH_SECRET in .env
-
-docker compose up -d          # starts Postgres
-npx prisma migrate deploy     # applies migrations
-npm run dev
 ```
 
-Open <http://localhost:3000>: you'll land on `/setup` to create your organisation and admin account.
+Edit `.env` and set at least:
 
-**Want a pre-filled demo instead?** Before visiting `/setup`, run `npx prisma db seed` and set `DEMO_MODE="true"` in `.env`, then sign in as `admin@demo.com` / `admin123`. The seed loads all 8 frameworks plus sample risks, policies and Trust Vault content. It is for development databases only: it refuses to run once a real organisation exists, and re-running it on the demo database is safe.
+- `NEXTAUTH_SECRET`: a long random value. Generate one with `openssl rand -base64 48`.
+- `NEXTAUTH_URL`: the address people will use, e.g. `https://grc.yourcompany.com`.
+- `POSTGRES_PASSWORD`: a strong database password.
+- The `SMTP_*` settings, so the app can send email (see below).
 
-## What runs where
+Then start it:
 
-- **Framework**: Next.js 16 App Router, React 18, TypeScript.
-- **Database**: PostgreSQL 14+ via Prisma.
-- **Auth**: NextAuth v4, credentials provider, bcrypt at cost 12.
-- **Styling**: Tailwind CSS, Lucide icons.
-- **Uploads**: Local filesystem under `./uploads` (swap to S3 by replacing `src/lib/storage.ts`; the S3 env vars in `.env.example` are the target contract).
-- **Every mutation** runs inside a Prisma transaction with its audit-log entry, so the trail is never out of sync with the data.
+```bash
+docker compose up -d --build
+```
+
+Open the app and you'll be taken to **/setup** to name your organisation and create the first administrator. `/setup` locks itself once used; invite everyone else from **Settings → Team**.
+
+Database migrations run automatically every time the container starts.
+
+The full guide, covering HTTPS, email, file storage, backups, upgrades and hosted platforms, is in **[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)**.
+
+## Other ways to deploy
+
+| Platform | How | Notes |
+|---|---|---|
+| **Render** | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy) | Uses [render.yaml](./render.yaml): web service, Postgres and a disk for uploads. |
+| **Railway** | [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template) | Uses [railway.json](./railway.json). Add a Postgres plugin and a volume at `/app/uploads`. |
+| **Fly.io** | `fly launch --copy-config` | Uses [fly.toml](./fly.toml); its header lists the exact commands. |
+| **Your own server** | `docker compose up -d --build` | See above. Put it behind a reverse proxy for HTTPS. |
+
+On every platform, set `NEXTAUTH_URL` to the final public URL and configure SMTP.
+
+## Email is required in production
+
+The app sends:
+
+- Trust Center access links, and new-request alerts to admins.
+- Sign-in codes: for returning Trust Center customers, the vendor portal and email-based MFA.
+- Vendor questionnaire invitations.
+
+Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `SMTP_FROM` in `.env`. Any SMTP provider works (Amazon SES, SendGrid, Postmark, Microsoft 365, Google Workspace).
+
+During local development, leaving `SMTP_HOST` empty prints every email to the server log instead.
+
+## Local development
+
+```bash
+npm install
+cp .env.example .env              # set NEXTAUTH_SECRET
+docker compose up -d db           # Postgres only
+npx prisma migrate deploy
+npm run dev                       # http://localhost:3002
+```
+
+**Want demo data?** On a fresh database, before visiting `/setup`, run `npx prisma db seed` and set `DEMO_MODE="true"`. Then sign in as `admin@demo.com` / `admin123`.
+
+- The seed loads all 8 frameworks, sample risks and policies, and a full Trust Center including sample PDFs at `/trust/demo`. Every sample PDF is stamped "SAMPLE".
+- The seed refuses to run once a real organisation exists, and it's safe to run again on the demo database.
+
+Checks:
+
+```bash
+npx tsc --noEmit                  # type check
+npm run build                     # production build
+```
+
+## How it's built
+
+- **App**: Next.js 16 (App Router), React 18, TypeScript, Tailwind CSS.
+- **Database**: PostgreSQL 14+ through Prisma. Migrations live in `prisma/migrations`.
+- **Auth**: NextAuth v4 with bcrypt passwords, TOTP / email / WebAuthn MFA, and optional Entra ID SSO.
+- **Files**: local disk under `./uploads` by default, or Google Cloud Storage when `GCS_BUCKET` is set.
+- **Consistency**: every change runs in a database transaction together with its audit-log entry.
 
 ```
 src/
 ├── app/
-│   ├── (app)/          # Authenticated pages: dashboard, compliance, risks, governance, evidence, settings
-│   ├── api/            # REST endpoints — all writes wrapped in $transaction + audit
-│   └── login/          # Sign-in page
-├── components/         # Modal, form primitives, toast, filter bar, control picker
-├── lib/                # db, auth, audit, permissions, storage, api helpers
-└── types/              # NextAuth session typing
+│   ├── (app)/           # Signed-in pages: dashboard, compliance, risks, vendors, trust-vault, settings…
+│   ├── api/             # REST endpoints
+│   ├── trust/[slug]/    # Public Trust Center
+│   └── vendor-portal/   # External questionnaire portal
+├── components/
+└── lib/                 # auth, audit, permissions, storage, email, rate limiting…
 prisma/
 ├── schema.prisma
 ├── migrations/
-└── seed.ts             # Idempotent — safe to re-run
+├── seed.ts              # Demo data (development only)
+└── sample-documents.ts  # Generates the demo Trust Center PDFs
 ```
+
+## Security
+
+- **Startup checks**: the app refuses to start in production without a proper `NEXTAUTH_SECRET`.
+- **Sessions**: passwords use bcrypt; sessions expire after 12 hours by default (`SESSION_MAX_AGE_HOURS`). Cookies are `HttpOnly` and `SameSite=Lax`, and `Secure` over HTTPS.
+- **Security headers**: CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy` and HSTS.
+- **Rate limits**: on sign-in, MFA, one-time codes, access requests and public document routes.
+- **Token storage**: Trust Center and vendor-portal links are random 256-bit tokens, and only their SHA-256 hashes are stored. One-time codes are bcrypt-hashed, expire after 10 minutes and allow 5 attempts.
+- **Uploads**: checked by type, size and file signature, and served with `nosniff`.
+- **Privacy**: no telemetry, crash reporting or third-party analytics.
+
+Found a vulnerability? Please email the maintainers privately rather than opening a public issue.
 
 ## Data portability
 
-Your data is yours. Every table is documented Prisma-first in [prisma/schema.prisma](./prisma/schema.prisma). Postgres backup with the tool of your choice:
+Your data is yours. Back up the database with any Postgres tool:
 
 ```bash
 pg_dump "$DATABASE_URL" > grc-backup.sql
 ```
 
-Evidence files live under `./uploads/` on the app machine — snapshot the volume/disk to include them.
-
-## Security posture
-
-- `NEXTAUTH_SECRET` is verified at boot in production; the app refuses to start on the placeholder value.
-- Passwords hashed with bcrypt cost 12.
-- Session cookies are `HttpOnly`, `SameSite=Lax`, `Secure` when served over HTTPS.
-- All mutating endpoints check the session and, where applicable, an Editor/Admin role.
-- Uploaded files are size-capped (20 MB) and extension-and-mime-type-whitelisted.
-- File-download endpoint returns `Content-Disposition: attachment` — the browser will never render user content inline.
-- No telemetry beacon, no crash reporter, no third-party analytics in the runtime.
+Uploaded files live in `./uploads` (the `uploads` Docker volume), or in your GCS bucket. See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md#backups) for a full backup and restore routine.
 
 ## Contributing
 
-PRs welcome — especially for framework updates when regulators publish revisions. Please keep control lists sourced (add the framework version to the PR description).
+PRs welcome, especially framework updates when regulators publish revisions. Please cite the source and version of any control list in the PR description.
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT. See [LICENSE](./LICENSE).

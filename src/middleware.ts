@@ -6,7 +6,7 @@ import type { NextRequest } from "next/server";
 // Vendor portal routes authenticate themselves (link token + email-verified cookie).
 const PUBLIC_PREFIXES = [
   "/login", "/setup", "/api/setup", "/api/auth", "/trust/", "/api/trust/", "/onboarding",
-  "/vendor-portal/", "/api/vendor-portal/",
+  "/vendor-portal/", "/api/vendor-portal/", "/api/health",
 ];
 const MFA_PREFIXES = ["/mfa-verify", "/api/mfa"];
 
