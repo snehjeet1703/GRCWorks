@@ -56,6 +56,12 @@ const createSchema = z
     }
   );
 
+// API responses keep `_count.evidence` (artifacts supporting the control); internally it's the link count.
+function withEvidenceCount<T extends { _count: { evidenceLinks: number } }>(c: T) {
+  const { evidenceLinks, ...rest } = c._count;
+  return { ...c, _count: { ...rest, evidence: evidenceLinks } };
+}
+
 export async function GET() {
   try {
     const { resolved, ...user } = await requirePermission(PERMISSIONS.CONTROLS_READ);
@@ -77,7 +83,7 @@ export async function GET() {
       },
       orderBy: [{ code: "asc" }],
     });
-    return NextResponse.json(controls);
+    return NextResponse.json(controls.map(withEvidenceCount));
   } catch (err) {
     return handleError(err);
   }

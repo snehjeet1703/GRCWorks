@@ -375,7 +375,8 @@ async function tc277() {
   // Create another vendor + assign questionnaire, then submit incomplete
   const vr = await api("/api/vendors", { method: "POST", cookie: cookieEditorA, body: JSON.stringify({ name: "Incomplete Test Vendor" }) });
   const v = await vr.json();
-  await api(`/api/vendors/${v.id}/questionnaire-responses`, { method: "POST", cookie: cookieEditorA, body: JSON.stringify({ questionnaireId }) });
+  // Sending emails an invite through the vendor portal, so a contact address is required.
+  await api(`/api/vendors/${v.id}/questionnaire-responses`, { method: "POST", cookie: cookieEditorA, body: JSON.stringify({ questionnaireId, contactEmail: "security@incomplete-vendor.test" }) });
   // Submit with only 2 answers — API allows partial (validation is business logic)
   const res = await api(`/api/vendors/${v.id}/questionnaire-responses?action=submit`, {
     method: "POST", cookie: cookieEditorA,
@@ -659,7 +660,7 @@ async function tc300() {
   assert(qr.status === 201, "3. questionnaire created");
 
   // Assign
-  const sr = await api(`/api/vendors/${vendor.id}/questionnaire-responses`, { method: "POST", cookie: cookieEditorA, body: JSON.stringify({ questionnaireId: q.id }) });
+  const sr = await api(`/api/vendors/${vendor.id}/questionnaire-responses`, { method: "POST", cookie: cookieEditorA, body: JSON.stringify({ questionnaireId: q.id, contactEmail: "security@lifecycle-vendor.test" }) });
   assert(sr.status === 201, "3. questionnaire assigned");
   const resp = await sr.json();
 

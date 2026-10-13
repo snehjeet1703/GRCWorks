@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import path from "path";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { HttpError, handleError, parseBody, requirePermission } from "@/lib/api";
+import { HttpError, handleError, parseBody, readUploadForm, requirePermission } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
 import { saveUpload } from "@/lib/storage";
@@ -132,6 +132,7 @@ export async function GET(req: Request) {
     const now = new Date();
     const enriched = evidence.map((e) => ({
       ...e,
+      controlIds: e.controls.map((l) => l.control.id),
       computedStatus: computeEvidenceStatus(e, now),
     }));
     return NextResponse.json(enriched);
@@ -187,10 +188,10 @@ export async function POST(req: Request) {
         return row;
       });
 
-      return NextResponse.json(evidence, { status: 201 });
+      return NextResponse.json({ ...evidence, controlIds: controls.map((c) => c.id) }, { status: 201 });
     }
 
-    const form = await req.formData();
+    const form = await readUploadForm(req, MAX_BYTES, `File exceeds ${MAX_BYTES / 1024 / 1024} MB limit`);
     // Accept repeated `controlIds` fields, or the legacy single `controlId`.
     const controlIds = [...form.getAll("controlIds"), ...form.getAll("controlId")].filter(
       (v): v is string => typeof v === "string" && v.length > 0
@@ -254,7 +255,7 @@ export async function POST(req: Request) {
       return row;
     });
 
-    return NextResponse.json(evidence, { status: 201 });
+    return NextResponse.json({ ...evidence, controlIds: controls.map((c) => c.id) }, { status: 201 });
   } catch (err) {
     return handleError(err);
   }

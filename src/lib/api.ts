@@ -117,6 +117,24 @@ export async function parseBody<T>(req: Request, schema: ZodSchema<T>): Promise<
   }
 }
 
+// Multipart headers and other form fields on top of the file itself.
+const FORM_OVERHEAD_BYTES = 1024 * 1024;
+
+// Reads a multipart upload, refusing oversized bodies up front. Bodies over the proxy buffer
+// (next.config.js proxyClientMaxBodySize) arrive truncated, so a parse failure is reported as a
+// client error rather than a 500.
+export async function readUploadForm(req: Request, maxFileBytes: number, tooLargeMessage: string): Promise<FormData> {
+  const declared = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxFileBytes + FORM_OVERHEAD_BYTES) {
+    throw new HttpError(413, tooLargeMessage);
+  }
+  try {
+    return await req.formData();
+  } catch {
+    throw new HttpError(400, `The upload could not be read. ${tooLargeMessage}`);
+  }
+}
+
 export function handleError(err: unknown): NextResponse {
   if (err instanceof NextResponse) return err;
   if (err instanceof HttpError) {

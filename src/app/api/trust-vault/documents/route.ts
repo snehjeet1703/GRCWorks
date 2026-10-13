@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { handleError, HttpError, requirePermission } from "@/lib/api";
+import { handleError, HttpError, readUploadForm, requirePermission } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
 import { saveUpload } from "@/lib/storage";
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     const { resolved, ...user } = await requirePermission(PERMISSIONS.TRUST_VAULT_MANAGE);
     const configId = await getConfigId(user.organizationId);
 
-    const formData = await req.formData();
+    const formData = await readUploadForm(req, MAX_FILE_SIZE, "File too large (max 50MB)");
     const file = formData.get("file") as File | null;
     if (!file) throw new HttpError(400, "File is required");
     if (file.size === 0) throw new HttpError(400, "Empty files are not allowed");

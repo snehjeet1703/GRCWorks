@@ -215,7 +215,7 @@ async function tc55() {
   assert(r.data.fileName === "Access-Review-Q3-2026.pdf", `Filename is correct`);
   assert(r.data.fileSize > 0, `File size is shown (${r.data.fileSize})`);
   assert(r.data.uploadedById === adminA.id, `Uploaded by is correct`);
-  assert(r.data.controlId === ctrl001Id, `Control ID is correct`);
+  assert(Array.isArray(r.data.controlIds) && r.data.controlIds.includes(ctrl001Id), `Control ID is correct`);
   assert(r.data.type === "DOCUMENT", `Type is DOCUMENT`);
   assert(r.data.source === "MANUAL_UPLOAD", `Source is MANUAL_UPLOAD`);
   assert(r.data.description === "Q3 production access review", `Description is correct`);
@@ -351,7 +351,7 @@ async function tc65() {
   // Add PDF magic
   bigContent[0] = 0x25; bigContent[1] = 0x50; bigContent[2] = 0x44; bigContent[3] = 0x46;
   const r = await uploadRawEvidence(cookieAdminA, ctrl001Id, "big.pdf", bigContent, "application/pdf");
-  assert(r.status === 400, `Oversized file rejected (${r.status})`);
+  assert(r.status === 400 || r.status === 413, `Oversized file rejected (${r.status})`);
   assert(r.data?.error?.includes("MB limit") || r.data?.error?.includes("exceeds"), `Meaningful error: "${r.data?.error}"`);
 
   // Verify no DB record
@@ -455,8 +455,9 @@ async function tc72() {
   const pdfContent = readFileSync(path.join(TEST_DIR, "Access-Review-Q4-2026.pdf"));
   const r = await uploadEvidence(cookieAdminA, ctrl001Id, "Access-Review-Q4-2026.pdf", pdfContent, {
     type: "DOCUMENT",
-    validFrom: "2026-10-01T00:00:00.000Z",
-    validUntil: "2026-12-31T00:00:00.000Z",
+    // Relative to today so the evidence is always in the future.
+    validFrom: new Date(Date.now() + 30 * 86400000).toISOString(),
+    validUntil: new Date(Date.now() + 120 * 86400000).toISOString(),
     description: "Q4 access review - future",
   });
   assert(r.status === 201, "Future evidence uploaded");
@@ -657,14 +658,37 @@ async function tc81() {
 }
 
 async function tc82() {
-  console.log("\n── TC-82: Evidence ↔ Control Relationship ──");
-  // Current model: Evidence → Control is 1:1 (each evidence belongs to one control)
-  // Document the intended behavior
+  console.log("\n── TC-82: Evidence ↔ Control Relationship (many-to-many) ──");
   const evList = await api("GET", `/api/evidence?controlId=${ctrl001Id}`, cookieAdminA);
   const q3 = evList.data.find((e: any) => e.id === evidenceQ3Id);
-  assert(q3.controlId === ctrl001Id, "Evidence belongs to single control");
-  assert(q3.control.code === "CTRL-001", "Control info available from evidence");
-  console.log("  (Current model: Evidence → Control is direct 1:1. Multi-control junction is future work.)");
+  assert(q3.controlIds.includes(ctrl001Id), "Evidence lists its control");
+  assert(q3.controls.some((l: any) => l.control.code === "CTRL-001"), "Control info available from evidence");
+
+  // One artifact can support several controls.
+  const second = await prisma.control.create({
+    data: { organizationId: orgA.id, code: "CTRL-002", title: "MFA for admins", status: "IMPLEMENTED" },
+  });
+  const link = await api("PUT", `/api/evidence/${evidenceQ3Id}/controls`, cookieAdminA, { controlIds: [ctrl001Id, second.id] });
+  assert(link.status === 200, `Evidence linked to a second control (${link.status})`);
+  const underSecond = await api("GET", `/api/evidence?controlId=${second.id}`, cookieAdminA);
+  assert(underSecond.data.some((e: any) => e.id === evidenceQ3Id), "Evidence appears under the second control");
+  const stillFirst = await api("GET", `/api/evidence?controlId=${ctrl001Id}`, cookieAdminA);
+  assert(stillFirst.data.some((e: any) => e.id === evidenceQ3Id), "Evidence still appears under the first control");
+  const ctrl2 = await api("GET", `/api/controls/${second.id}`, cookieAdminA);
+  assert(ctrl2.data._count.evidence >= 1, "Second control counts the shared evidence");
+
+  // Links must stay inside the organisation and never be empty.
+  const crossOrg = await api("PUT", `/api/evidence/${evidenceQ3Id}/controls`, cookieAdminA, { controlIds: [ctrl001Id, ctrlBId] });
+  assert(crossOrg.status === 404, `Cannot link to another org's control (${crossOrg.status})`);
+  const empty = await api("PUT", `/api/evidence/${evidenceQ3Id}/controls`, cookieAdminA, { controlIds: [] });
+  assert(empty.status === 400, `Cannot remove every control (${empty.status})`);
+  const otherOrg = await api("PUT", `/api/evidence/${evidenceQ3Id}/controls`, cookieAdminB, { controlIds: [ctrlBId] });
+  assert(otherOrg.status === 404, `Another org can't relink this evidence (${otherOrg.status})`);
+
+  // Restore the single link so later tests see the original setup.
+  const restore = await api("PUT", `/api/evidence/${evidenceQ3Id}/controls`, cookieAdminA, { controlIds: [ctrl001Id] });
+  assert(restore.status === 200, "Links restored to one control");
+  await prisma.control.delete({ where: { id: second.id } });
 }
 
 async function tc83() {
@@ -686,10 +710,10 @@ async function tc84() {
   // Filter by controlId
   const byControl = await api("GET", `/api/evidence?controlId=${ctrl001Id}`, cookieAdminA);
   assert(byControl.status === 200, "Filter by control works");
-  assert(byControl.data.every((e: any) => e.controlId === ctrl001Id), "All results match control filter");
+  assert(byControl.data.every((e: any) => e.controlIds.includes(ctrl001Id)), "All results match control filter");
 
   // Verify all results belong to current org
-  assert(byControl.data.every((e: any) => !!e.control), "All results have control info");
+  assert(byControl.data.every((e: any) => e.controls.length > 0), "All results have control info");
 }
 
 async function tc85() {
@@ -729,7 +753,7 @@ async function tc86() {
   // Verify control belongs to Org A, not injected Org B
   const ev = await api("GET", `/api/evidence?controlId=${ctrl001Id}`, cookieAdminA);
   const item = ev.data.find((e: any) => e.id === data.id);
-  assert(item.control.code === "CTRL-001", "Evidence associated with correct control");
+  assert(item.controls.some((l: any) => l.control.code === "CTRL-001"), "Evidence associated with correct control");
 
   // Clean up
   await api("DELETE", `/api/evidence/${data.id}`, cookieAdminA);
@@ -812,7 +836,7 @@ async function tc90() {
   const evList = await api("GET", `/api/evidence?controlId=${ctrl001Id}`, cookieAdminA);
   const q3 = evList.data.find((e: any) => e.id === evidenceQ3Id);
   assert(!!q3, "Evidence exists");
-  assert(q3.control.code === "CTRL-001", "Evidence → CTRL-001 navigation works");
+  assert(q3.controls.some((l: any) => l.control.code === "CTRL-001"), "Evidence → CTRL-001 navigation works");
 
   // From control → framework requirements
   const ctrl = await api("GET", `/api/controls/${ctrl001Id}`, cookieAdminA);

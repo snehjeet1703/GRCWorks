@@ -109,7 +109,7 @@ async function tc189() {
       version: "1.0",
       content: "Test security policy content",
       ownerId: editorA.id,
-      effectiveDate: "2026-10-01T00:00:00.000Z",
+      effectiveDate: new Date(Date.now() + 30 * 86400000).toISOString(), // always in the future
       reviewDate: "2027-09-30T00:00:00.000Z",
     }),
   });

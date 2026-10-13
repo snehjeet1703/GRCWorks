@@ -26,11 +26,16 @@ export async function middleware(req: NextRequest) {
 
   const token = await getToken({ req });
 
+  // API callers get a status code, not the HTML login page.
+  const isApi = pathname.startsWith("/api/");
+
   if (!token && !isPublic) {
+    if (isApi) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
   if (token?.mfaPending && !isMfaPath && !isPublic) {
+    if (isApi) return NextResponse.json({ error: "MFA verification required" }, { status: 401 });
     return NextResponse.redirect(new URL("/mfa-verify", req.url));
   }
 

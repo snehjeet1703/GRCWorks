@@ -59,6 +59,12 @@ const updateSchema = z
     }
   );
 
+// API responses keep `_count.evidence` (artifacts supporting the control); internally it's the link count.
+function withEvidenceCount<T extends { _count: { evidenceLinks: number } }>(c: T) {
+  const { evidenceLinks, ...rest } = c._count;
+  return { ...c, _count: { ...rest, evidence: evidenceLinks } };
+}
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -93,7 +99,7 @@ export async function GET(
       },
     });
     if (!control) throw new HttpError(404, "Control not found");
-    return NextResponse.json(control);
+    return NextResponse.json(withEvidenceCount(control));
   } catch (err) {
     return handleError(err);
   }

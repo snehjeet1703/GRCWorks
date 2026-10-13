@@ -45,6 +45,11 @@ const nextConfig = {
   // storage.ts reads ./uploads at runtime; never copy user files into the build output.
   outputFileTracingExcludes: { "/*": ["./uploads/**/*"] },
   serverExternalPackages: ["@prisma/client", "bcryptjs"],
+  experimental: {
+    // Middleware buffers request bodies up to this size (default 10 MB) and silently truncates
+    // anything larger. The largest upload is a 50 MB Trust Vault document plus form overhead.
+    proxyClientMaxBodySize: "52mb",
+  },
   allowedDevOrigins: ["192.168.17.1"],
   poweredByHeader: false,
   async headers() {

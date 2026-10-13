@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { handleError, HttpError } from "@/lib/api";
+import { handleError, HttpError, readUploadForm } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { limitOrNull } from "@/lib/rate-limit";
 import { saveUpload } from "@/lib/storage";
 import { parseQuestions, requireEditable, requirePortalSession } from "@/lib/vendor-portal";
-import { VENDOR_UPLOAD_MAX_FILES, assertVendorUpload, safeDisplayName } from "@/lib/vendor-upload";
+import { VENDOR_UPLOAD_MAX_BYTES, VENDOR_UPLOAD_MAX_FILES, assertVendorUpload, safeDisplayName } from "@/lib/vendor-upload";
 
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
   try {
@@ -19,7 +19,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       throw new HttpError(400, `A response can have at most ${VENDOR_UPLOAD_MAX_FILES} files`);
     }
 
-    const form = await req.formData();
+    const form = await readUploadForm(req, VENDOR_UPLOAD_MAX_BYTES, "File is larger than 20 MB");
     const questionId = String(form.get("questionId") ?? "");
     const file = form.get("file");
     if (!(file instanceof File)) throw new HttpError(400, "File is required");

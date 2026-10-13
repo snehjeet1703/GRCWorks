@@ -395,6 +395,7 @@ async function tc40() {
   const { status, data } = await api("POST", "/api/exceptions", cookieAdminA, {
     controlId: ctrl001Id,
     reason: "Temporary exception for migration period",
+    compensatingControl: "Manual weekly review of access logs",
     validFrom: new Date().toISOString(),
     validUntil: new Date(Date.now() + 90 * 86400000).toISOString(),
   });

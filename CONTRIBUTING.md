@@ -39,8 +39,21 @@ With `SMTP_HOST` empty in development, every email (sign-in codes, access links,
    npm run build         # must succeed
    ```
 
-4. Try the change in the browser, including both light and dark mode if you touched the UI.
-5. Open a pull request using the template.
+4. Run the API test suites in `tests/` that cover your change. Each suite creates and cleans up its own organisations, users and data through a running server on port 3002, so point that server at a **separate test database**, never your real one:
+
+   ```bash
+   # once: create the test database and apply migrations
+   DATABASE_URL=postgresql://grc:grc_dev_password@localhost:5432/grc_test npx prisma migrate deploy
+   # terminal 1: the app, using the test database
+   DATABASE_URL=postgresql://grc:grc_dev_password@localhost:5432/grc_test npm run dev
+   # terminal 2: one suite at a time
+   DATABASE_URL=postgresql://grc:grc_dev_password@localhost:5432/grc_test npx tsx tests/tc-evidence.ts
+   ```
+
+   Sign-in is rate-limited to 30 attempts per IP every 15 minutes, and the suites sign in often. If a suite fails with "Login failed … no session cookie", restart the dev server (the limit is kept in memory) and run the rest.
+
+5. Try the change in the browser, including both light and dark mode if you touched the UI.
+6. Open a pull request using the template.
 
 ### Database changes
 

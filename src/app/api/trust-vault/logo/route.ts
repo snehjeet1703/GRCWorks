@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { handleError, HttpError, requirePermission } from "@/lib/api";
+import { handleError, HttpError, readUploadForm, requirePermission } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
 import { deleteUpload, readUpload, saveUpload } from "@/lib/storage";
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     const { resolved, ...user } = await requirePermission(PERMISSIONS.TRUST_VAULT_MANAGE);
     const config = await getConfig(user.organizationId);
 
-    const file = (await req.formData()).get("file") as File | null;
+    const file = (await readUploadForm(req, LOGO_MAX_BYTES, "Logo too large (max 1MB)")).get("file") as File | null;
     if (!file || file.size === 0) throw new HttpError(400, "Logo file is required");
     if (file.size > LOGO_MAX_BYTES) throw new HttpError(400, "Logo too large (max 1MB)");
 
