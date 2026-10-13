@@ -52,13 +52,16 @@ export async function GET(
         }).then((docs) => docs.map(({ mimeType, ...d }) => ({ ...d, viewable: VIEWABLE_MIME_TYPES.has(mimeType) })))
       : [];
 
-    // Restricted files are listed by name so visitors know what to request; downloads stay token-gated.
-    const lockedDocuments = config.showDocuments
-      ? await prisma.trustVaultDocument.findMany({
-          where: { ...activeDocs, visibility: "ACCESS_REQUIRED" },
-          select: { id: true, name: true, category: true, visibility: true },
-          orderBy: { sortOrder: "asc" },
-        })
+    // Restricted files are only counted per folder: names appear once a customer's access is approved.
+    const lockedCounts = config.showDocuments
+      ? await prisma.trustVaultDocument
+          .groupBy({
+            by: ["category"],
+            where: { ...activeDocs, visibility: "ACCESS_REQUIRED" },
+            _count: { _all: true },
+            orderBy: { category: "asc" },
+          })
+          .then((rows) => rows.map((r) => ({ category: r.category, count: r._count._all })))
       : [];
 
     const controls = config.showControls
@@ -92,10 +95,10 @@ export async function GET(
       },
       badges,
       documents,
-      lockedDocuments,
+      lockedCounts,
       controls,
       subprocessors,
-      hasRestrictedDocs: lockedDocuments.length > 0,
+      hasRestrictedDocs: lockedCounts.some((c) => c.count > 0),
     });
   } catch (err) {
     console.error("[trust] error:", err);

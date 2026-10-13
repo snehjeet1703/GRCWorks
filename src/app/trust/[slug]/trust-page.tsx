@@ -28,13 +28,14 @@ type TrustData = {
   };
   badges: { id: string; name: string; description: string; iconUrl: string }[];
   documents: DocMeta[];
-  lockedDocuments: DocMeta[];
+  // Restricted documents per folder; names are only sent after access is approved.
+  lockedCounts: { category: string; count: number }[];
   controls: { id: string; category: string; name: string }[];
   subprocessors: { id: string; name: string; purpose: string; location: string; website: string }[];
   hasRestrictedDocs: boolean;
 };
 
-type DocItem = DocMeta & { locked: boolean };
+type Folder = { category: string; docs: DocMeta[]; locked: number };
 
 const FOLDERS_SHOWN = 6;
 const SUBPROCESSORS_SHOWN = 6;
@@ -113,30 +114,45 @@ export function TrustPage({ slug }: { slug: string }) {
 
   const canViewRestricted = !ndaRequired || ndaAccepted;
 
-  const allDocs: DocItem[] = useMemo(() => {
+  const accessibleDocs: DocMeta[] = useMemo(() => {
     if (!data) return [];
-    const accessible = [
+    return [
       ...data.documents,
       ...(canViewRestricted ? grantedDocs.filter((g) => !data.documents.some((d) => d.id === g.id)) : []),
     ];
-    const accessibleIds = new Set(accessible.map((d) => d.id));
-    return [
-      ...accessible.map((d) => ({ ...d, locked: false })),
-      ...data.lockedDocuments.filter((d) => !accessibleIds.has(d.id)).map((d) => ({ ...d, locked: true })),
-    ];
   }, [data, grantedDocs, canViewRestricted]);
 
-  const folders = useMemo(() => {
+  // Restricted documents the visitor can't open yet, counted per folder (approved grants are subtracted).
+  const lockedByCategory = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const { category, count } of data?.lockedCounts ?? []) {
+      const opened = accessibleDocs.filter((d) => d.category === category && d.visibility === "ACCESS_REQUIRED").length;
+      if (count - opened > 0) map.set(category, count - opened);
+    }
+    return map;
+  }, [data, accessibleDocs]);
+
+  const folders: Folder[] = useMemo(() => {
     const q = docSearch.trim().toLowerCase();
-    const matches = allDocs.filter((d) => {
-      if (docFilter === "Public" && d.visibility !== "PUBLIC") return false;
-      if (docFilter === "Private" && d.visibility !== "ACCESS_REQUIRED") return false;
-      return !q || d.name.toLowerCase().includes(q) || d.category.toLowerCase().includes(q);
-    });
-    const byCategory = new Map<string, DocItem[]>();
-    for (const d of matches) byCategory.set(d.category, [...(byCategory.get(d.category) ?? []), d]);
-    return [...byCategory.entries()].map(([category, docs]) => ({ category, docs }));
-  }, [allDocs, docFilter, docSearch]);
+    const byCategory = new Map<string, Folder>();
+    const folder = (category: string) => {
+      if (!byCategory.has(category)) byCategory.set(category, { category, docs: [], locked: 0 });
+      return byCategory.get(category)!;
+    };
+    for (const d of accessibleDocs) {
+      if (docFilter === "Public" && d.visibility !== "PUBLIC") continue;
+      if (docFilter === "Private" && d.visibility !== "ACCESS_REQUIRED") continue;
+      if (q && !d.name.toLowerCase().includes(q) && !d.category.toLowerCase().includes(q)) continue;
+      folder(d.category).docs.push(d);
+    }
+    if (docFilter !== "Public") {
+      for (const [category, count] of lockedByCategory) {
+        if (q && !category.toLowerCase().includes(q)) continue;
+        folder(category).locked = count;
+      }
+    }
+    return [...byCategory.values()];
+  }, [accessibleDocs, lockedByCategory, docFilter, docSearch]);
 
   const controlsByCategory = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -168,8 +184,10 @@ export function TrustPage({ slug }: { slug: string }) {
   const primary = config.primaryColor || "#6366f1";
   const orgName = config.heroTitle || data.organization.name;
   const longIntro = config.heroDescription.length > 280 || config.heroDescription.split("\n").length > 3;
-  const hasLocked = allDocs.some((d) => d.locked);
-  const folderDocs = folders.find((f) => f.category === openFolder)?.docs ?? [];
+  const hasLocked = lockedByCategory.size > 0;
+  const openFolderData = folders.find((f) => f.category === openFolder) ?? null;
+  const folderDocs = openFolderData?.docs ?? [];
+  const folderLocked = openFolderData?.locked ?? 0;
   const categoryItems = controlsByCategory.find(([c]) => c === openCategory)?.[1] ?? [];
 
   const sections = [
@@ -336,8 +354,8 @@ export function TrustPage({ slug }: { slug: string }) {
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {(showAllFolders ? folders : folders.slice(0, FOLDERS_SHOWN)).map(({ category, docs }) => {
-                const locked = docs.some((d) => d.locked);
+              {(showAllFolders ? folders : folders.slice(0, FOLDERS_SHOWN)).map(({ category, docs, locked }) => {
+                const total = docs.length + locked;
                 return (
                   <button
                     key={category}
@@ -350,9 +368,12 @@ export function TrustPage({ slug }: { slug: string }) {
                     <span className="min-w-0 flex-1">
                       <span className="block text-xs text-gray-400">Documents</span>
                       <span className="block truncate font-semibold text-gray-900">{category}</span>
-                      <span className="block text-xs text-gray-500">{docs.length} document{docs.length === 1 ? "" : "s"}</span>
+                      <span className="block text-xs text-gray-500">
+                        {total} document{total === 1 ? "" : "s"}
+                        {locked > 0 && <> · {locked} restricted</>}
+                      </span>
                     </span>
-                    {locked && <Lock className="h-4 w-4 shrink-0" style={{ color: primary }} aria-label="Contains restricted documents" />}
+                    {locked > 0 && <Lock className="h-4 w-4 shrink-0" style={{ color: primary }} aria-label="Contains restricted documents" />}
                   </button>
                 );
               })}
@@ -372,7 +393,8 @@ export function TrustPage({ slug }: { slug: string }) {
             )}
             {!token && hasLocked && (
               <p className="mt-5 rounded-lg bg-gray-50 p-3 text-center text-sm text-gray-600">
-                Some documents require access approval.{" "}
+                {[...lockedByCategory.values()].reduce((a, b) => a + b, 0)} restricted document
+                {[...lockedByCategory.values()].reduce((a, b) => a + b, 0) === 1 ? "" : "s"} available on request.{" "}
                 <button onClick={() => setShowRequestModal(true)} className="font-medium underline" style={{ color: primary }}>
                   Get access
                 </button>
@@ -455,34 +477,45 @@ export function TrustPage({ slug }: { slug: string }) {
                   <p className="truncate text-sm font-medium text-gray-900">{d.name}</p>
                   {d.description && <p className="truncate text-xs text-gray-500">{d.description}</p>}
                 </div>
-                {d.locked ? (
-                  <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-gray-500">
-                    <Lock className="h-3.5 w-3.5" /> Restricted
-                  </span>
-                ) : (
-                  <span className="flex shrink-0 items-center gap-3">
-                    {d.viewable && (
-                      <button
-                        onClick={() => setViewing({ id: d.id, name: d.name })}
-                        className="inline-flex items-center gap-1.5 text-sm font-medium"
-                        style={{ color: primary }}
-                      >
-                        <Eye className="h-4 w-4" /> View
-                      </button>
-                    )}
-                    {d.permission === "DOWNLOADABLE" ? (
-                      <a href={downloadHref(d.id)} className="inline-flex items-center gap-1.5 text-sm font-medium" style={{ color: primary }}>
-                        <Download className="h-4 w-4" /> Download
-                      </a>
-                    ) : (
-                      !d.viewable && <span className="text-xs text-gray-500">Ask the owner for access</span>
-                    )}
-                  </span>
-                )}
+                <span className="flex shrink-0 items-center gap-3">
+                  {d.viewable && (
+                    <button
+                      onClick={() => setViewing({ id: d.id, name: d.name })}
+                      className="inline-flex items-center gap-1.5 text-sm font-medium"
+                      style={{ color: primary }}
+                    >
+                      <Eye className="h-4 w-4" /> View
+                    </button>
+                  )}
+                  {d.permission === "DOWNLOADABLE" ? (
+                    <a href={downloadHref(d.id)} className="inline-flex items-center gap-1.5 text-sm font-medium" style={{ color: primary }}>
+                      <Download className="h-4 w-4" /> Download
+                    </a>
+                  ) : (
+                    !d.viewable && <span className="text-xs text-gray-500">Ask the owner for access</span>
+                  )}
+                </span>
               </li>
             ))}
+            {folderLocked > 0 && (
+              <li className="flex items-center gap-3 py-3">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center text-gray-400">
+                  <Lock className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    {folderLocked} restricted document{folderLocked === 1 ? "" : "s"}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {token
+                      ? "Not included in your current access. Ask the owner to add them."
+                      : "Titles and files are shared once your access request is approved."}
+                  </p>
+                </div>
+              </li>
+            )}
           </ul>
-          {!token && folderDocs.some((d) => d.locked) && (
+          {!token && folderLocked > 0 && (
             <button
               onClick={() => { setOpenFolder(null); setShowRequestModal(true); }}
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white"
