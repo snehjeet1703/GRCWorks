@@ -12,7 +12,11 @@ const PLACEHOLDER_SECRETS = new Set([
   "my-grc-platform-secret-key-2026",
 ]);
 const secret = process.env.NEXTAUTH_SECRET;
-if (process.env.NODE_ENV === "production") {
+// `next build` loads this module too; a Docker image must not contain the secret, so only enforce at runtime.
+const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+if (isBuildPhase) {
+  // Checked when the server starts.
+} else if (process.env.NODE_ENV === "production") {
   if (!secret || PLACEHOLDER_SECRETS.has(secret) || secret.length < 32) {
     throw new Error(
       "NEXTAUTH_SECRET is missing, still the placeholder, or too short. " +
