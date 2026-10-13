@@ -23,7 +23,7 @@ export async function GET() {
       frameworks,
     ] = await Promise.all([
       prisma.control.findMany({ where: { organizationId: orgId }, include: { tests: { orderBy: [{ testDate: "desc" }, { createdAt: "desc" }], take: 1, select: { result: true, nextDueDate: true } } } }),
-      prisma.evidence.findMany({ where: { control: { organizationId: orgId } }, select: { status: true, validFrom: true, validUntil: true } }),
+      prisma.evidence.findMany({ where: { organizationId: orgId }, select: { status: true, validFrom: true, validUntil: true } }),
       prisma.finding.findMany({ where: { organizationId: orgId }, select: { status: true, severity: true, dueDate: true } }),
       prisma.risk.findMany({ where: { organizationId: orgId }, select: { status: true, inherentScore: true } }),
       prisma.riskAction.findMany({ where: { risk: { organizationId: orgId } }, select: { status: true, dueDate: true } }),

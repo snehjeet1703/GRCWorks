@@ -34,7 +34,7 @@ type Risk = {
   updatedAt: string;
 };
 type Policy = { id: string; title: string; status: string; controlIds: string[] };
-type Evidence = { id: string; controlId: string; status: string; validUntil: string | null };
+type Evidence = { id: string; controlIds: string[]; status: string; validUntil: string | null };
 type Finding = { id: string; severity: string; status: string; controlId: string | null };
 type ExceptionSummary = { id: string; status: string; validUntil: string };
 type Log = {
@@ -205,7 +205,7 @@ export function DashboardClient({
     : controls;
   const scopedRisks = scopeIds ? risks.filter((r) => r.controlIds.some((id) => scopeIds.has(id))) : risks;
   const scopedPolicies = scopeIds ? policies.filter((p) => p.controlIds.some((id) => scopeIds.has(id))) : policies;
-  const scopedEvidence = scopeIds ? evidence.filter((e) => scopeIds.has(e.controlId)) : evidence;
+  const scopedEvidence = scopeIds ? evidence.filter((e) => e.controlIds.some((id) => scopeIds.has(id))) : evidence;
   const scopedFindings = scopeIds ? findings.filter((f) => f.controlId && scopeIds.has(f.controlId)) : findings;
 
   const statusCounts = useMemo(() => {

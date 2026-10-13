@@ -24,9 +24,9 @@ export default async function FrameworkReportPage({
               include: {
                 control: {
                   include: {
-                    evidence: {
-                      include: { uploadedBy: { select: { name: true } } },
-                      orderBy: { createdAt: "desc" },
+                    evidenceLinks: {
+                      select: { evidence: { include: { uploadedBy: { select: { name: true } } } } },
+                      orderBy: { evidence: { createdAt: "desc" } },
                     },
                     risks: {
                       include: {
@@ -86,7 +86,7 @@ export default async function FrameworkReportPage({
         status: cm.control.status,
         frequency: cm.control.frequency,
         updatedAt: cm.control.updatedAt.toISOString(),
-        evidence: cm.control.evidence.map((e) => ({
+        evidence: cm.control.evidenceLinks.map(({ evidence: e }) => ({
           id: e.id,
           fileName: e.fileName,
           fileSize: e.fileSize,

@@ -11,7 +11,7 @@ export async function GET(
     const { resolved, ...user } = await requirePermission(PERMISSIONS.EVIDENCE_READ);
     const { id } = await params;
     const evidence = await prisma.evidence.findFirst({
-      where: { id, control: { organizationId: user.organizationId } },
+      where: { id, organizationId: user.organizationId },
     });
     if (!evidence) throw new HttpError(404, "Evidence not found");
     if (!evidence.fileUrl.startsWith("local:")) {

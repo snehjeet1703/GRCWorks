@@ -17,11 +17,11 @@ export default async function EvidencePage({
   const [evidence, rawControls, frameworks, policies] = await Promise.all([
     prisma.evidence.findMany({
       where: {
-        control: { organizationId: orgId },
-        ...(controlId ? { controlId } : {}),
+        organizationId: orgId,
+        ...(controlId ? { controls: { some: { controlId } } } : {}),
       },
       include: {
-        control: { select: { id: true, code: true, title: true } },
+        controls: { select: { controlId: true } },
         uploadedBy: { select: { id: true, name: true } },
         reviewedBy: { select: { id: true, name: true } },
         policy: { select: { id: true, title: true, status: true } },
@@ -38,6 +38,7 @@ export default async function EvidencePage({
           select: {
             requirement: {
               select: {
+                code: true,
                 framework: { select: { id: true, name: true } },
               },
             },
@@ -63,6 +64,8 @@ export default async function EvidencePage({
     code: c.code,
     title: c.title,
     frameworkIds: [...new Set(c.mappings.map((m) => m.requirement.framework.id))],
+    // Every framework requirement this control satisfies, e.g. SOC 2 CC6.1.
+    citations: c.mappings.map((m) => ({ frameworkId: m.requirement.framework.id, code: m.requirement.code })),
   }));
 
   const permissions = (session!.user as any).permissions ?? [];
@@ -82,7 +85,7 @@ export default async function EvidencePage({
         reviewedAt: e.reviewedAt?.toISOString() ?? null,
         reviewedBy: e.reviewedBy,
         createdAt: e.createdAt.toISOString(),
-        control: e.control,
+        controlIds: e.controls.map((l) => l.controlId),
         uploadedBy: e.uploadedBy,
         policy: e.policy,
       }))}

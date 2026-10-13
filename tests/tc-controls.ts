@@ -454,9 +454,9 @@ async function tc19() {
     title: "Control With Dependencies",
   });
   // Add evidence directly via DB to simulate dependency
-  await prisma.evidence.create({
-    data: {
-      controlId: ctrl.id,
+  await prisma.evidence.create({ data: {
+      organizationId: (await prisma.control.findUniqueOrThrow({ where: { id: ctrl.id } })).organizationId,
+      controls: { create: { controlId: ctrl.id } },
       type: "DOCUMENT",
       source: "MANUAL_UPLOAD",
       status: "VALID",
@@ -473,7 +473,7 @@ async function tc19() {
   assert(data?.error?.includes("dependencies"), `Error mentions dependencies: "${data?.error}"`);
 
   // Clean up evidence then delete
-  await prisma.evidence.deleteMany({ where: { controlId: ctrl.id } });
+  await prisma.evidence.deleteMany({ where: { controls: { some: { controlId: ctrl.id } } } });
   const { status: s2 } = await api("DELETE", `/api/controls/${ctrl.id}`, cookieAdminA);
   assert(s2 === 200, `Delete succeeds after removing dependencies (got ${s2})`);
 }
@@ -639,7 +639,7 @@ async function cleanup() {
   console.log("\n═══ CLEANUP ═══\n");
   const orgIds = [orgA?.id, orgB?.id].filter(Boolean) as string[];
   if (orgIds.length > 0) {
-    await prisma.evidence.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
+    await prisma.evidence.deleteMany({ where: { organizationId: { in: orgIds } } });
     await prisma.auditLog.deleteMany({ where: { organizationId: { in: orgIds } } });
     await prisma.control.deleteMany({ where: { organizationId: { in: orgIds } } });
     await prisma.user.deleteMany({ where: { organizationId: { in: orgIds } } });

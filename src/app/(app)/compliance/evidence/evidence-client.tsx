@@ -4,7 +4,7 @@ import { useState, useTransition, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileCheck, Upload, Trash2, Download, Search, X, ScrollText,
-  CheckCircle, XCircle, Clock, AlertTriangle, History,
+  CheckCircle, XCircle, Clock, AlertTriangle, History, Link2,
 } from "lucide-react";
 import { Modal, ConfirmDialog } from "@/components/modal";
 import { Field, Select, TextArea, FormError } from "@/components/form";
@@ -12,9 +12,11 @@ import { FilterBar } from "@/components/filter-bar";
 import { useToast } from "@/components/toast";
 import { AuditLogPanel } from "@/components/audit-log-panel";
 import { PageTabs } from "@/components/page-tabs";
+import { ControlPicker } from "@/components/control-picker";
+import { FrameworkBadge } from "@/components/framework-badge";
 
 type ControlRef = { id: string; code: string; title: string };
-type Control = ControlRef & { frameworkIds: string[] };
+type Control = ControlRef & { frameworkIds: string[]; citations: { frameworkId: string; code: string }[] };
 type Framework = { id: string; name: string };
 type PolicyRef = { id: string; title: string; status: string };
 type EvidenceRow = {
@@ -30,7 +32,7 @@ type EvidenceRow = {
   reviewedAt: string | null;
   reviewedBy: { id: string; name: string } | null;
   createdAt: string;
-  control: ControlRef;
+  controlIds: string[];
   uploadedBy: { id: string; name: string } | null;
   policy: { id: string; title: string; status: string } | null;
 };
@@ -80,6 +82,46 @@ function formatDate(iso: string | null) {
   return new Date(iso).toISOString().slice(0, 10);
 }
 
+// Frameworks (with requirement codes) that a set of controls counts towards.
+function coverageFor(controlIds: string[], controlById: Map<string, Control>, frameworks: Framework[]) {
+  const codes = new Map<string, Set<string>>();
+  for (const id of controlIds) {
+    for (const cite of controlById.get(id)?.citations ?? []) {
+      if (!codes.has(cite.frameworkId)) codes.set(cite.frameworkId, new Set());
+      codes.get(cite.frameworkId)!.add(cite.code);
+    }
+  }
+  return frameworks
+    .filter((f) => codes.has(f.id))
+    .map((f) => ({ ...f, codes: [...codes.get(f.id)!].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })) }));
+}
+
+function CoverageSummary({ coverage }: { coverage: ReturnType<typeof coverageFor> }) {
+  if (coverage.length === 0) {
+    return (
+      <p className="text-xs text-gray-400">
+        Selected controls aren&apos;t mapped to any framework yet.
+      </p>
+    );
+  }
+  return (
+    <div className="rounded-lg border border-green-200 bg-green-50/60 px-3 py-2 dark:border-green-900 dark:bg-green-950/30">
+      <p className="mb-1.5 text-xs font-medium text-green-800 dark:text-green-300">Counts towards</p>
+      <ul className="space-y-1">
+        {coverage.map((f) => (
+          <li key={f.id} className="flex items-start gap-2 text-xs text-gray-700 dark:text-gray-300">
+            <FrameworkBadge name={f.name} size={18} className="mt-px !rounded" />
+            <span>
+              <span className="font-medium">{f.name}</span>{" "}
+              <span className="font-mono text-gray-500">{f.codes.slice(0, 6).join(", ")}{f.codes.length > 6 ? ` +${f.codes.length - 6}` : ""}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function EvidenceClient({
   initialEvidence,
   controls,
@@ -103,7 +145,7 @@ export function EvidenceClient({
   const [activeTab, setActiveTab] = useState("content");
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"upload" | "policy">("upload");
-  const [controlId, setControlId] = useState(preselectedControlId ?? "");
+  const [controlIds, setControlIds] = useState<string[]>(preselectedControlId ? [preselectedControlId] : []);
   const [policyId, setPolicyId] = useState("");
   const [notes, setNotes] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -114,8 +156,11 @@ export function EvidenceClient({
   const [search, setSearch] = useState("");
   const [controlFilter, setControlFilter] = useState(preselectedControlId ?? "");
   const [statusFilter, setStatusFilter] = useState("");
-  const [pickerSearch, setPickerSearch] = useState("");
-  const [pickerFramework, setPickerFramework] = useState("");
+  const [frameworkFilter, setFrameworkFilter] = useState("");
+  const [editTarget, setEditTarget] = useState<EvidenceRow | null>(null);
+  const [editIds, setEditIds] = useState<string[]>([]);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   const [policySearch, setPolicySearch] = useState("");
 
   // Review modal state
@@ -132,34 +177,35 @@ export function EvidenceClient({
     [initialEvidence]
   );
 
+  const controlById = useMemo(() => new Map(controls.map((c) => [c.id, c])), [controls]);
+  const frameworkNameById = useMemo(() => new Map(frameworks.map((f) => [f.id, f.name])), [frameworks]);
+  const pickerControls = useMemo(
+    () => controls.map((c) => ({
+      id: c.id, code: c.code, title: c.title,
+      frameworkNames: c.frameworkIds.map((id) => frameworkNameById.get(id) ?? "").filter(Boolean),
+    })),
+    [controls, frameworkNameById]
+  );
+  const controlsOf = (ev: EvidenceRow) =>
+    ev.controlIds.map((id) => controlById.get(id)).filter((c): c is Control => !!c);
+  const frameworkIdsOf = (ev: EvidenceRow) =>
+    new Set(controlsOf(ev).flatMap((c) => c.frameworkIds));
+
   const filteredEvidence = evidenceWithEffective.filter((ev) => {
-    if (controlFilter && ev.control.id !== controlFilter) return false;
+    if (controlFilter && !ev.controlIds.includes(controlFilter)) return false;
+    if (frameworkFilter && !frameworkIdsOf(ev).has(frameworkFilter)) return false;
     if (statusFilter && ev.effectiveStatus !== statusFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       if (
         !ev.fileName.toLowerCase().includes(q) &&
         !ev.notes.toLowerCase().includes(q) &&
-        !ev.control.code.toLowerCase().includes(q) &&
-        !ev.control.title.toLowerCase().includes(q)
+        !controlsOf(ev).some((c) => c.code.toLowerCase().includes(q) || c.title.toLowerCase().includes(q))
       )
         return false;
     }
     return true;
   });
-
-  const filteredPickerControls = useMemo(() => {
-    if (!pickerFramework) return [];
-    return controls.filter((c) => {
-      if (!c.frameworkIds.includes(pickerFramework)) return false;
-      if (pickerSearch) {
-        const q = pickerSearch.toLowerCase();
-        if (!c.code.toLowerCase().includes(q) && !c.title.toLowerCase().includes(q))
-          return false;
-      }
-      return true;
-    });
-  }, [controls, pickerSearch, pickerFramework]);
 
   const filteredPolicies = useMemo(() => {
     if (!policySearch) return policies;
@@ -167,8 +213,6 @@ export function EvidenceClient({
     return policies.filter((p) => p.title.toLowerCase().includes(q));
   }, [policies, policySearch]);
 
-  const selectedControl = controls.find((c) => c.id === controlId) ?? null;
-  const selectedFramework = frameworks.find((f) => f.id === pickerFramework) ?? null;
   const selectedPolicy = policies.find((p) => p.id === policyId) ?? null;
 
   // Stats
@@ -179,13 +223,11 @@ export function EvidenceClient({
 
   function openUpload(mode: "upload" | "policy" = "upload") {
     setModalMode(mode);
-    setControlId(preselectedControlId ?? "");
+    setControlIds(preselectedControlId ? [preselectedControlId] : []);
     setPolicyId("");
     setNotes("");
     setFile(null);
     setError(null);
-    setPickerSearch("");
-    setPickerFramework("");
     setPolicySearch("");
     if (fileInputRef.current) fileInputRef.current.value = "";
     setModalOpen(true);
@@ -230,8 +272,8 @@ export function EvidenceClient({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!controlId) {
-      setError("Choose a control.");
+    if (controlIds.length === 0) {
+      setError("Choose at least one control.");
       return;
     }
 
@@ -245,7 +287,7 @@ export function EvidenceClient({
       const res = await fetch("/api/evidence", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ controlId, policyId, notes }),
+        body: JSON.stringify({ controlIds, policyId, notes }),
       });
       setSubmitting(false);
       if (!res.ok) {
@@ -266,7 +308,7 @@ export function EvidenceClient({
     setSubmitting(true);
     setError(null);
     const body = new FormData();
-    body.append("controlId", controlId);
+    for (const id of controlIds) body.append("controlIds", id);
     body.append("notes", notes);
     body.append("file", file);
     const res = await fetch("/api/evidence", { method: "POST", body });
@@ -278,6 +320,36 @@ export function EvidenceClient({
     }
     setModalOpen(false);
     toast.success("Evidence uploaded.");
+    startTransition(() => router.refresh());
+  }
+
+  function openEditControls(ev: EvidenceRow) {
+    setEditTarget(ev);
+    setEditIds(ev.controlIds);
+    setEditError(null);
+  }
+
+  async function saveEditControls() {
+    if (!editTarget) return;
+    if (editIds.length === 0) {
+      setEditError("Evidence must support at least one control.");
+      return;
+    }
+    setEditSaving(true);
+    setEditError(null);
+    const res = await fetch(`/api/evidence/${editTarget.id}/controls`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ controlIds: editIds }),
+    });
+    setEditSaving(false);
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
+      setEditError(b?.error ?? "Couldn't update controls");
+      return;
+    }
+    setEditTarget(null);
+    toast.success("Controls updated.");
     startTransition(() => router.refresh());
   }
 
@@ -296,85 +368,14 @@ export function EvidenceClient({
   }
 
   function renderControlPicker() {
-    if (selectedControl) {
-      return (
-        <Field label="Control">
-          <div className="flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2">
-            <span className="text-xs text-gray-500">{selectedFramework?.name}</span>
-            <span className="text-gray-300">›</span>
-            <span className="font-mono text-xs text-brand-700">{selectedControl.code}</span>
-            <span className="text-sm text-gray-700 truncate">{selectedControl.title}</span>
-            <button
-              type="button"
-              onClick={() => { setControlId(""); setPickerSearch(""); }}
-              className="ml-auto rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
-              aria-label="Clear selection"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </Field>
-      );
-    }
-    if (!pickerFramework) {
-      return (
-        <Field label="Framework" hint="Select a framework to see its controls.">
-          <div className="grid grid-cols-2 gap-2">
-            {frameworks.map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setPickerFramework(f.id)}
-                className="rounded-lg border border-gray-200 px-3 py-2.5 text-left text-sm text-gray-700 hover:border-brand-300 hover:bg-brand-50 transition-colors"
-              >
-                {f.name}
-              </button>
-            ))}
-          </div>
-        </Field>
-      );
-    }
     return (
-      <Field label="Control">
+      <Field
+        label="Controls"
+        hint="Pick every control this proves. Evidence attaches to your controls, so it counts towards each framework they map to."
+      >
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => { setPickerFramework(""); setPickerSearch(""); }}
-              className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
-            >
-              <X className="h-3 w-3" />
-              {selectedFramework?.name}
-            </button>
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                value={pickerSearch}
-                onChange={(e) => setPickerSearch(e.target.value)}
-                placeholder="Search controls…"
-                className="input !pl-8 text-sm"
-                autoFocus
-              />
-            </div>
-          </div>
-          <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200">
-            {filteredPickerControls.length === 0 ? (
-              <p className="px-3 py-4 text-center text-sm text-gray-400">No controls match.</p>
-            ) : (
-              filteredPickerControls.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setControlId(c.id)}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 border-b border-border last:border-0"
-                >
-                  <span className="font-mono text-xs text-gray-600 shrink-0">{c.code}</span>
-                  <span className="text-sm text-gray-800 truncate">{c.title}</span>
-                </button>
-              ))
-            )}
-          </div>
+          <ControlPicker allControls={pickerControls} selectedIds={controlIds} onChange={setControlIds} />
+          {controlIds.length > 0 && <CoverageSummary coverage={coverageFor(controlIds, controlById, frameworks)} />}
         </div>
       </Field>
     );
@@ -386,7 +387,7 @@ export function EvidenceClient({
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Evidence</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Artifacts collected against your controls.
+            Proof attached to your controls. Each file counts towards every framework its controls map to.
             {preselectedControlId && " Filtered to one control."}
           </p>
         </div>
@@ -444,6 +445,12 @@ export function EvidenceClient({
         searchPlaceholder="Search evidence by filename, notes, or control…"
         selects={[
           {
+            label: "Framework",
+            value: frameworkFilter,
+            onChange: setFrameworkFilter,
+            options: frameworks.map((f) => ({ value: f.id, label: f.name })),
+          },
+          {
             label: "Control",
             value: controlFilter,
             onChange: setControlFilter,
@@ -471,7 +478,8 @@ export function EvidenceClient({
               <tr className="border-b border-border">
                 <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Type</th>
                 <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">File / Policy</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Control</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Controls</th>
+                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Frameworks</th>
                 <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Status</th>
                 <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Validity</th>
                 <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Reviewed</th>
@@ -505,9 +513,38 @@ export function EvidenceClient({
                       <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{ev.notes}</p>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700">
-                    <span className="font-mono text-xs">{ev.control.code}</span>{" "}
-                    <span className="text-gray-500">— {ev.control.title}</span>
+                  <td className="px-4 py-3 align-middle">
+                    <div className="flex max-w-[16rem] flex-wrap gap-1">
+                      {controlsOf(ev).slice(0, 3).map((c) => (
+                        <span
+                          key={c.id}
+                          title={c.title}
+                          className="rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-mono text-[11px] text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                        >
+                          {c.code}
+                        </span>
+                      ))}
+                      {ev.controlIds.length > 3 && (
+                        <span
+                          title={controlsOf(ev).slice(3).map((c) => c.code).join(", ")}
+                          className="px-1 py-0.5 text-[11px] text-gray-500"
+                        >
+                          +{ev.controlIds.length - 3}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 align-middle">
+                    {(() => {
+                      const fws = frameworks.filter((f) => frameworkIdsOf(ev).has(f.id));
+                      if (fws.length === 0) return <span className="text-xs text-gray-400">None mapped</span>;
+                      return (
+                        <div className="flex items-center gap-1" title={fws.map((f) => f.name).join(", ")}>
+                          {fws.slice(0, 4).map((f) => <FrameworkBadge key={f.id} name={f.name} size={22} className="!rounded-md" />)}
+                          {fws.length > 4 && <span className="text-[11px] text-gray-500">+{fws.length - 4}</span>}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3 align-middle">
                     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${evidenceStatusColor(ev.effectiveStatus)}`}>
@@ -551,6 +588,16 @@ export function EvidenceClient({
                           title="Review"
                         >
                           <CheckCircle className="h-4 w-4" />
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button
+                          onClick={() => openEditControls(ev)}
+                          className="rounded p-1.5 text-gray-400 hover:bg-brand-50 hover:text-brand-600"
+                          aria-label="Edit linked controls"
+                          title="Edit linked controls"
+                        >
+                          <Link2 className="h-4 w-4" />
                         </button>
                       )}
                       {ev.type !== "POLICY" && (
@@ -628,7 +675,7 @@ export function EvidenceClient({
           {renderControlPicker()}
 
           {modalMode === "policy" ? (
-            <Field label="Policy" hint="Select a policy to link as evidence for this control.">
+            <Field label="Policy" hint="Select a policy to link as evidence for these controls.">
               {selectedPolicy ? (
                 <div className="flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2">
                   <ScrollText className="h-4 w-4 text-purple-600 shrink-0" />
@@ -722,7 +769,8 @@ export function EvidenceClient({
             <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
               <p className="text-sm font-medium text-gray-900">{reviewTarget.fileName}</p>
               <p className="text-xs text-gray-500 mt-0.5">
-                Control: <span className="font-mono">{reviewTarget.control.code}</span> — {reviewTarget.control.title}
+                {reviewTarget.controlIds.length === 1 ? "Control" : "Controls"}:{" "}
+                <span className="font-mono">{controlsOf(reviewTarget).map((c) => c.code).join(", ")}</span>
               </p>
             </div>
             <Field label="Review decision" htmlFor="reviewStatus">
@@ -771,6 +819,26 @@ export function EvidenceClient({
               </button>
             </div>
           </form>
+        )}
+      </Modal>
+
+      {/* Edit linked controls */}
+      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title="Linked controls" size="md">
+        {editTarget && (
+          <div className="space-y-4">
+            <FormError message={editError} />
+            <p className="text-sm text-gray-600">
+              Choose every control <span className="font-medium text-gray-900">{editTarget.fileName}</span> proves.
+            </p>
+            <ControlPicker allControls={pickerControls} selectedIds={editIds} onChange={setEditIds} />
+            {editIds.length > 0 && <CoverageSummary coverage={coverageFor(editIds, controlById, frameworks)} />}
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setEditTarget(null)} className="btn-secondary">Cancel</button>
+              <button type="button" onClick={saveEditControls} disabled={editSaving} className="btn-primary">
+                {editSaving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
         )}
       </Modal>
 

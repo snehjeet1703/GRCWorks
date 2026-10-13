@@ -145,17 +145,17 @@ async function setup() {
   mapping5Id = m5.id; mapping6aId = m6a.id; mapping6bId = m6b.id; mapping7Id = m7.id;
 
   // Evidence for ctrl1 (valid)
-  const ev1 = await prisma.evidence.create({ data: { controlId: ctrl1Id, uploadedById: editorA.id, type: "UPLOAD", fileName: "policy.pdf", fileUrl: "local:test", fileSize: 1024, validFrom: new Date(Date.now() - 90 * 86400000), validUntil: new Date(Date.now() + 90 * 86400000) } });
+  const ev1 = await prisma.evidence.create({ data: { organizationId: (await prisma.control.findUniqueOrThrow({ where: { id: ctrl1Id } })).organizationId, controls: { create: { controlId: ctrl1Id } }, uploadedById: editorA.id, type: "UPLOAD", fileName: "policy.pdf", fileUrl: "local:test", fileSize: 1024, validFrom: new Date(Date.now() - 90 * 86400000), validUntil: new Date(Date.now() + 90 * 86400000) } });
   evidence1Id = ev1.id;
 
   // Evidence for ctrl6 (valid)
-  await prisma.evidence.create({ data: { controlId: ctrl6Id, uploadedById: editorA.id, type: "UPLOAD", fileName: "shared.pdf", fileUrl: "local:test2", fileSize: 512, validFrom: new Date(Date.now() - 30 * 86400000), validUntil: new Date(Date.now() + 180 * 86400000) } });
+  await prisma.evidence.create({ data: { organizationId: (await prisma.control.findUniqueOrThrow({ where: { id: ctrl6Id } })).organizationId, controls: { create: { controlId: ctrl6Id } }, uploadedById: editorA.id, type: "UPLOAD", fileName: "shared.pdf", fileUrl: "local:test2", fileSize: 512, validFrom: new Date(Date.now() - 30 * 86400000), validUntil: new Date(Date.now() + 180 * 86400000) } });
 
   // Evidence for ctrl4 (valid, but test fails)
-  await prisma.evidence.create({ data: { controlId: ctrl4Id, uploadedById: editorA.id, type: "UPLOAD", fileName: "failing.pdf", fileUrl: "local:test3", fileSize: 256, validFrom: new Date(Date.now() - 30 * 86400000), validUntil: new Date(Date.now() + 60 * 86400000) } });
+  await prisma.evidence.create({ data: { organizationId: (await prisma.control.findUniqueOrThrow({ where: { id: ctrl4Id } })).organizationId, controls: { create: { controlId: ctrl4Id } }, uploadedById: editorA.id, type: "UPLOAD", fileName: "failing.pdf", fileUrl: "local:test3", fileSize: 256, validFrom: new Date(Date.now() - 30 * 86400000), validUntil: new Date(Date.now() + 60 * 86400000) } });
 
   // Expiring evidence for ctrl3 (will be used in TC-320/343)
-  const ev2 = await prisma.evidence.create({ data: { controlId: ctrl3Id, uploadedById: editorA.id, type: "UPLOAD", fileName: "expiring.pdf", fileUrl: "local:exp", fileSize: 128, validFrom: new Date(Date.now() - 365 * 86400000), validUntil: new Date(Date.now() - 1 * 86400000) } });
+  const ev2 = await prisma.evidence.create({ data: { organizationId: (await prisma.control.findUniqueOrThrow({ where: { id: ctrl3Id } })).organizationId, controls: { create: { controlId: ctrl3Id } }, uploadedById: editorA.id, type: "UPLOAD", fileName: "expiring.pdf", fileUrl: "local:exp", fileSize: 128, validFrom: new Date(Date.now() - 365 * 86400000), validUntil: new Date(Date.now() - 1 * 86400000) } });
   evidence2Id = ev2.id;
 
   // Test for ctrl1 (PASS)
@@ -413,7 +413,7 @@ async function tc318() {
 
   // Change ctrl7 to IMPLEMENTED, add evidence and passing test
   await prisma.control.update({ where: { id: ctrl7Id }, data: { status: "IMPLEMENTED" } });
-  await prisma.evidence.create({ data: { controlId: ctrl7Id, uploadedById: editorA.id, type: "UPLOAD", fileName: "dyn.pdf", fileUrl: "local:dyn", fileSize: 100, validFrom: new Date(Date.now() - 10 * 86400000), validUntil: new Date(Date.now() + 300 * 86400000) } });
+  await prisma.evidence.create({ data: { organizationId: (await prisma.control.findUniqueOrThrow({ where: { id: ctrl7Id } })).organizationId, controls: { create: { controlId: ctrl7Id } }, uploadedById: editorA.id, type: "UPLOAD", fileName: "dyn.pdf", fileUrl: "local:dyn", fileSize: 100, validFrom: new Date(Date.now() - 10 * 86400000), validUntil: new Date(Date.now() + 300 * 86400000) } });
   await prisma.controlTest.create({ data: { controlId: ctrl7Id, testerId: editorA.id, result: "PASS", testDate: new Date(Date.now() - 5 * 86400000), nextDueDate: new Date(Date.now() + 85 * 86400000) } });
 
   const res2 = await api(`/api/compliance?frameworkId=${fwAId}`, { cookie: cookieEditorA });
@@ -716,8 +716,7 @@ async function tc343() {
 async function tc344() {
   console.log("\nTC-344: Upcoming expiry");
   // Create evidence expiring in 10 days
-  const soonEvidence = await prisma.evidence.create({
-    data: { controlId: ctrl1Id, uploadedById: editorA.id, type: "UPLOAD", fileName: "expiringsoon.pdf", fileUrl: "local:soon", fileSize: 64, validFrom: new Date(Date.now() - 100 * 86400000), validUntil: new Date(Date.now() + 10 * 86400000) },
+  const soonEvidence = await prisma.evidence.create({ data: { organizationId: (await prisma.control.findUniqueOrThrow({ where: { id: ctrl1Id } })).organizationId, controls: { create: { controlId: ctrl1Id } }, uploadedById: editorA.id, type: "UPLOAD", fileName: "expiringsoon.pdf", fileUrl: "local:soon", fileSize: 64, validFrom: new Date(Date.now() - 100 * 86400000), validUntil: new Date(Date.now() + 10 * 86400000) },
   });
   const evidence = await (await api("/api/evidence", { cookie: cookieEditorA })).json();
   const soon = evidence.find((e: any) => e.id === soonEvidence.id);
@@ -892,7 +891,7 @@ async function tc351() {
   await prisma.controlException.deleteMany({ where: { controlId: ctrl.id } });
   await prisma.finding.deleteMany({ where: { controlId: ctrl.id } });
   await prisma.controlTest.deleteMany({ where: { controlId: ctrl.id } });
-  await prisma.evidence.deleteMany({ where: { controlId: ctrl.id } });
+  await prisma.evidence.deleteMany({ where: { controls: { some: { controlId: ctrl.id } } } });
   await prisma.controlMapping.deleteMany({ where: { controlId: ctrl.id } });
   await prisma.riskAction.deleteMany({ where: { riskId: risk.id } });
   await prisma.risk.delete({ where: { id: risk.id } });
@@ -905,7 +904,7 @@ async function cleanup() {
   await prisma.controlException.deleteMany({ where: { organizationId: { in: orgIds } } });
   await prisma.finding.deleteMany({ where: { organizationId: { in: orgIds } } });
   await prisma.controlTest.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
-  await prisma.evidence.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
+  await prisma.evidence.deleteMany({ where: { organizationId: { in: orgIds } } });
   await prisma.controlMapping.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
   await prisma.riskAction.deleteMany({ where: { risk: { organizationId: { in: orgIds } } } });
   await prisma.risk.deleteMany({ where: { organizationId: { in: orgIds } } });

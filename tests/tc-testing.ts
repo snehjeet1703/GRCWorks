@@ -478,7 +478,7 @@ async function tc107() {
 
   // Clean up
   await prisma.controlMapping.deleteMany({ where: { controlId: overdueCtrl.id } });
-  await prisma.evidence.deleteMany({ where: { controlId: overdueCtrl.id } });
+  await prisma.evidence.deleteMany({ where: { controls: { some: { controlId: overdueCtrl.id } } } });
   await prisma.controlTest.deleteMany({ where: { controlId: overdueCtrl.id } });
   await prisma.control.delete({ where: { id: overdueCtrl.id } });
 }
@@ -531,7 +531,7 @@ async function tc109() {
 
   // Clean up
   await prisma.controlMapping.deleteMany({ where: { controlId: odCtrl.id } });
-  await prisma.evidence.deleteMany({ where: { controlId: odCtrl.id } });
+  await prisma.evidence.deleteMany({ where: { controls: { some: { controlId: odCtrl.id } } } });
   await prisma.controlTest.deleteMany({ where: { controlId: odCtrl.id } });
   await prisma.control.delete({ where: { id: odCtrl.id } });
 }
@@ -743,7 +743,7 @@ async function cleanup() {
   if (orgIds.length > 0) {
     await prisma.finding.deleteMany({ where: { organizationId: { in: orgIds } } });
     await prisma.controlTest.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
-    await prisma.evidence.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
+    await prisma.evidence.deleteMany({ where: { organizationId: { in: orgIds } } });
     await prisma.controlMapping.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
     await prisma.frameworkRequirement.deleteMany({ where: { framework: { organizationId: { in: orgIds } } } });
     await prisma.framework.deleteMany({ where: { organizationId: { in: orgIds } } });

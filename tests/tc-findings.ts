@@ -692,7 +692,7 @@ async function cleanup() {
   if (orgIds.length === 0) return;
   await prisma.finding.deleteMany({ where: { organizationId: { in: orgIds } } });
   await prisma.controlTest.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
-  await prisma.evidence.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
+  await prisma.evidence.deleteMany({ where: { organizationId: { in: orgIds } } });
   await prisma.controlMapping.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
   await prisma.control.deleteMany({ where: { organizationId: { in: orgIds } } });
   await prisma.risk.deleteMany({ where: { organizationId: { in: orgIds } } });

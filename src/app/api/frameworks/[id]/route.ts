@@ -22,11 +22,11 @@ export async function GET(
                 control: {
                   include: {
                     owner: { select: { id: true, name: true } },
-                    evidence: {
-                      select: { id: true, status: true, validFrom: true, validUntil: true },
+                    evidenceLinks: {
+                      select: { evidence: { select: { id: true, status: true, validFrom: true, validUntil: true } } },
                     },
                     _count: {
-                      select: { evidence: true, tests: true, findings: true, exceptions: true },
+                      select: { evidenceLinks: true, tests: true, findings: true, exceptions: true },
                     },
                     tests: {
                       orderBy: [{ testDate: "desc" }, { createdAt: "desc" }],
@@ -50,8 +50,8 @@ export async function GET(
       const controls = req.controlMappings.map((cm) => {
         const c = cm.control;
         const latestTest = c.tests[0] ?? null;
-        const validEvidenceCount = c.evidence.filter(
-          (e) => computeEvidenceStatus(e, now) === "VALID"
+        const validEvidenceCount = c.evidenceLinks.filter(
+          (l) => computeEvidenceStatus(l.evidence, now) === "VALID"
         ).length;
         return {
           mappingId: cm.id,
@@ -63,7 +63,7 @@ export async function GET(
           frequency: c.frequency,
           applicability: c.applicability,
           owner: c.owner,
-          evidenceCount: c._count.evidence,
+          evidenceCount: c._count.evidenceLinks,
           validEvidenceCount,
           testCount: c._count.tests,
           findingCount: c._count.findings,

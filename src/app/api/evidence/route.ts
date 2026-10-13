@@ -7,8 +7,12 @@ import { logAudit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
 import { saveUpload } from "@/lib/storage";
 
+const controlIdsSchema = z.array(z.string().uuid()).min(1, "Select at least one control").max(200);
+
 const policyEvidenceSchema = z.object({
-  controlId: z.string().min(1),
+  // `controlId` is the legacy single-control form; `controlIds` links one artifact to several controls.
+  controlId: z.string().uuid().optional(),
+  controlIds: controlIdsSchema.optional(),
   policyId: z.string().min(1),
   notes: z.string().max(2000).default(""),
 }).strict();
@@ -34,6 +38,19 @@ const ALLOWED: { ext: string; mime: string[] }[] = [
 ];
 
 const EXPIRY_WARNING_DAYS = 30;
+
+// Loads the controls by id, all of which must belong to the organisation.
+async function loadControls(organizationId: string, ids: string[]) {
+  const unique = [...new Set(ids)];
+  const parsed = controlIdsSchema.safeParse(unique);
+  if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message ?? "Invalid controls");
+  const controls = await prisma.control.findMany({
+    where: { id: { in: unique }, organizationId },
+    select: { id: true, code: true },
+  });
+  if (controls.length !== unique.length) throw new HttpError(404, "Control not found");
+  return controls;
+}
 
 export function computeEvidenceStatus(
   e: { status: string; validFrom: Date | null; validUntil: Date | null },
@@ -100,14 +117,13 @@ export async function GET(req: Request) {
     const { resolved, ...user } = await requirePermission(PERMISSIONS.EVIDENCE_READ);
     const url = new URL(req.url);
     const controlId = url.searchParams.get("controlId");
-    const where: Record<string, unknown> = {
-      control: { organizationId: user.organizationId },
-    };
-    if (controlId) where.controlId = controlId;
     const evidence = await prisma.evidence.findMany({
-      where,
+      where: {
+        organizationId: user.organizationId,
+        ...(controlId ? { controls: { some: { controlId } } } : {}),
+      },
       include: {
-        control: { select: { id: true, code: true, title: true } },
+        controls: { select: { control: { select: { id: true, code: true, title: true } } } },
         uploadedBy: { select: { id: true, name: true } },
         reviewedBy: { select: { id: true, name: true } },
       },
@@ -131,23 +147,21 @@ export async function POST(req: Request) {
     const isJson = contentType.includes("application/json");
 
     if (isJson) {
-      const { controlId, policyId, notes } = await parseBody(req, policyEvidenceSchema);
+      const { controlId, controlIds, policyId, notes } = await parseBody(req, policyEvidenceSchema);
 
-      const [control, policy] = await Promise.all([
-        prisma.control.findFirst({
-          where: { id: controlId, organizationId: user.organizationId },
-        }),
+      const [controls, policy] = await Promise.all([
+        loadControls(user.organizationId, controlIds ?? (controlId ? [controlId] : [])),
         prisma.policy.findFirst({
           where: { id: policyId, organizationId: user.organizationId },
         }),
       ]);
-      if (!control) throw new HttpError(404, "Control not found");
       if (!policy) throw new HttpError(404, "Policy not found");
 
       const evidence = await prisma.$transaction(async (tx) => {
         const row = await tx.evidence.create({
           data: {
-            controlId,
+            organizationId: user.organizationId,
+            controls: { create: controls.map((c) => ({ controlId: c.id })) },
             uploadedById: user.id,
             type: "POLICY",
             policyId,
@@ -166,7 +180,7 @@ export async function POST(req: Request) {
             entityId: row.id,
             entityName: `Policy: ${policy.title}`,
             action: "CREATE",
-            changes: { policyTitle: policy.title, controlCode: control.code },
+            changes: { policyTitle: policy.title, controlCodes: controls.map((c) => c.code) },
           },
           tx
         );
@@ -177,7 +191,10 @@ export async function POST(req: Request) {
     }
 
     const form = await req.formData();
-    const controlId = form.get("controlId");
+    // Accept repeated `controlIds` fields, or the legacy single `controlId`.
+    const controlIds = [...form.getAll("controlIds"), ...form.getAll("controlId")].filter(
+      (v): v is string => typeof v === "string" && v.length > 0
+    );
     const notes = (form.get("notes") as string | null) ?? "";
     const description = (form.get("description") as string | null) ?? "";
     const evidenceType = (form.get("type") as string | null) ?? "UPLOAD";
@@ -186,8 +203,8 @@ export async function POST(req: Request) {
     const validFrom = form.get("validFrom") as string | null;
     const validUntil = form.get("validUntil") as string | null;
     const file = form.get("file");
-    if (typeof controlId !== "string" || !controlId) {
-      throw new HttpError(400, "controlId is required");
+    if (controlIds.length === 0) {
+      throw new HttpError(400, "Select at least one control");
     }
     if (!(file instanceof File) || file.size === 0) {
       throw new HttpError(400, "file is required");
@@ -197,10 +214,7 @@ export async function POST(req: Request) {
     }
     assertAllowed(file.name, file.type);
 
-    const control = await prisma.control.findFirst({
-      where: { id: controlId, organizationId: user.organizationId },
-    });
-    if (!control) throw new HttpError(404, "Control not found");
+    const controls = await loadControls(user.organizationId, controlIds);
 
     const arr = await file.arrayBuffer();
     assertMagicBytes(file.name, new Uint8Array(arr));
@@ -209,7 +223,8 @@ export async function POST(req: Request) {
     const evidence = await prisma.$transaction(async (tx) => {
       const row = await tx.evidence.create({
         data: {
-          controlId,
+          organizationId: user.organizationId,
+          controls: { create: controls.map((c) => ({ controlId: c.id })) },
           uploadedById: user.id,
           type: evidenceType as any,
           source: source as any,
@@ -232,7 +247,7 @@ export async function POST(req: Request) {
           entityId: row.id,
           entityName: file.name,
           action: "CREATE",
-          changes: { fileName: file.name, controlCode: control.code },
+          changes: { fileName: file.name, controlCodes: controls.map((c) => c.code) },
         },
         tx
       );

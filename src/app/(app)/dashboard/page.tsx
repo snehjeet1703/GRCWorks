@@ -28,7 +28,7 @@ export default async function DashboardPage() {
       select: {
         id: true,
         status: true,
-        _count: { select: { evidence: true, risks: true, policies: true } },
+        _count: { select: { evidenceLinks: true, risks: true, policies: true } },
       },
     }),
     prisma.risk.findMany({
@@ -59,8 +59,8 @@ export default async function DashboardPage() {
       },
     }),
     prisma.evidence.findMany({
-      where: { control: { organizationId: orgId } },
-      select: { id: true, controlId: true, status: true, validUntil: true },
+      where: { organizationId: orgId },
+      select: { id: true, status: true, validUntil: true, controls: { select: { controlId: true } } },
     }),
     prisma.finding.findMany({
       where: { organizationId: orgId },
@@ -107,7 +107,7 @@ export default async function DashboardPage() {
       controls={allControls.map((c) => ({
         id: c.id,
         status: c.status,
-        evidenceCount: c._count.evidence,
+        evidenceCount: c._count.evidenceLinks,
         risksCount: c._count.risks,
         policiesCount: c._count.policies,
       }))}
@@ -132,7 +132,7 @@ export default async function DashboardPage() {
       }))}
       evidence={evidence.map((e) => ({
         id: e.id,
-        controlId: e.controlId,
+        controlIds: e.controls.map((l) => l.controlId),
         status: e.status,
         validUntil: e.validUntil?.toISOString() ?? null,
       }))}

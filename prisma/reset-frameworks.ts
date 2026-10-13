@@ -22,9 +22,11 @@ async function main() {
   const controlIds = controls.map((c) => c.id);
 
   await prisma.$transaction(async (tx) => {
-    // Evidence + join tables cascade from Control.
+    // Join tables cascade from Control; evidence that only supported these controls goes too.
     await tx.controlMapping.deleteMany({ where: { controlId: { in: controlIds } } });
-    await tx.evidence.deleteMany({ where: { controlId: { in: controlIds } } });
+    await tx.evidence.deleteMany({
+      where: { organizationId: org.id, controls: { every: { controlId: { in: controlIds } } } },
+    });
     await tx.riskControl.deleteMany({ where: { controlId: { in: controlIds } } });
     await tx.policyControl.deleteMany({ where: { controlId: { in: controlIds } } });
     await tx.control.deleteMany({ where: { organizationId: org.id } });

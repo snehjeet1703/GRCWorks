@@ -25,7 +25,7 @@ export async function GET(req: Request) {
                 control: {
                   include: {
                     owner: { select: { id: true, name: true } },
-                    evidence: { select: { id: true, fileName: true, status: true, validFrom: true, validUntil: true, type: true } },
+                    evidenceLinks: { select: { evidence: { select: { id: true, fileName: true, status: true, validFrom: true, validUntil: true, type: true } } } },
                     tests: { orderBy: [{ testDate: "desc" }, { createdAt: "desc" }], take: 1, select: { result: true, testDate: true, nextDueDate: true, notes: true } },
                     findings: { select: { id: true, title: true, severity: true, status: true, dueDate: true } },
                     exceptions: { where: { status: "APPROVED" }, select: { id: true, reason: true, compensatingControl: true, validFrom: true, validUntil: true } },
@@ -44,8 +44,9 @@ export async function GET(req: Request) {
     const requirements = framework.requirements.map(req => {
       const controls = req.controlMappings.map(cm => {
         const c = cm.control;
+        const evidence = c.evidenceLinks.map(l => l.evidence);
         const latestTest = c.tests[0] ?? null;
-        const validEvidence = c.evidence.filter(e => computeEvidenceStatus(e, now) === "VALID");
+        const validEvidence = evidence.filter(e => computeEvidenceStatus(e, now) === "VALID");
         const activeExceptions = c.exceptions.filter(e => e.validUntil > now);
         const openFindings = c.findings.filter(f => f.status === "OPEN" || f.status === "IN_PROGRESS");
 
@@ -65,7 +66,7 @@ export async function GET(req: Request) {
           status: c.status,
           owner: c.owner,
           readiness,
-          evidence: c.evidence.map(e => ({ ...e, computedStatus: computeEvidenceStatus(e, now) })),
+          evidence: evidence.map(e => ({ ...e, computedStatus: computeEvidenceStatus(e, now) })),
           validEvidenceCount: validEvidence.length,
           latestTest: latestTest ? { result: latestTest.result, testDate: latestTest.testDate, nextDueDate: latestTest.nextDueDate, notes: latestTest.notes } : null,
           findings: c.findings,

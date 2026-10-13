@@ -66,7 +66,7 @@ export async function GET(req: Request) {
               include: {
                 control: {
                   include: {
-                    evidence: { select: { status: true, validFrom: true, validUntil: true } },
+                    evidenceLinks: { select: { evidence: { select: { status: true, validFrom: true, validUntil: true } } } },
                     tests: { orderBy: [{ testDate: "desc" }, { createdAt: "desc" }], take: 1, select: { result: true, nextDueDate: true } },
                     findings: { where: { status: { in: ["OPEN", "IN_PROGRESS"] } }, select: { id: true, severity: true } },
                     exceptions: { where: { status: "APPROVED" }, select: { id: true, validUntil: true } },
@@ -85,7 +85,7 @@ export async function GET(req: Request) {
       const requirements = fw.requirements.map(req => {
         const controls = req.controlMappings.map(cm => {
           const c = cm.control;
-          const validEvidence = c.evidence.filter(e => computeEvidenceStatus(e, now) === "VALID").length;
+          const validEvidence = c.evidenceLinks.filter(l => computeEvidenceStatus(l.evidence, now) === "VALID").length;
           const latestTest = c.tests[0] ?? null;
           const activeExceptions = c.exceptions.filter(e => e.validUntil > now).length;
           const expiredExceptions = c.exceptions.filter(e => e.validUntil <= now).length;

@@ -838,7 +838,7 @@ async function cleanup() {
   const orgIds = [orgA?.id, orgB?.id].filter(Boolean) as string[];
   if (orgIds.length > 0) {
     await prisma.controlTest.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
-    await prisma.evidence.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
+    await prisma.evidence.deleteMany({ where: { organizationId: { in: orgIds } } });
     await prisma.controlMapping.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
     await prisma.frameworkRequirement.deleteMany({ where: { framework: { organizationId: { in: orgIds } } } });
     await prisma.framework.deleteMany({ where: { organizationId: { in: orgIds } } });

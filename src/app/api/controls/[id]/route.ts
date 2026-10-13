@@ -81,7 +81,7 @@ export async function GET(
         },
         _count: {
           select: {
-            evidence: true,
+            evidenceLinks: true,
             risks: true,
             policies: true,
             tests: true,
@@ -191,7 +191,7 @@ export async function DELETE(
         include: {
           _count: {
             select: {
-              evidence: true,
+              evidenceLinks: true,
               mappings: true,
               risks: true,
               policies: true,
@@ -207,7 +207,7 @@ export async function DELETE(
       const deps = before._count;
       const depList: string[] = [];
       if (deps.mappings > 0) depList.push(`${deps.mappings} framework mapping(s)`);
-      if (deps.evidence > 0) depList.push(`${deps.evidence} evidence artifact(s)`);
+      if (deps.evidenceLinks > 0) depList.push(`${deps.evidenceLinks} evidence artifact(s)`);
       if (deps.tests > 0) depList.push(`${deps.tests} test record(s)`);
       if (deps.risks > 0) depList.push(`${deps.risks} linked risk(s)`);
       if (deps.policies > 0) depList.push(`${deps.policies} linked policy/ies`);

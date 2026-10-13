@@ -65,7 +65,7 @@ export async function GET() {
         owner: { select: { id: true, name: true } },
         _count: {
           select: {
-            evidence: true,
+            evidenceLinks: true,
             risks: true,
             policies: true,
             tests: true,

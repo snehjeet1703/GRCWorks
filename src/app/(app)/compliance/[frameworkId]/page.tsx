@@ -27,7 +27,7 @@ export default async function FrameworkDetailPage({
                 include: {
                   owner: { select: { id: true, name: true } },
                   _count: {
-                    select: { evidence: true, risks: true, policies: true },
+                    select: { evidenceLinks: true, risks: true, policies: true },
                   },
                   mappings: {
                     include: {
@@ -73,7 +73,7 @@ export default async function FrameworkDetailPage({
           frequency: cm.control.frequency,
           ownerId: cm.control.owner?.id ?? null,
           ownerName: cm.control.owner?.name ?? null,
-          evidenceCount: cm.control._count.evidence,
+          evidenceCount: cm.control._count.evidenceLinks,
           risksCount: cm.control._count.risks,
           policiesCount: cm.control._count.policies,
           otherFrameworks,

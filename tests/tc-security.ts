@@ -118,7 +118,7 @@ async function setup() {
   policyAId = pA.id;
   const vA = await prisma.vendor.create({ data: { organizationId: orgA.id, name: "OrgA Vendor", status: "ACTIVE" } });
   vendorAId = vA.id;
-  const evA = await prisma.evidence.create({ data: { controlId: ctrlAId, uploadedById: editorA.id, type: "UPLOAD", fileName: "orgA.pdf", fileUrl: "local:orgA", fileSize: 1024, validFrom: new Date(Date.now() - 30 * 86400000), validUntil: new Date(Date.now() + 300 * 86400000) } });
+  const evA = await prisma.evidence.create({ data: { organizationId: (await prisma.control.findUniqueOrThrow({ where: { id: ctrlAId } })).organizationId, controls: { create: { controlId: ctrlAId } }, uploadedById: editorA.id, type: "UPLOAD", fileName: "orgA.pdf", fileUrl: "local:orgA", fileSize: 1024, validFrom: new Date(Date.now() - 30 * 86400000), validUntil: new Date(Date.now() + 300 * 86400000) } });
   evidenceAId = evA.id;
   const exA = await prisma.controlException.create({ data: { organizationId: orgA.id, controlId: ctrlAId, requestedById: editorA.id, reason: "OrgA exception reason", compensatingControl: "Manual review", status: "REQUESTED", validFrom: new Date(), validUntil: new Date(Date.now() + 60 * 86400000) } });
   exceptionAId = exA.id;
@@ -877,19 +877,19 @@ async function tc393() {
   console.log("\nTC-393: Orphan prevention");
   // Try to delete a control that has evidence, findings, tests, mappings
   const c = await prisma.control.create({ data: { organizationId: orgA.id, code: `ORP-${Date.now()}`, title: "Orphan Test", status: "IMPLEMENTED" } });
-  await prisma.evidence.create({ data: { controlId: c.id, uploadedById: editorA.id, type: "UPLOAD", fileName: "orph.txt", fileUrl: "local:orph", fileSize: 10 } });
+  await prisma.evidence.create({ data: { organizationId: (await prisma.control.findUniqueOrThrow({ where: { id: c.id } })).organizationId, controls: { create: { controlId: c.id } }, uploadedById: editorA.id, type: "UPLOAD", fileName: "orph.txt", fileUrl: "local:orph", fileSize: 10 } });
   await prisma.finding.create({ data: { organizationId: orgA.id, controlId: c.id, title: "Orphan Finding", severity: "LOW" } });
 
   const r = await api(`/api/controls/${c.id}`, { method: "DELETE", cookie: cookieAdminA });
   if (r.status === 200) {
     // If cascade delete, verify no orphans
-    const evidenceCount = await prisma.evidence.count({ where: { controlId: c.id } });
+    const evidenceCount = await prisma.evidence.count({ where: { controls: { some: { controlId: c.id } } } });
     assert(evidenceCount === 0, "no orphan evidence after control delete");
   } else {
     assert(r.status === 400 || r.status === 409, "delete blocked due to dependencies");
     // Cleanup manually
     await prisma.finding.deleteMany({ where: { controlId: c.id } });
-    await prisma.evidence.deleteMany({ where: { controlId: c.id } });
+    await prisma.evidence.deleteMany({ where: { controls: { some: { controlId: c.id } } } });
     await prisma.control.delete({ where: { id: c.id } });
   }
 }
@@ -1243,9 +1243,9 @@ async function tc414() {
   const policy = await prisma.policy.findFirst({ where: { id: policyAId } });
   assert(policy !== null, "6. policy exists");
 
-  const evidence = await prisma.evidence.findFirst({ where: { id: evidenceAId } });
+  const evidence = await prisma.evidence.findFirst({ where: { id: evidenceAId }, include: { controls: true } });
   assert(evidence !== null, "7. evidence exists");
-  assert(evidence!.controlId === ctrlAId, "7. evidence linked to control");
+  assert(evidence!.controls.some((l) => l.controlId === ctrlAId), "7. evidence linked to control");
 
   const test = await prisma.controlTest.findFirst({ where: { id: testAId } });
   assert(test !== null, "8. test exists");
@@ -1300,7 +1300,7 @@ async function cleanup() {
   await prisma.controlException.deleteMany({ where: { organizationId: { in: orgIds } } });
   await prisma.finding.deleteMany({ where: { organizationId: { in: orgIds } } });
   await prisma.controlTest.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
-  await prisma.evidence.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
+  await prisma.evidence.deleteMany({ where: { organizationId: { in: orgIds } } });
   await prisma.controlMapping.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
   await prisma.riskAction.deleteMany({ where: { risk: { organizationId: { in: orgIds } } } });
   await prisma.riskControl.deleteMany({ where: { risk: { organizationId: { in: orgIds } } } });

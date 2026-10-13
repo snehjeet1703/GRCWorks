@@ -17,7 +17,7 @@ export default async function ControlsPage() {
         owner: { select: { id: true, name: true } },
         _count: {
           select: {
-            evidence: true,
+            evidenceLinks: true,
             risks: true,
             policies: true,
             tests: true,
@@ -51,7 +51,7 @@ export default async function ControlsPage() {
         ownerId: c.ownerId,
         ownerName: c.owner?.name ?? null,
         createdAt: c.createdAt.toISOString(),
-        deps: c._count,
+        deps: (({ evidenceLinks, ...rest }) => ({ ...rest, evidence: evidenceLinks }))(c._count),
       }))}
       users={users}
       canEdit={perms.includes("controls:write")}

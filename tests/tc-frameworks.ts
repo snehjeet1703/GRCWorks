@@ -317,9 +317,9 @@ async function tc35() {
 async function tc36() {
   console.log("\n── TC-36: Evidence affects readiness ──");
   // Add evidence to CTRL-001 via DB
-  await prisma.evidence.create({
-    data: {
-      controlId: ctrl001Id,
+  await prisma.evidence.create({ data: {
+      organizationId: (await prisma.control.findUniqueOrThrow({ where: { id: ctrl001Id } })).organizationId,
+      controls: { create: { controlId: ctrl001Id } },
       type: "DOCUMENT",
       source: "MANUAL_UPLOAD",
       status: "VALID",
@@ -681,7 +681,7 @@ async function cleanup() {
     await prisma.controlTest.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
     await prisma.finding.deleteMany({ where: { organizationId: { in: orgIds } } });
     await prisma.controlException.deleteMany({ where: { organizationId: { in: orgIds } } });
-    await prisma.evidence.deleteMany({ where: { control: { organizationId: { in: orgIds } } } });
+    await prisma.evidence.deleteMany({ where: { organizationId: { in: orgIds } } });
     await prisma.frameworkRequirement.deleteMany({ where: { framework: { organizationId: { in: orgIds } } } });
     await prisma.framework.deleteMany({ where: { organizationId: { in: orgIds } } });
     await prisma.control.deleteMany({ where: { organizationId: { in: orgIds } } });

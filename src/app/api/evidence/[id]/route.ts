@@ -24,7 +24,7 @@ export async function PATCH(
     const body = await parseBody(req, patchSchema);
 
     const evidence = await prisma.evidence.findFirst({
-      where: { id, control: { organizationId: user.organizationId } },
+      where: { id, organizationId: user.organizationId },
     });
     if (!evidence) throw new HttpError(404, "Evidence not found");
 
@@ -81,8 +81,8 @@ export async function DELETE(
     // We look up before the transaction so we can capture the storage key to delete
     // *after* the DB commit — that way a rollback never leaves the row orphaned.
     const evidence = await prisma.evidence.findFirst({
-      where: { id, control: { organizationId: user.organizationId } },
-      include: { control: { select: { code: true } } },
+      where: { id, organizationId: user.organizationId },
+      include: { controls: { select: { control: { select: { code: true } } } } },
     });
     if (!evidence) throw new HttpError(404, "Evidence not found");
 
@@ -97,7 +97,7 @@ export async function DELETE(
           entityId: id,
           entityName: evidence.fileName,
           action: "DELETE",
-          changes: { fileName: evidence.fileName, controlCode: evidence.control.code },
+          changes: { fileName: evidence.fileName, controlCodes: evidence.controls.map((l) => l.control.code) },
         },
         tx
       );
