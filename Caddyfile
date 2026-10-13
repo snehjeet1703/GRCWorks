@@ -1,0 +1,7 @@
+# Used by the optional `caddy` service: docker compose --profile https up -d
+# Caddy gets and renews a Let's Encrypt certificate for $DOMAIN automatically.
+# It replaces X-Forwarded-For with the real client IP, so rate limits can't be bypassed.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+}

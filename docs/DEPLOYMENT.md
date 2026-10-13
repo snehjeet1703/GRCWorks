@@ -5,6 +5,7 @@ This guide takes you from an empty server to a production GRC Platform, then cov
 Each deployment serves **one organisation**. To run the platform for several companies, give each its own deployment and database.
 
 - [Requirements](#requirements)
+- [Create a server (step by step)](#create-a-server-step-by-step)
 - [Configuration reference](#configuration-reference)
 - [Deploy with Docker Compose](#deploy-with-docker-compose)
 - [HTTPS and the reverse proxy](#https-and-the-reverse-proxy)
@@ -24,6 +25,160 @@ Each deployment serves **one organisation**. To run the platform for several com
 - **A domain name** pointing at the server, for HTTPS.
 - **An SMTP account** for outgoing email.
 
+## Create a server (step by step)
+
+This section goes from nothing to a running, HTTPS-protected instance. It uses Google Cloud; the steps for [other clouds](#other-clouds) are almost identical once the VM exists.
+
+You'll need:
+
+- a Google Cloud project with billing enabled;
+- the [`gcloud` CLI](https://cloud.google.com/sdk/docs/install), signed in with `gcloud auth login`;
+- a domain you can add DNS records to.
+
+### 1. Set your variables
+
+Run these in your terminal, then reuse them in every later step. `asia-south1` is Mumbai; pick the [region](https://cloud.google.com/about/locations) closest to your users, and the matching zone.
+
+```bash
+PROJECT=my-gcp-project
+REGION=asia-south1
+ZONE=asia-south1-a
+DOMAIN=grc.example.com
+BUCKET=$PROJECT-grc-uploads        # must be globally unique
+
+gcloud config set project $PROJECT
+gcloud services enable compute.googleapis.com storage.googleapis.com
+```
+
+### 2. Reserve a static IP and point your domain at it
+
+```bash
+gcloud compute addresses create grc-ip --region=$REGION
+gcloud compute addresses describe grc-ip --region=$REGION --format='value(address)'
+```
+
+At your DNS provider, create an **A record** for `$DOMAIN` pointing at that IP. Do it now: DNS can take a few minutes to spread, and HTTPS (step 7) needs it.
+
+### 3. Create a service account and a storage bucket
+
+The app runs as its own service account, which can read and write only this bucket. That way the server holds no key file.
+
+```bash
+gcloud iam service-accounts create grc-app --display-name="GRC Platform"
+SA=grc-app@$PROJECT.iam.gserviceaccount.com
+
+gcloud storage buckets create gs://$BUCKET --location=$REGION \
+  --uniform-bucket-level-access --public-access-prevention
+gcloud storage buckets update gs://$BUCKET --versioning   # keeps deleted/overwritten files recoverable
+gcloud storage buckets add-iam-policy-binding gs://$BUCKET \
+  --member=serviceAccount:$SA --role=roles/storage.objectAdmin
+```
+
+Skipping the bucket? Then uploads are kept on the VM's disk, so include them in your backups.
+
+### 4. Open the firewall for web traffic
+
+```bash
+gcloud compute firewall-rules create grc-allow-web \
+  --allow=tcp:80,tcp:443,udp:443 --target-tags=grc-web
+```
+
+Only ports 80 and 443 are opened (SSH is allowed by the default network rules). The app's port 3000 and Postgres stay closed to the internet.
+
+### 5. Create the VM
+
+`e2-small` (2 vCPU, 2 GB) suits most teams. Use `e2-medium` for heavier use.
+
+```bash
+gcloud compute instances create grc \
+  --zone=$ZONE --machine-type=e2-small \
+  --image-family=ubuntu-2404-lts-amd64 --image-project=ubuntu-os-cloud \
+  --boot-disk-size=30GB --boot-disk-type=pd-balanced \
+  --address=grc-ip --tags=grc-web \
+  --service-account=$SA --scopes=cloud-platform \
+  --shielded-secure-boot
+```
+
+`--scopes=cloud-platform` lets the service account's permissions apply; without it, the VM can only *read* from storage.
+
+### 6. Install Docker and the app
+
+```bash
+gcloud compute ssh grc --zone=$ZONE
+```
+
+On the VM:
+
+```bash
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER && newgrp docker
+
+git clone https://github.com/<owner>/grc-platform.git
+cd grc-platform
+cp .env.example .env
+```
+
+Edit `.env` (for example with `nano .env`):
+
+```bash
+NEXTAUTH_SECRET="<output of: openssl rand -base64 48>"
+NEXTAUTH_URL="https://grc.example.com"
+DOMAIN="grc.example.com"
+APP_BIND="127.0.0.1"                 # only Caddy can reach the app
+POSTGRES_PASSWORD="<output of: openssl rand -hex 24>"
+GCS_BUCKET="my-gcp-project-grc-uploads"
+GCS_KEY_FILE=""                      # empty: use the VM's service account
+SMTP_HOST="..."                      # see "Email (SMTP)" below
+SMTP_USER="..."
+SMTP_PASS="..."
+SMTP_FROM="grc@example.com"
+```
+
+### 7. Start it with HTTPS
+
+```bash
+docker compose --profile https up -d --build
+docker compose ps
+```
+
+The `https` profile adds a [Caddy](https://caddyserver.com) container. It gets a Let's Encrypt certificate for `DOMAIN` and renews it automatically. The first start takes a few minutes while the image builds.
+
+Open `https://grc.example.com`, complete **/setup**, and you're live.
+
+### 8. Turn on backups
+
+- **Database:** add the `pg_dump` command from [Backups](#backups) to the VM's crontab (`crontab -e`) and copy the dumps to the bucket:
+
+  ```
+  0 2 * * * cd ~/grc-platform && docker compose exec -T db pg_dump -U grc -Fc grc_platform > ~/grc-$(date +\%F).dump && gcloud storage cp ~/grc-$(date +\%F).dump gs://BUCKET/backups/ && find ~ -name 'grc-*.dump' -mtime +7 -delete
+  ```
+
+  Replace `BUCKET` with your bucket name.
+
+- **Whole disk:** take daily snapshots as a second safety net:
+
+  ```bash
+  gcloud compute resource-policies create snapshot-schedule grc-daily \
+    --region=$REGION --daily-schedule --start-time=03:00 --max-retention-days=14
+  gcloud compute disks add-resource-policies grc --zone=$ZONE --resource-policies=grc-daily
+  ```
+
+### Other clouds
+
+Once you have a Linux VM with Docker, steps 6–8 are the same everywhere.
+
+- **AWS (Lightsail or EC2):**
+  - Use Ubuntu 24.04 with 2 GB RAM and attach a static IP.
+  - Allow inbound 80/443 in the instance's firewall or security group.
+  - Leave `GCS_BUCKET` empty to keep uploads on disk.
+- **DigitalOcean / Hetzner / Linode:**
+  - Create an Ubuntu 24.04 droplet or server with 2 GB RAM.
+  - Add a cloud firewall allowing only 22, 80 and 443.
+  - Turn on the provider's automated backups.
+- **Your own hardware:**
+  - Any Linux machine that ports 80/443 can be forwarded to.
+  - Without a public IP, put [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) in front of it and use plain `docker compose up -d`.
+
 ## Configuration reference
 
 All settings are environment variables, normally kept in `.env` (copy `.env.example`). Never commit `.env`.
@@ -35,6 +190,8 @@ All settings are environment variables, normally kept in `.env` (copy `.env.exam
 | `NEXTAUTH_URL` | Yes | The public URL, e.g. `https://grc.example.com`. It's used in emailed links, so it must be exact. |
 | `POSTGRES_PASSWORD` | Docker only | Password for the bundled Postgres. Set it **before** the first start; the database keeps whatever it started with. |
 | `APP_PORT` | No | Host port for the app in Docker Compose (default `3000`). |
+| `APP_BIND` | No | Host address the app's port listens on (default `0.0.0.0`). Set `127.0.0.1` when a reverse proxy is the only way in. |
+| `DOMAIN` | With the `https` profile | Domain Caddy gets a certificate for. Its DNS must point at the server. |
 | `SESSION_MAX_AGE_HOURS` | No | How long a sign-in lasts (default `12`, maximum `720`). |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Yes in production | Outgoing email. See [Email](#email-smtp). |
 | `GCS_BUCKET`, `GCS_KEY_FILE` | No | Store uploads in Google Cloud Storage instead of local disk. |
@@ -82,7 +239,9 @@ What this gives you:
 
 ## HTTPS and the reverse proxy
 
-The app speaks plain HTTP on port 3000. Put a reverse proxy in front of it to handle HTTPS. With [Caddy](https://caddyserver.com), which gets certificates automatically, the whole config is:
+The app speaks plain HTTP on port 3000. The simplest way to add HTTPS is the bundled Caddy service: set `DOMAIN` and `APP_BIND="127.0.0.1"` in `.env`, then run `docker compose --profile https up -d --build`.
+
+To use your own proxy instead: with [Caddy](https://caddyserver.com) installed on the host, the whole config is:
 
 ```
 grc.example.com {
@@ -110,7 +269,7 @@ server {
 }
 ```
 
-If you use a proxy, change the app's port mapping in `docker-compose.yml` to `"127.0.0.1:3000:3000"`, so the app can only be reached through it.
+If you use a proxy, set `APP_BIND="127.0.0.1"` in `.env` so the app can only be reached through it.
 
 > **Important: client IP addresses.** Rate limits (sign-in, codes, access requests) are counted per client IP, read from the `Fly-Client-IP`, `X-Forwarded-For` or `X-Real-IP` header. Those headers can be faked by anyone who can reach the app directly. Make sure:
 > 1. the app is only reachable through your proxy or load balancer, and

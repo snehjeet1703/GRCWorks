@@ -1,0 +1,56 @@
+name: Bug report
+description: Something isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! **Security vulnerabilities must not be reported here.** Use the Security tab → "Report a vulnerability" instead (see SECURITY.md).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you see, and what did you expect to see?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to …
+        2. Click …
+        3. See error …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: e.g. v0.2.0 or a1b2c3d
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How is it deployed?
+      options:
+        - Docker Compose
+        - Render
+        - Railway
+        - Fly.io
+        - Bare metal / other
+        - Local development
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser (for UI problems)
+      placeholder: e.g. Chrome 130 on Windows
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Server logs (`docker compose logs app`) or browser console errors. Remove emails, tokens and other personal data first.
+      render: shell

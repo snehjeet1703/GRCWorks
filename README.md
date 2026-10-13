@@ -52,7 +52,9 @@ Open the app and you'll be taken to **/setup** to name your organisation and cre
 
 Database migrations run automatically every time the container starts.
 
-The full guide, covering HTTPS, email, file storage, backups, upgrades and hosted platforms, is in **[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)**.
+For automatic HTTPS, also set `DOMAIN` and `APP_BIND="127.0.0.1"` in `.env` and run `docker compose --profile https up -d --build`. The bundled Caddy container gets and renews the certificate.
+
+Starting from scratch? **[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md#create-a-server-step-by-step)** walks through creating the server on Google Cloud (static IP, firewall, storage bucket, VM, HTTPS, backups), with notes for AWS, DigitalOcean and your own hardware. It also covers email, SSO, upgrades and troubleshooting.
 
 ## Other ways to deploy
 
@@ -133,7 +135,7 @@ prisma/
 - **Uploads**: checked by type, size and file signature, and served with `nosniff`.
 - **Privacy**: no telemetry, crash reporting or third-party analytics.
 
-Found a vulnerability? Please email the maintainers privately rather than opening a public issue.
+Found a vulnerability? Please report it privately as described in [SECURITY.md](./SECURITY.md), not as a public issue.
 
 ## Data portability
 
@@ -147,7 +149,7 @@ Uploaded files live in `./uploads` (the `uploads` Docker volume), or in your GCS
 
 ## Contributing
 
-PRs welcome, especially framework updates when regulators publish revisions. Please cite the source and version of any control list in the PR description.
+PRs welcome, especially framework updates when regulators publish revisions. See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, conventions and the checks to run.
 
 ## License
 
