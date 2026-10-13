@@ -40,6 +40,10 @@ const viewerHeaders = [
 ];
 
 const nextConfig = {
+  // Emits .next/standalone (server.js + only the traced node_modules) for a small Docker image.
+  output: "standalone",
+  // storage.ts reads ./uploads at runtime; never copy user files into the build output.
+  outputFileTracingExcludes: { "/*": ["./uploads/**/*"] },
   serverExternalPackages: ["@prisma/client", "bcryptjs"],
   allowedDevOrigins: ["192.168.17.1"],
   poweredByHeader: false,

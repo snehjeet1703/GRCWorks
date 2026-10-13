@@ -8,6 +8,7 @@ Each deployment serves **one organisation**. To run the platform for several com
 - [Create a server (step by step)](#create-a-server-step-by-step)
 - [Configuration reference](#configuration-reference)
 - [Deploy with Docker Compose](#deploy-with-docker-compose)
+- [Running without Docker](#running-without-docker)
 - [HTTPS and the reverse proxy](#https-and-the-reverse-proxy)
 - [Email (SMTP)](#email-smtp)
 - [File storage](#file-storage)
@@ -21,7 +22,7 @@ Each deployment serves **one organisation**. To run the platform for several com
 ## Requirements
 
 - **Docker deployment:** a Linux server with Docker Engine 24+ and the Compose plugin. 1 vCPU and 1 GB RAM is enough for a small team; 2 GB is more comfortable.
-- **Without Docker:** Node.js 20.9+ (22 recommended) and PostgreSQL 14+.
+- **Without Docker:** Node.js 20.12+ (22 recommended) and PostgreSQL 14+.
 - **A domain name** pointing at the server, for HTTPS.
 - **An SMTP account** for outgoing email.
 
@@ -195,6 +196,7 @@ All settings are environment variables, normally kept in `.env` (copy `.env.exam
 | `SESSION_MAX_AGE_HOURS` | No | How long a sign-in lasts (default `12`, maximum `720`). |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Yes in production | Outgoing email. See [Email](#email-smtp). |
 | `GCS_BUCKET`, `GCS_KEY_FILE` | No | Store uploads in Google Cloud Storage instead of local disk. |
+| `UPLOAD_DIR` | No | Folder for uploads when not using GCS. Docker uses `/app/uploads`; `npm start` uses `./uploads` in the project. |
 | `AZURE_AD_CLIENT_ID`, `AZURE_AD_CLIENT_SECRET`, `AZURE_AD_TENANT_ID` | No | Microsoft Entra ID single sign-on. |
 | `DEMO_MODE` | No | Development only: shows the demo login hint. Keep `false` in production. |
 
@@ -236,6 +238,20 @@ What this gives you:
   - It applies database migrations on every start.
   - It keeps uploads in the `uploads` volume.
   - It reports health at `/api/health`.
+
+## Running without Docker
+
+On a machine with Node.js 20.12+ and PostgreSQL 14+:
+
+```bash
+npm ci
+cp .env.example .env              # set DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL, SMTP_*
+npx prisma migrate deploy
+npm run build
+PORT=3000 npm start
+```
+
+The build is a self-contained server in `.next/standalone`. `npm start` runs it, reads `.env` from the project, and keeps uploads in `./uploads`. Run it under a process manager such as systemd or pm2 so it restarts on failure and on boot, and put the reverse proxy below in front of it.
 
 ## HTTPS and the reverse proxy
 

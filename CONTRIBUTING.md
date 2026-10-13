@@ -11,7 +11,7 @@ Thanks for helping. Bug reports, framework updates, docs fixes and features are 
 
 ## Development setup
 
-You need Node.js 20.9+ (22 recommended) and Docker, or your own PostgreSQL 14+.
+You need Node.js 20.12+ (22 recommended) and Docker, or your own PostgreSQL 14+.
 
 ```bash
 git clone https://github.com/<you>/grc-platform.git

@@ -2,7 +2,10 @@ import { mkdir, writeFile, readFile, unlink } from "fs/promises";
 import { randomUUID } from "crypto";
 import path from "path";
 
-const UPLOAD_ROOT = path.resolve(process.cwd(), "uploads");
+// UPLOAD_DIR pins the folder explicitly; the standalone server changes the working directory on start.
+const UPLOAD_ROOT = process.env.UPLOAD_DIR
+  ? path.resolve(process.env.UPLOAD_DIR)
+  : path.resolve(process.cwd(), "uploads");
 const GCS_BUCKET = process.env.GCS_BUCKET || "";
 const USE_GCS = !!GCS_BUCKET;
 
