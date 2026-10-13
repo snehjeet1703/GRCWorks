@@ -164,7 +164,7 @@ export function QuestionnairesClient({
     );
   }
 
-  const VALID_TYPES = new Set(QUESTION_TYPES.map((t) => t.value));
+  const VALID_TYPES = new Set<string>(QUESTION_TYPES.map((t) => t.value));
 
   function parseCSVLine(line: string): string[] {
     const fields: string[] = [];

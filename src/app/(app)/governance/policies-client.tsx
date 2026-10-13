@@ -17,7 +17,7 @@ type PolicyRow = {
   title: string;
   content: string;
   status: "DRAFT" | "IN_REVIEW" | "APPROVED" | "EXPIRED" | "ARCHIVED";
-  version: number;
+  version: string;
   approver: Approver | null;
   approvedAt: string | null;
   expiresAt: string | null;

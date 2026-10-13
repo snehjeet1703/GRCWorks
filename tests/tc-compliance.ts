@@ -665,7 +665,7 @@ async function tc339() {
   const res = await api(`/api/reports?frameworkId=${fwAId}&format=csv`, { cookie: cookieAdminA });
   assert(res.status === 200, "CSV export 200 OK");
   const ct = res.headers.get("content-type");
-  assert(ct?.includes("text/csv"), "content-type is CSV");
+  assert(!!ct?.includes("text/csv"), "content-type is CSV");
   const text = await res.text();
   assert(text.includes("A.5.1"), "CSV contains requirement codes");
 }

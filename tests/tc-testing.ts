@@ -81,7 +81,7 @@ function makePdf(content: string): Buffer {
 async function uploadEvidence(cookie: string, controlId: string, fileName: string, fields?: Record<string, string>) {
   const form = new FormData();
   form.append("controlId", controlId);
-  form.append("file", new Blob([makePdf(fileName)], { type: "application/pdf" }), fileName);
+  form.append("file", new Blob([new Uint8Array(makePdf(fileName))], { type: "application/pdf" }), fileName);
   if (fields) for (const [k, v] of Object.entries(fields)) form.append(k, v);
   const res = await fetch(`${BASE}/api/evidence`, { method: "POST", headers: { cookie }, body: form });
   return res.json();

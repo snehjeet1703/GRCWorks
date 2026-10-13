@@ -256,7 +256,7 @@ async function tc357() {
   // Test that password hash is used, not plaintext
   const user = await prisma.user.findUnique({ where: { id: adminA.id }, select: { passwordHash: true } });
   assert(user!.passwordHash !== PASSWORD, "password stored as hash, not plaintext");
-  assert(user!.passwordHash.startsWith("$2"), "bcrypt hash format");
+  assert(!!user!.passwordHash?.startsWith("$2"), "bcrypt hash format");
 }
 
 // ========== B. RBAC — Real Security Test ==========

@@ -29,6 +29,9 @@ export async function POST(req: Request) {
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
     if (!user.mfaEnabled) return NextResponse.json({ error: "MFA not enabled" }, { status: 400 });
 
+    if (!user.passwordHash) {
+      return NextResponse.json({ error: "Your account signs in with SSO and has no password to confirm with" }, { status: 400 });
+    }
     if (!(await compare(password, user.passwordHash))) {
       return NextResponse.json({ error: "Invalid password" }, { status: 400 });
     }

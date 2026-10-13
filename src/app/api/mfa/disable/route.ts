@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { compare } from "bcryptjs";
+import { Prisma } from "@prisma/client";
 import { logAudit } from "@/lib/audit";
 import { z } from "zod";
 import { limitOrNull } from "@/lib/rate-limit";
@@ -28,6 +29,9 @@ export async function POST(req: Request) {
     });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
+    if (!user.passwordHash) {
+      return NextResponse.json({ error: "Your account signs in with SSO and has no password to confirm with" }, { status: 400 });
+    }
     if (!(await compare(password, user.passwordHash))) {
       return NextResponse.json({ error: "Invalid password" }, { status: 400 });
     }
@@ -51,7 +55,7 @@ export async function POST(req: Request) {
           mfaMethod: null,
           totpSecret: null,
           totpVerifiedAt: null,
-          recoveryCodes: null,
+          recoveryCodes: Prisma.DbNull,
         },
       }),
       prisma.webAuthnCredential.deleteMany({ where: { userId: session.user.id } }),

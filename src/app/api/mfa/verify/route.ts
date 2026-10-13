@@ -87,7 +87,7 @@ export async function POST(req: Request) {
         expectedRPID: RP_ID,
         credential: {
           id: storedCred.credentialId,
-          publicKey: storedCred.publicKey,
+          publicKey: new Uint8Array(storedCred.publicKey),
           counter: Number(storedCred.counter),
         },
       });

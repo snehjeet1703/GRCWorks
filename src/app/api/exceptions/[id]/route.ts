@@ -110,8 +110,8 @@ export async function PATCH(
           notes: result.notes,
         }
       );
-      if (data.status === "APPROVED") changes.approvedBy = user.name;
-      if (data.status === "REJECTED") changes.rejectedBy = user.name;
+      if (data.status === "APPROVED") changes.approvedBy = { from: null, to: user.name };
+      if (data.status === "REJECTED") changes.rejectedBy = { from: null, to: user.name };
 
       if (Object.keys(changes).length > 0) {
         await logAudit(

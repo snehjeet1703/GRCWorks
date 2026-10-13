@@ -22,7 +22,7 @@ type PolicyLink = {
   id: string;
   title: string;
   status: string;
-  version: number;
+  version: string;
   approvedAt: string | null;
 };
 type ControlReportRow = {
@@ -52,7 +52,7 @@ type Policy = {
   id: string;
   title: string;
   status: string;
-  version: number;
+  version: string;
   approverName: string | null;
   approvedAt: string | null;
   expiresAt: string | null;

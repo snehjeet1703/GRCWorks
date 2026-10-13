@@ -81,7 +81,7 @@ async function api(method: string, path: string, cookie: string, body?: unknown)
 async function uploadEvidence(cookie: string, controlId: string, fileName: string, fileContent: Buffer | Uint8Array, fields?: Record<string, string>) {
   const form = new FormData();
   form.append("controlId", controlId);
-  const blob = new Blob([fileContent], { type: "application/pdf" });
+  const blob = new Blob([new Uint8Array(fileContent)], { type: "application/pdf" });
   form.append("file", blob, fileName);
   if (fields) {
     for (const [k, v] of Object.entries(fields)) {
@@ -101,7 +101,7 @@ async function uploadEvidence(cookie: string, controlId: string, fileName: strin
 async function uploadRawEvidence(cookie: string, controlId: string, fileName: string, fileContent: Buffer | Uint8Array, mimeType: string) {
   const form = new FormData();
   form.append("controlId", controlId);
-  const blob = new Blob([fileContent], { type: mimeType });
+  const blob = new Blob([new Uint8Array(fileContent)], { type: mimeType });
   form.append("file", blob, fileName);
   const res = await fetch(`${BASE}/api/evidence`, {
     method: "POST",
@@ -712,7 +712,7 @@ async function tc86() {
   // Try to inject organizationId and uploadedById via form fields
   const form = new FormData();
   form.append("controlId", ctrl001Id);
-  form.append("file", new Blob([pdfContent], { type: "application/pdf" }), "Tamper.pdf");
+  form.append("file", new Blob([new Uint8Array(pdfContent)], { type: "application/pdf" }), "Tamper.pdf");
   // These should be ignored — server sets them from session
   form.append("uploadedById", adminB.id);
   form.append("organizationId", orgB.id);

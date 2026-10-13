@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "./db";
 
-type AuditAction = "CREATE" | "UPDATE" | "DELETE" | "APPROVE" | "LOGIN";
+type AuditAction = "CREATE" | "UPDATE" | "DELETE" | "APPROVE" | "REJECT" | "LOGIN" | "LINK_CONTROLS";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
