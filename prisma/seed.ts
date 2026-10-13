@@ -3,6 +3,8 @@ import { hash } from "bcryptjs";
 import { CONTROL_MAPPINGS, FrameworkName } from "./control-mappings";
 import { ensureBuiltInRoles } from "../src/lib/built-in-roles";
 import { TRUST_CONTROL_SUGGESTIONS } from "../src/lib/trust-controls";
+import { deleteUpload, saveUpload } from "../src/lib/storage";
+import { SAMPLE_DOCUMENTS, renderSamplePdf } from "./sample-documents";
 
 const prisma = new PrismaClient();
 
@@ -453,7 +455,33 @@ async function seedTrustVault(organizationId: string) {
     ).count;
   }
 
-  return { controls, subprocessors };
+  // Sample PDFs: create missing ones, and replace tiny placeholder files left by older seeds/tests.
+  let documents = 0;
+  for (const [i, sample] of SAMPLE_DOCUMENTS.entries()) {
+    const existing = await prisma.trustVaultDocument.findFirst({
+      where: { configId: config.id, name: sample.name, previousVersionId: null },
+    });
+    if (existing && existing.fileSize >= 1024) continue;
+
+    const bytes = await renderSamplePdf(sample);
+    const { storageKey, size } = await saveUpload(sample.fileName, bytes);
+    const file = { fileName: sample.fileName, storageKey, fileSize: size, mimeType: "application/pdf" };
+    if (existing) {
+      await prisma.trustVaultDocument.update({ where: { id: existing.id }, data: { ...file, description: sample.description } });
+      await deleteUpload(existing.storageKey);
+    } else {
+      await prisma.trustVaultDocument.create({
+        data: {
+          configId: config.id, ...file, sortOrder: i,
+          name: sample.name, description: sample.description, category: sample.category,
+          visibility: sample.visibility, permission: sample.permission,
+        },
+      });
+    }
+    documents++;
+  }
+
+  return { controls, subprocessors, documents };
 }
 
 // ── Mapping-aware seeder (idempotent) ────────────────────────
@@ -676,7 +704,7 @@ async function main() {
   console.log(`  Sample risks : ${riskCount === 0 ? SAMPLE_RISKS.length : `${riskCount} already present`}`);
   console.log(`  Sample policies: ${policyCount === 0 ? SAMPLE_POLICIES.length : `${policyCount} already present`}`);
   console.log(`  Roles        : ${roleIdByName.size} built-in roles seeded`);
-  console.log(`  Trust Vault  : ${trust.controls} controls, ${trust.subprocessors} sub-processors added (0 = already present)`);
+  console.log(`  Trust Vault  : ${trust.controls} controls, ${trust.subprocessors} sub-processors, ${trust.documents} sample documents added (0 = already present)`);
   void sharedControls;
 }
 
