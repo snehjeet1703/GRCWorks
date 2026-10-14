@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   Building2,
   Vault,
+  CheckSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "next-auth/react";
@@ -25,6 +26,8 @@ type NavItem = {
   href: string;
   icon: typeof LayoutDashboard;
   requiredPermission?: string;
+  // Key into the `badges` prop; a positive count is shown next to the item.
+  badge?: string;
 };
 
 type NavSection = {
@@ -37,6 +40,7 @@ export const sections: NavSection[] = [
     label: "Overview",
     items: [
       { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, requiredPermission: "dashboard:view" },
+      { name: "My Tasks", href: "/tasks", icon: CheckSquare, badge: "openTasks" },
       { name: "Compliance", href: "/compliance", icon: ShieldCheck, requiredPermission: "controls:read" },
       { name: "Controls", href: "/controls", icon: ListChecks, requiredPermission: "controls:read" },
       { name: "Risks", href: "/risks", icon: TriangleAlert, requiredPermission: "risks:read" },
@@ -74,12 +78,14 @@ export function Sidebar({
   permissions,
   roleName,
   userName,
+  badges,
   collapsed = false,
   onNavigate,
 }: {
   permissions?: string[];
   roleName?: string;
   userName?: string;
+  badges?: Record<string, number>;
   collapsed?: boolean;
   onNavigate?: () => void;
 }) {
@@ -145,8 +151,21 @@ export function Sidebar({
                             : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                         )}
                       >
-                        <item.icon className="h-4 w-4 shrink-0" />
+                        <span className="relative shrink-0">
+                          <item.icon className="h-4 w-4" />
+                          {collapsed && item.badge && (badges?.[item.badge] ?? 0) > 0 && (
+                            <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-brand-600" aria-hidden="true" />
+                          )}
+                        </span>
                         {!collapsed && <span className="truncate">{item.name}</span>}
+                        {!collapsed && item.badge && (badges?.[item.badge] ?? 0) > 0 && (
+                          <span
+                            className="ml-auto rounded-full bg-brand-600 px-1.5 py-px text-[10px] font-semibold leading-4 text-white"
+                            aria-label={`${badges![item.badge]} open`}
+                          >
+                            {badges![item.badge]}
+                          </span>
+                        )}
                       </Link>
                     </li>
                   );

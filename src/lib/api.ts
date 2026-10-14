@@ -8,6 +8,7 @@ import {
   canEdit,
   resolvePermissions,
   hasPermission,
+  permissionLabel,
   type Permission,
   type ResolvedPermissions,
 } from "./permissions";
@@ -93,7 +94,7 @@ export async function requirePermission(
 
   for (const perm of requiredPermissions) {
     if (!hasPermission(resolved, perm)) {
-      throw new HttpError(403, `Missing permission: ${perm}`);
+      throw new HttpError(403, `Your role (${resolved.roleName}) doesn't allow this. It needs the "${permissionLabel(perm)}" permission; ask an admin.`);
     }
   }
 

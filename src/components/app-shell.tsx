@@ -14,12 +14,14 @@ export function AppShell({
   permissions,
   roleName,
   userName,
+  badges,
 }: {
   children: ReactNode;
   defaultOpen: boolean;
   permissions: string[];
   roleName?: string;
   userName?: string;
+  badges?: Record<string, number>;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -51,7 +53,7 @@ export function AppShell({
     return () => window.removeEventListener("keydown", onKey);
   }, [toggle]);
 
-  const sidebarProps = { permissions, roleName, userName };
+  const sidebarProps = { permissions, roleName, userName, badges };
 
   return (
     <div className="flex min-h-svh w-full">

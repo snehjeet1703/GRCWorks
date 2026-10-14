@@ -28,6 +28,11 @@ export default async function AppLayout({
     redirect("/onboarding");
   }
 
+  // Badge on "My Tasks": open work assigned to the signed-in user.
+  const openTasks = await prisma.task.count({
+    where: { assigneeId: user.id, status: { not: "DONE" } },
+  });
+
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get(SIDEBAR_COOKIE)?.value !== "false";
 
@@ -38,6 +43,7 @@ export default async function AppLayout({
         permissions={user.permissions ?? []}
         roleName={user.roleName ?? user.role}
         userName={user.name ?? user.email}
+        badges={{ openTasks }}
       >
         {children}
       </AppShell>

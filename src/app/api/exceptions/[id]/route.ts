@@ -54,7 +54,7 @@ export async function PATCH(
       // Approval/rejection requires EXCEPTIONS_APPROVE
       if (data.status === "APPROVED" || data.status === "REJECTED") {
         if (!resolved.permissions.has(PERMISSIONS.EXCEPTIONS_APPROVE)) {
-          throw new HttpError(403, "Missing permission: exceptions:approve");
+          throw new HttpError(403, `Your role doesn't allow this. It needs the "Approve exceptions" permission; ask an admin.`);
         }
         // Separation of duties: requester cannot approve their own exception
         if (before.requestedById === user.id) {

@@ -63,7 +63,7 @@ export async function PATCH(
         (data.status === "RESOLVED" || data.status === "ACCEPTED" || data.status === "CLOSED") &&
         !resolved.permissions.has(PERMISSIONS.FINDINGS_CLOSE)
       ) {
-        throw new HttpError(403, "Missing permission: findings:close");
+        throw new HttpError(403, `Your role doesn't allow this. It needs the "Close findings" permission; ask an admin.`);
       }
 
       if (data.status === "RESOLVED") {

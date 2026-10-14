@@ -195,6 +195,30 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).frameworkScopeIds = token.frameworkScopeIds;
         (session.user as any).mfaPending = token.mfaPending;
         (session.user as any).mfaMethod = token.mfaMethod;
+
+        // Role and permissions are read live so role changes apply on the next page load,
+        // not only after signing in again. API routes re-check the database as well.
+        if (token.sub) {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.sub },
+            select: {
+              role: true,
+              roleId: true,
+              customRole: { select: { name: true, permissions: true } },
+              frameworkScopes: { select: { frameworkId: true } },
+            },
+          });
+          if (dbUser) {
+            const resolved = resolvePermissions(dbUser);
+            (session.user as any).role = dbUser.role;
+            (session.user as any).roleId = dbUser.roleId;
+            (session.user as any).permissions = [...resolved.permissions];
+            (session.user as any).roleName = resolved.roleName;
+            (session.user as any).frameworkScopeIds = resolved.frameworkScopeIds;
+          } else {
+            (session.user as any).permissions = [];
+          }
+        }
       }
       return session;
     },

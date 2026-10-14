@@ -23,6 +23,7 @@ model Organization {
   frameworks     Framework[]
   controls       Control[]
   evidence       Evidence[]
+  tasks          Task[]
   risks          Risk[]
   policies       Policy[]
   findings       Finding[]
@@ -109,6 +110,8 @@ model User {
   webauthnCredentials WebAuthnCredential[]
 
   ownedControls     Control[]          @relation("ControlOwner")
+  assignedTasks     Task[]             @relation("TaskAssignee")
+  createdTasks      Task[]             @relation("TaskCreator")
   ownedRisks        Risk[]             @relation("RiskOwner")
   ownedPolicies     Policy[]           @relation("PolicyOwner")
   approvedPolicies  Policy[]           @relation("PolicyApprover")
@@ -259,6 +262,7 @@ model Control {
   findings       Finding[]
   exceptions     ControlException[]
   trustDocLinks  TrustDocumentControl[]
+  tasks          Task[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -497,6 +501,7 @@ model Risk {
   controls       RiskControl[]
   findings       Finding[]
   actions        RiskAction[]
+  tasks          Task[]
 
   @@index([organizationId])
   @@map("risks")
@@ -1022,4 +1027,48 @@ model TrustDocumentControl {
   @@unique([documentId, controlId])
   @@index([controlId])
   @@map("trust_document_controls")
+}
+
+// ─── Tasks ───────────────────────────────────────────────────
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// Work items assigned to people, optionally tied to the control or risk they're for.
+model Task {
+  id             String       @id @default(uuid())
+  organizationId String       @map("organization_id")
+  title          String
+  description    String       @default("")
+  status         TaskStatus   @default(TODO)
+  priority       TaskPriority @default(MEDIUM)
+  dueDate        DateTime?    @map("due_date")
+  assigneeId     String?      @map("assignee_id")
+  createdById    String?      @map("created_by_id")
+  controlId      String?      @map("control_id")
+  riskId         String?      @map("risk_id")
+  completedAt    DateTime?    @map("completed_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignee     User?        @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdBy    User?        @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  control      Control?     @relation(fields: [controlId], references: [id], onDelete: SetNull)
+  risk         Risk?        @relation(fields: [riskId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([assigneeId, status])
+  @@map("tasks")
 }

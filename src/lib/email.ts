@@ -129,6 +129,34 @@ export async function sendTrustAccessRequestedEmail(
   });
 }
 
+export async function sendTaskAssignedEmail(
+  to: string,
+  d: { assigneeName: string; assignerName: string; title: string; description: string; priority: string; dueDate: Date | null; link: string }
+) {
+  const due = d.dueDate ? d.dueDate.toUTCString().slice(0, 16) : null;
+  const priority = d.priority.charAt(0) + d.priority.slice(1).toLowerCase();
+  await transporter.sendMail({
+    from: FROM,
+    to,
+    subject: `New task: ${d.title}`,
+    text:
+      `Hi ${d.assigneeName},\n\n${d.assignerName} assigned you a task: ${d.title}\n` +
+      `Priority: ${priority}${due ? `\nDue: ${due}` : ""}\n` +
+      (d.description ? `\n${d.description}\n` : "") +
+      `\nOpen your tasks: ${d.link}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#111">
+        <p>Hi ${escapeHtml(d.assigneeName)},</p>
+        <p><strong>${escapeHtml(d.assignerName)}</strong> assigned you a task:</p>
+        <p style="font-size:18px;font-weight:600;margin:8px 0">${escapeHtml(d.title)}</p>
+        <p style="color:#555;font-size:14px;margin:0">Priority: ${escapeHtml(priority)}${due ? ` &middot; Due ${escapeHtml(due)}` : ""}</p>
+        ${d.description ? `<p style="background:#f5f5f5;padding:12px;border-radius:6px;white-space:pre-wrap">${escapeHtml(d.description)}</p>` : ""}
+        <p><a href="${escapeHtml(d.link)}" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Open my tasks</a></p>
+      </div>
+    `,
+  });
+}
+
 export async function sendTrustOtpEmail(to: string, code: string, orgName: string) {
   await transporter.sendMail({
     from: FROM,

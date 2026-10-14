@@ -63,6 +63,10 @@ export const PERMISSIONS = {
   // Trust Vault
   TRUST_VAULT_READ: "trust_vault:read",
   TRUST_VAULT_MANAGE: "trust_vault:manage",
+
+  // Tasks (everyone sees and updates tasks assigned to them; these cover everyone else's)
+  TASKS_READ: "tasks:read",
+  TASKS_MANAGE: "tasks:manage",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -161,7 +165,23 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
       { key: PERMISSIONS.TRUST_VAULT_MANAGE, label: "Manage Trust Vault", description: "Configure trust vault content, approve access requests" },
     ],
   },
+  {
+    label: "Tasks",
+    permissions: [
+      { key: PERMISSIONS.TASKS_READ, label: "View all tasks", description: "See every task in the organisation, not just your own" },
+      { key: PERMISSIONS.TASKS_MANAGE, label: "Manage tasks", description: "Create, assign, edit, and delete tasks" },
+    ],
+  },
 ];
+
+// Human-readable name for a permission key, for error messages.
+export function permissionLabel(key: string): string {
+  for (const group of PERMISSION_CATEGORIES) {
+    const hit = group.permissions.find((p) => p.key === key);
+    if (hit) return hit.label;
+  }
+  return key;
+}
 
 // ─── Built-in Role Templates ─────────────────────────────────
 
@@ -205,6 +225,8 @@ export const BUILT_IN_ROLES: BuiltInRoleTemplate[] = [
       PERMISSIONS.USERS_READ,
       PERMISSIONS.AUDIT_READ,
       PERMISSIONS.FRAMEWORKS_MANAGE,
+      PERMISSIONS.TASKS_READ,
+      PERMISSIONS.TASKS_MANAGE,
     ],
   },
   {
@@ -229,6 +251,8 @@ export const BUILT_IN_ROLES: BuiltInRoleTemplate[] = [
       PERMISSIONS.VENDORS_WRITE,
       PERMISSIONS.USERS_READ,
       PERMISSIONS.AUDIT_READ,
+      PERMISSIONS.TASKS_READ,
+      PERMISSIONS.TASKS_MANAGE,
     ],
   },
   {
@@ -246,6 +270,7 @@ export const BUILT_IN_ROLES: BuiltInRoleTemplate[] = [
       PERMISSIONS.REPORTS_EXPORT,
       PERMISSIONS.USERS_READ,
       PERMISSIONS.AUDIT_READ,
+      PERMISSIONS.TASKS_READ,
     ],
   },
   {
@@ -263,6 +288,8 @@ export const BUILT_IN_ROLES: BuiltInRoleTemplate[] = [
       PERMISSIONS.VENDORS_WRITE,
       PERMISSIONS.REPORTS_EXPORT,
       PERMISSIONS.USERS_READ,
+      PERMISSIONS.TASKS_READ,
+      PERMISSIONS.TASKS_MANAGE,
     ],
   },
   {
@@ -278,6 +305,8 @@ export const BUILT_IN_ROLES: BuiltInRoleTemplate[] = [
       PERMISSIONS.EXCEPTIONS_READ,
       PERMISSIONS.EXCEPTIONS_APPROVE,
       PERMISSIONS.USERS_READ,
+      PERMISSIONS.TASKS_READ,
+      PERMISSIONS.TASKS_MANAGE,
     ],
   },
   {
@@ -293,6 +322,7 @@ export const BUILT_IN_ROLES: BuiltInRoleTemplate[] = [
       PERMISSIONS.EXCEPTIONS_READ,
       PERMISSIONS.VENDORS_READ,
       PERMISSIONS.USERS_READ,
+      PERMISSIONS.TASKS_READ,
     ],
   },
 ];
