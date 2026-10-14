@@ -233,6 +233,51 @@ export async function sendControlReviewDecisionEmail(
   });
 }
 
+export async function sendEvidenceReminderEmail(
+  to: string,
+  d: {
+    name: string;
+    final: { periodName: string; daysLeft: number } | null;
+    items: { periodName: string; control: string; slot: string; status: string; due: string }[];
+    reviewCount: number;
+    link: string;
+  }
+) {
+  const statusText: Record<string, string> = {
+    DUE: "evidence due", OVERDUE: "overdue", READY: "uploaded, submit for review", CHANGES_REQUESTED: "changes requested",
+  };
+  const subject = d.final
+    ? `${d.final.daysLeft === 0 ? "Last day" : `${d.final.daysLeft} day${d.final.daysLeft === 1 ? "" : "s"} left`}: evidence for ${d.final.periodName}`
+    : `Weekly evidence reminder: ${d.items.length} open${d.reviewCount ? `, ${d.reviewCount} to review` : ""}`;
+  const intro = d.final
+    ? `${d.final.periodName} closes ${d.final.daysLeft === 0 ? "today" : `in ${d.final.daysLeft} day${d.final.daysLeft === 1 ? "" : "s"}`}. Please finish the evidence below.`
+    : "Here's the evidence still open for your controls.";
+  const lines = d.items.map((i) => `- ${i.control} · ${i.slot} (${i.periodName}): ${statusText[i.status] ?? i.status}, due ${i.due}`);
+  await transporter.sendMail({
+    from: FROM,
+    to,
+    subject,
+    text:
+      `Hi ${d.name},\n\n${intro}\n\n${lines.join("\n")}` +
+      (d.reviewCount ? `\n\nYou also have ${d.reviewCount} submission${d.reviewCount === 1 ? "" : "s"} waiting for your review.` : "") +
+      `\n\nOpen your tasks: ${d.link}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111">
+        <p>Hi ${escapeHtml(d.name)},</p>
+        <p>${escapeHtml(intro)}</p>
+        ${d.items.length ? `<table style="border-collapse:collapse;width:100%;font-size:14px">${d.items.map((i) => `
+          <tr style="border-top:1px solid #eee">
+            <td style="padding:6px 8px 6px 0"><strong style="font-family:monospace">${escapeHtml(i.control)}</strong><br><span style="color:#666">${escapeHtml(i.slot)} · ${escapeHtml(i.periodName)}</span></td>
+            <td style="padding:6px 0;color:${i.status === "OVERDUE" ? "#b91c1c" : "#555"};white-space:nowrap">${escapeHtml(statusText[i.status] ?? i.status)}<br><span style="color:#888">due ${escapeHtml(i.due)}</span></td>
+          </tr>`).join("")}</table>` : ""}
+        ${d.reviewCount ? `<p>You also have <strong>${d.reviewCount}</strong> submission${d.reviewCount === 1 ? "" : "s"} waiting for your review.</p>` : ""}
+        <p><a href="${escapeHtml(d.link)}" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Open my tasks</a></p>
+        <p style="color:#888;font-size:12px">Reminder settings are in Settings → Organization.</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendTrustOtpEmail(to: string, code: string, orgName: string) {
   await transporter.sendMail({
     from: FROM,

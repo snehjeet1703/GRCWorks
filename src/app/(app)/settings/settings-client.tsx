@@ -424,6 +424,7 @@ export function SettingsClient({
 
       {/* ── Organization Tab ── */}
       {activeTab === "org" && (
+        <div className="space-y-6">
         <div className="card">
           <h2 className="font-semibold leading-none mb-4">Organization</h2>
           <form onSubmit={saveOrg} className="space-y-4 max-w-md">
@@ -456,6 +457,8 @@ export function SettingsClient({
               </div>
             )}
           </form>
+        </div>
+        {canManageOrg && <RemindersCard toast={toast} />}
         </div>
       )}
 
@@ -1140,6 +1143,105 @@ function SecurityTab({ canManageOrg, toast }: { canManageOrg: boolean; toast: Re
           </div>
         </form>
       </Modal>
+    </div>
+  );
+}
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+// Evidence reminders for open audit-period slots (weekly, then daily as a period closes).
+function RemindersCard({ toast }: { toast: ReturnType<typeof useToast> }) {
+  const [cfg, setCfg] = useState<{ remindersEnabled: boolean; reminderWeekday: number; reminderFinalDays: number; sendHourUtc: number } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/settings/reminders").then((r) => (r.ok ? r.json() : null)).then(setCfg).catch(() => setCfg(null));
+  }, []);
+
+  if (!cfg) return null;
+  const sendTime = new Date(Date.UTC(2000, 0, 1, cfg.sendHourUtc)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!cfg) return;
+    setSaving(true);
+    setError(null);
+    const res = await fetch("/api/settings/reminders", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        remindersEnabled: cfg.remindersEnabled,
+        reminderWeekday: cfg.reminderWeekday,
+        reminderFinalDays: cfg.reminderFinalDays,
+      }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
+      return setError(b?.error ?? "Couldn't save reminder settings");
+    }
+    toast.success("Reminder settings saved.");
+  }
+
+  async function runNow() {
+    setRunning(true);
+    const res = await fetch("/api/settings/reminders", { method: "POST" });
+    setRunning(false);
+    const b = await res.json().catch(() => ({}));
+    if (!res.ok) return toast.error(b?.error ?? "Couldn't send reminders");
+    toast.success(
+      b.sent > 0
+        ? `Sent ${b.sent} reminder${b.sent === 1 ? "" : "s"}.`
+        : b.skipped > 0 ? "Everyone with open evidence has already had today's reminder." : "Nobody has open evidence to be reminded about today."
+    );
+  }
+
+  return (
+    <div className="card">
+      <h2 className="font-semibold leading-none">Evidence reminders</h2>
+      <p className="mt-1.5 text-sm text-gray-500">
+        Emails control owners about evidence still open in an audit period, and reviewers about submissions waiting for them.
+      </p>
+      <form onSubmit={save} className="mt-4 max-w-md space-y-4">
+        <FormError message={error} />
+        <label className="flex cursor-pointer items-center gap-3">
+          <input
+            type="checkbox"
+            checked={cfg.remindersEnabled}
+            onChange={(e) => setCfg({ ...cfg, remindersEnabled: e.target.checked })}
+            className="h-4 w-4 rounded border-gray-300 text-brand-600"
+          />
+          <span className="text-sm font-medium text-gray-700">Send evidence reminders</span>
+        </label>
+        <div className={`grid grid-cols-2 gap-4 ${cfg.remindersEnabled ? "" : "pointer-events-none opacity-50"}`}>
+          <Field label="Weekly reminder on" htmlFor="remWeekday">
+            <Select id="remWeekday" value={cfg.reminderWeekday} onChange={(e) => setCfg({ ...cfg, reminderWeekday: Number(e.target.value) })}>
+              {WEEKDAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}
+            </Select>
+          </Field>
+          <Field label="Daily in the final" htmlFor="remFinal" hint="days before a period closes">
+            <TextInput
+              id="remFinal"
+              type="number"
+              min={1}
+              max={30}
+              value={cfg.reminderFinalDays}
+              onChange={(e) => setCfg({ ...cfg, reminderFinalDays: Math.max(1, Math.min(30, Number(e.target.value) || 1)) })}
+            />
+          </Field>
+        </div>
+        <p className="text-xs text-gray-500">
+          Reminders go out around {sendTime} your time ({String(cfg.sendHourUtc).padStart(2, "0")}:00 UTC), at most one per person per day.
+        </p>
+        <div className="flex items-center gap-2">
+          <button type="submit" disabled={saving} className="btn-primary">{saving ? "Saving…" : "Save"}</button>
+          <button type="button" onClick={runNow} disabled={running || !cfg.remindersEnabled} className="btn-secondary">
+            {running ? "Sending…" : "Send reminders now"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

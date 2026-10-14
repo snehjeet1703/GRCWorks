@@ -125,15 +125,6 @@ export async function controlReviewers(organizationId: string) {
     .map(({ id, name, email }) => ({ id, name, email }));
 }
 
-// Sidebar badge: owned controls the user must act on (not ones waiting on a reviewer) plus their review queue.
-export async function pendingControlCount(organizationId: string, userId: string, canReview: boolean) {
-  const [owned, queue] = await Promise.all([
-    pendingControlWork(organizationId, userId),
-    canReview ? controlReviewQueue(organizationId, userId) : Promise.resolve([]),
-  ]);
-  return owned.filter((c) => c.reason !== "IN_REVIEW").length + queue.length;
-}
-
 // Emails a control's new owner; never fails the request, and skips people assigning themselves.
 export async function notifyControlOwner(controlId: string, assignerId: string, assignerName: string, baseUrl: string) {
   try {

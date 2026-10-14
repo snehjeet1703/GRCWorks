@@ -17,6 +17,7 @@ import {
   Building2,
   Vault,
   CheckSquare,
+  CalendarRange,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "next-auth/react";
@@ -51,6 +52,7 @@ export const sections: NavSection[] = [
     items: [
       { name: "Policies", href: "/governance", icon: ScrollText, requiredPermission: "policies:read" },
       { name: "Evidence", href: "/compliance/evidence", icon: FileCheck, requiredPermission: "evidence:read" },
+      { name: "Audits", href: "/audits", icon: CalendarRange, requiredPermission: "controls:read" },
       { name: "Findings", href: "/findings", icon: FileSearch, requiredPermission: "findings:read" },
       { name: "Exceptions", href: "/exceptions", icon: ShieldAlert, requiredPermission: "exceptions:read" },
       { name: "Vendors", href: "/vendors", icon: Building2, requiredPermission: "vendors:read" },

@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckSquare, Plus, Pencil, Trash2, UserRound, Inbox, Send, ListTodo, CalendarClock, ShieldCheck, TriangleAlert, Upload, PlayCircle, CheckCircle2, Send as SendIcon, Undo2, XCircle, Download, MessageSquareWarning, ClipboardCheck } from "lucide-react";
+import { CheckSquare, Plus, Pencil, Trash2, UserRound, Inbox, Send, ListTodo, CalendarClock, ShieldCheck, TriangleAlert, Upload, PlayCircle, CheckCircle2, Send as SendIcon, Undo2, XCircle, Download, MessageSquareWarning, ClipboardCheck, CalendarRange } from "lucide-react";
 import type { ControlWorkItem } from "@/lib/control-work";
+import type { SlotWorkItem } from "@/lib/audit-periods";
 import { Modal, ConfirmDialog } from "@/components/modal";
 import { Field, Select, TextArea, TextInput, FormError } from "@/components/form";
 import { FilterBar } from "@/components/filter-bar";
@@ -94,16 +95,26 @@ const CONTROL_REASON: Record<string, { label: string; style: string }> = {
   CHANGES_REQUESTED: { label: "Changes requested", style: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" },
 };
 
+const SLOT_TASK_STATUS: Record<string, { label: string; style: string }> = {
+  DUE: { label: "Evidence due", style: statusStyle.TODO },
+  OVERDUE: { label: "Overdue", style: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" },
+  READY: { label: "Ready to submit", style: statusStyle.IN_PROGRESS },
+  CHANGES_REQUESTED: { label: "Changes requested", style: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" },
+  IN_REVIEW: { label: "Waiting for review", style: "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300" },
+};
+
 const EVIDENCE_TONE: Record<string, string> = {
   VALID: "text-green-700", EXPIRING: "text-amber-600", EXPIRED: "text-red-600", REJECTED: "text-red-600", PENDING: "text-gray-500",
 };
 
 export function TasksClient({
-  tasks, controlWork, reviewQueue, approvalRequired, currentUserId, users, controls, risks, canReadAll, canManage,
+  tasks, controlWork, reviewQueue, slotWork, slotReviews, approvalRequired, currentUserId, users, controls, risks, canReadAll, canManage,
 }: {
   tasks: TaskRow[];
   controlWork: ControlWorkItem[];
   reviewQueue: ControlWorkItem[];
+  slotWork: SlotWorkItem[];
+  slotReviews: SlotWorkItem[];
   approvalRequired: boolean;
   currentUserId: string;
   users: { id: string; name: string }[];
@@ -139,6 +150,8 @@ export function TasksClient({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [busyControl, setBusyControl] = useState<string | null>(null);
   const [sendBack, setSendBack] = useState<ControlWorkItem | null>(null);
+  const [slotUpload, setSlotUpload] = useState<SlotWorkItem | null>(null);
+  const [slotSendBack, setSlotSendBack] = useState<SlotWorkItem | null>(null);
   const [sendBackNote, setSendBackNote] = useState("");
   const [sendBackError, setSendBackError] = useState<string | null>(null);
 
@@ -146,9 +159,11 @@ export function TasksClient({
   const created = tasks.filter((t) => t.createdBy?.id === currentUserId);
   const openCount = (list: TaskRow[]) => list.filter((t) => t.status !== "DONE").length;
 
-  const myControls = controlWork.filter((c) => c.owner?.id === currentUserId);
+  // A control in a running audit is worked slot by slot there, so don't list it twice.
+  const auditControlIds = new Set(slotWork.map((s) => s.control.id));
+  const myControls = controlWork.filter((c) => c.owner?.id === currentUserId && !auditControlIds.has(c.id));
   const tabs = [
-    { key: "mine", label: `My tasks (${openCount(mine) + myControls.length + reviewQueue.length})`, icon: Inbox },
+    { key: "mine", label: `My tasks (${openCount(mine) + myControls.length + reviewQueue.length + slotWork.length + slotReviews.length})`, icon: Inbox },
     ...(canManage ? [{ key: "created", label: `Created by me (${openCount(created)})`, icon: Send }] : []),
     ...(canReadAll ? [{ key: "all", label: `All tasks (${openCount(tasks) + controlWork.length})`, icon: ListTodo }] : []),
   ];
@@ -162,6 +177,15 @@ export function TasksClient({
       !q || [c.code, c.title, c.owner?.name, ...c.frameworks].some((v) => v?.toLowerCase().includes(q))
     );
   }, [scopedControls, search, statusFilter, priorityFilter]);
+  const slotMatches = (i: SlotWorkItem) => {
+    const q = search.trim().toLowerCase();
+    return !q || [i.control.code, i.control.title, i.periodName, i.slot.label, i.owner?.name].some((v) => v?.toLowerCase().includes(q));
+  };
+  const showSlots = tab === "mine" && !statusFilter && !priorityFilter;
+  const visibleSlotWork = showSlots
+    ? slotWork.filter(slotMatches).sort((a, b) => Date.parse(a.slot.end) - Date.parse(b.slot.end))
+    : [];
+  const visibleSlotReviews = showSlots ? slotReviews.filter(slotMatches) : [];
   const visibleReviews = tab === "mine" && !statusFilter && !priorityFilter
     ? reviewQueue.filter((c) => !search.trim() || [c.code, c.title, c.owner?.name].some((v) => v?.toLowerCase().includes(search.trim().toLowerCase())))
     : [];
@@ -188,8 +212,12 @@ export function TasksClient({
 
   const open = scoped.filter((t) => t.status !== "DONE");
   const daysLeft = (t: TaskRow) => (today && t.dueDate ? daysBetween(today, dueDay(t.dueDate)) : null);
-  const overdue = open.filter((t) => (daysLeft(t) ?? 0) < 0).length;
-  const dueSoon = open.filter((t) => { const d = daysLeft(t); return d !== null && d >= 0 && d <= 7; }).length;
+  // On My tasks, audit evidence counts too.
+  const mySlots = tab === "mine" ? slotWork.filter((s) => s.slot.status !== "IN_REVIEW") : [];
+  const slotDaysLeft = (s: SlotWorkItem) => (today ? daysBetween(today, s.slot.end.slice(0, 10)) : null);
+  const overdue = open.filter((t) => (daysLeft(t) ?? 0) < 0).length + mySlots.filter((s) => s.slot.status === "OVERDUE").length;
+  const dueSoon = open.filter((t) => { const d = daysLeft(t); return d !== null && d >= 0 && d <= 7; }).length
+    + mySlots.filter((s) => { const d = slotDaysLeft(s); return s.slot.status !== "OVERDUE" && d !== null && d >= 0 && d <= 7; }).length;
   const doneCount = scoped.length - open.length;
 
   function openCreate() {
@@ -297,6 +325,62 @@ export function TasksClient({
     return true;
   }
 
+  async function slotAction(i: SlotWorkItem, action: "submit" | "withdraw" | "approve" | "reject", note?: string) {
+    const key = `${i.periodId}:${i.control.id}:${i.slot.index}`;
+    setBusyControl(key);
+    const res = await fetch(`/api/audit-periods/${i.periodId}/slots`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ controlId: i.control.id, slotIndex: i.slot.index, action, ...(note !== undefined ? { note } : {}) }),
+    });
+    setBusyControl(null);
+    const b = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(b?.error ?? "Couldn't update the evidence");
+      return false;
+    }
+    const what = `${i.control.code} · ${i.slot.label}`;
+    toast.success({
+      submit: b.status === "APPROVED" ? `${what} is complete.` : `${what} submitted for review.`,
+      withdraw: `Withdrew ${what} from review.`,
+      approve: `Approved ${what}.`,
+      reject: `Sent ${what} back to ${i.owner?.name ?? "the owner"}.`,
+    }[action]);
+    refresh();
+    return true;
+  }
+
+  async function submitSlotUpload(e: React.FormEvent) {
+    e.preventDefault();
+    if (!slotUpload) return;
+    if (!uploadFile) return setUploadError("Choose a file to upload.");
+    setUploading(true);
+    setUploadError(null);
+    const body = new FormData();
+    body.append("controlIds", slotUpload.control.id);
+    body.append("auditPeriodId", slotUpload.periodId);
+    body.append("slotIndex", String(slotUpload.slot.index));
+    body.append("notes", uploadNotes);
+    body.append("file", uploadFile);
+    const res = await fetch("/api/evidence", { method: "POST", body });
+    setUploading(false);
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
+      return setUploadError(b?.error ?? "Upload failed");
+    }
+    const what = `${slotUpload.control.code} · ${slotUpload.slot.label}`;
+    setSlotUpload(null);
+    toast.success(`Evidence added to ${what}. ${approvalRequired ? "Submit it for review when you're ready." : "It counts as complete."}`);
+    refresh();
+  }
+
+  async function submitSlotSendBack(e: React.FormEvent) {
+    e.preventDefault();
+    if (!slotSendBack) return;
+    if (!sendBackNote.trim()) return setSendBackError("Tell the owner what needs to change.");
+    if (await slotAction(slotSendBack, "reject", sendBackNote.trim())) setSlotSendBack(null);
+  }
+
   async function submitSendBack(e: React.FormEvent) {
     e.preventDefault();
     if (!sendBack) return;
@@ -367,7 +451,7 @@ export function TasksClient({
       <PageTabs tabs={tabs} activeTab={tab} onTabChange={(k) => { setTab(k); setAssigneeFilter(""); }} />
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Open" value={open.length + scopedControls.length + (tab === "mine" ? reviewQueue.length : 0)} tone="text-gray-900 dark:text-gray-100" />
+        <Stat label="Open" value={open.length + scopedControls.length + (tab === "mine" ? reviewQueue.length + slotWork.length + slotReviews.length : 0)} tone="text-gray-900 dark:text-gray-100" />
         <Stat label="Overdue" value={overdue} tone="text-red-600" />
         <Stat label="Due this week" value={dueSoon} tone="text-amber-600" />
         <Stat label="Done" value={doneCount} tone="text-green-700" />
@@ -393,6 +477,128 @@ export function TasksClient({
           )
         }
       />
+
+      {visibleSlotReviews.length > 0 && (
+        <div className="card mb-4 !p-0 overflow-hidden border-purple-200 dark:border-purple-900">
+          <div className="border-b border-border px-4 py-3">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <ClipboardCheck className="h-4 w-4 text-purple-600" />
+              Audit evidence to review
+              <span className="rounded-full bg-purple-100 px-1.5 text-xs font-medium text-purple-700 dark:bg-purple-950 dark:text-purple-300">{visibleSlotReviews.length}</span>
+            </h2>
+            <p className="mt-0.5 text-xs text-gray-500">Evidence for one period of an audit. Approving marks it ready for the auditors.</p>
+          </div>
+          <ul className="divide-y divide-border">
+            {visibleSlotReviews.map((i) => {
+              const key = `${i.periodId}:${i.control.id}:${i.slot.index}`;
+              return (
+                <li key={key} className="px-4 py-3">
+                  <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        <span className="mr-1.5 font-mono text-xs text-gray-500">{i.control.code}</span>{i.control.title}
+                        <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">{i.slot.label}</span>
+                      </p>
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        {i.periodName} · Submitted{i.slot.submittedBy ? ` by ${i.slot.submittedBy}` : ""}{i.slot.submittedAt ? ` on ${formatDate(i.slot.submittedAt)}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button onClick={() => { setSlotSendBack(i); setSendBackNote(""); setSendBackError(null); }} disabled={busyControl === key} className="btn-secondary !px-2.5 !py-1 text-xs">
+                        <XCircle className="mr-1 h-3.5 w-3.5" /> Send back
+                      </button>
+                      <button onClick={() => slotAction(i, "approve")} disabled={busyControl === key} className="btn-primary !px-2.5 !py-1 text-xs">
+                        <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Approve
+                      </button>
+                    </div>
+                  </div>
+                  {i.slot.evidence.length > 0 && (
+                    <ul className="mt-2 space-y-1 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-900/50">
+                      {i.slot.evidence.map((e) => (
+                        <li key={e.id} className="flex items-center gap-2 text-xs">
+                          <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">{e.fileName}</span>
+                          <span className="shrink-0 text-gray-500">{e.uploadedBy ?? ""} · {formatDate(e.createdAt)}</span>
+                          {e.type !== "POLICY" && (
+                            <a href={`/api/evidence/${e.id}/download`} className="shrink-0 text-gray-400 hover:text-gray-700" aria-label={`Download ${e.fileName}`}>
+                              <Download className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {visibleSlotWork.length > 0 && (
+        <div className="card mb-4 !p-0 overflow-hidden">
+          <div className="border-b border-border px-4 py-3">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <CalendarRange className="h-4 w-4 text-gray-500" />
+              Audit evidence due
+              <span className="rounded-full bg-gray-100 px-1.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{visibleSlotWork.length}</span>
+            </h2>
+            <p className="mt-0.5 text-xs text-gray-500">
+              Upload evidence for each period as it comes round{approvalRequired ? ", then submit it for review" : ""}. Later periods open on their start date.
+            </p>
+          </div>
+          <ul className="divide-y divide-border">
+            {visibleSlotWork.map((i) => {
+              const key = `${i.periodId}:${i.control.id}:${i.slot.index}`;
+              const st = SLOT_TASK_STATUS[i.slot.status] ?? SLOT_TASK_STATUS.DUE;
+              const overdue = i.slot.status === "OVERDUE";
+              return (
+                <li key={key} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.style}`}>{st.label}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      <span className="mr-1.5 font-mono text-xs text-gray-500">{i.control.code}</span>{i.control.title}
+                      <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">{i.slot.label}</span>
+                    </p>
+                    <p className={`mt-0.5 text-xs ${overdue ? "font-medium text-red-600" : "text-gray-500"}`}>
+                      {i.periodName} · {overdue ? `Period ended ${formatDate(i.slot.end)}` : `Due ${formatDate(i.slot.end)}`}
+                      {i.slot.evidence.length > 0 && <span className="font-normal text-gray-500"> · {i.slot.evidence.length} file{i.slot.evidence.length === 1 ? "" : "s"} uploaded</span>}
+                    </p>
+                    {i.slot.status === "CHANGES_REQUESTED" && i.slot.note && (
+                      <p className="mt-1.5 flex items-start gap-1.5 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                        <MessageSquareWarning className="mt-px h-3.5 w-3.5 shrink-0" />
+                        <span><span className="font-medium">Reviewer:</span> {i.slot.note}</span>
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {i.slot.status === "IN_REVIEW" ? (
+                      <button onClick={() => slotAction(i, "withdraw")} disabled={busyControl === key} className="btn-secondary !px-2.5 !py-1 text-xs">
+                        <Undo2 className="mr-1 h-3.5 w-3.5" /> Withdraw
+                      </button>
+                    ) : (
+                      <>
+                        <button onClick={() => { setSlotUpload(i); setUploadFile(null); setUploadNotes(""); setUploadError(null); }} className="btn-secondary !px-2.5 !py-1 text-xs">
+                          <Upload className="mr-1 h-3.5 w-3.5" /> Upload evidence
+                        </button>
+                        {approvalRequired && (
+                          <button
+                            onClick={() => slotAction(i, "submit")}
+                            disabled={i.slot.evidence.length === 0 || busyControl === key}
+                            title={i.slot.evidence.length === 0 ? "Upload evidence for this period first" : "Send to a reviewer"}
+                            className="btn-primary !px-2.5 !py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <SendIcon className="mr-1 h-3.5 w-3.5" /> {i.slot.status === "CHANGES_REQUESTED" ? "Resubmit" : "Submit for review"}
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {visibleReviews.length > 0 && (
         <div className="card mb-4 !p-0 overflow-hidden border-purple-200 dark:border-purple-900">
@@ -626,7 +832,9 @@ export function TasksClient({
             <p className="text-sm">
               {scoped.length === 0
                 ? tab === "mine"
-                  ? visibleControls.length + visibleReviews.length > 0 ? "No other tasks assigned to you." : "Nothing is assigned to you right now."
+                  ? visibleControls.length + visibleReviews.length + visibleSlotWork.length + visibleSlotReviews.length > 0
+                    ? "No other tasks assigned to you."
+                    : "Nothing is assigned to you right now."
                   : "No tasks yet."
                 : "No tasks match these filters."}
             </p>
@@ -684,6 +892,48 @@ export function TasksClient({
             <button type="submit" disabled={saving} className="btn-primary">{saving ? "Saving…" : editing ? "Save" : "Create task"}</button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={!!slotUpload} onClose={() => setSlotUpload(null)} title="Upload audit evidence" size="md">
+        {slotUpload && (
+          <form onSubmit={submitSlotUpload} className="space-y-4">
+            <FormError message={uploadError} />
+            <p className="text-sm text-gray-600">
+              For <span className="font-mono text-xs">{slotUpload.control.code}</span>{" "}
+              <span className="font-medium text-gray-900 dark:text-gray-100">{slotUpload.control.title}</span>, covering{" "}
+              <span className="font-medium text-gray-900 dark:text-gray-100">{slotUpload.slot.label}</span> of {slotUpload.periodName}.
+            </p>
+            <Field label="File" htmlFor="slotFile" hint="Max 20 MB. PDF, images, Office files, CSV, text or ZIP.">
+              <input id="slotFile" type="file" className="input" onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)} />
+            </Field>
+            <Field label="Notes" htmlFor="slotNotes" hint="Optional. What does this file show?">
+              <TextArea id="slotNotes" value={uploadNotes} onChange={(e) => setUploadNotes(e.target.value)} />
+            </Field>
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setSlotUpload(null)} className="btn-secondary">Cancel</button>
+              <button type="submit" disabled={uploading} className="btn-primary">{uploading ? "Uploading…" : "Upload"}</button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      <Modal open={!!slotSendBack} onClose={() => setSlotSendBack(null)} title="Send back for changes" size="md">
+        {slotSendBack && (
+          <form onSubmit={submitSlotSendBack} className="space-y-4">
+            <FormError message={sendBackError} />
+            <p className="text-sm text-gray-600">
+              <span className="font-mono text-xs">{slotSendBack.control.code}</span> · {slotSendBack.slot.label} goes back to{" "}
+              {slotSendBack.owner?.name ?? "its owner"} with your note.
+            </p>
+            <Field label="What needs to change?" htmlFor="slotSendBackNote">
+              <TextArea id="slotSendBackNote" value={sendBackNote} onChange={(e) => setSendBackNote(e.target.value)} autoFocus />
+            </Field>
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setSlotSendBack(null)} className="btn-secondary">Cancel</button>
+              <button type="submit" className="btn-primary">Send back</button>
+            </div>
+          </form>
+        )}
       </Modal>
 
       <Modal open={!!sendBack} onClose={() => setSendBack(null)} title="Send back for changes" size="md">

@@ -6,7 +6,8 @@ import { AppShell } from "@/components/app-shell";
 import { SIDEBAR_COOKIE } from "@/lib/sidebar-state";
 import { Providers } from "@/components/providers";
 import { prisma } from "@/lib/db";
-import { pendingControlCount } from "@/lib/control-work";
+import { controlReviewQueue, pendingControlWork } from "@/lib/control-work";
+import { OWNER_ACTION, slotReviewQueue, slotWorkForOwner } from "@/lib/audit-periods";
 
 export default async function AppLayout({
   children,
@@ -29,12 +30,20 @@ export default async function AppLayout({
     redirect("/onboarding");
   }
 
-  // Badge on "My Tasks": open tasks plus controls they own that aren't closed yet.
-  const [taskCount, controlCount] = await Promise.all([
+  // Badge on "My Tasks": open tasks, controls they own that aren't closed, audit evidence they owe,
+  // and anything waiting for their review.
+  const canReview = (user.permissions ?? []).includes("evidence:review");
+  const [taskCount, ownedControls, controlReviews, slotWork, slotReviews] = await Promise.all([
     prisma.task.count({ where: { assigneeId: user.id, status: { not: "DONE" } } }),
-    pendingControlCount(user.organizationId, user.id, (user.permissions ?? []).includes("evidence:review")),
+    pendingControlWork(user.organizationId, user.id),
+    canReview ? controlReviewQueue(user.organizationId, user.id) : Promise.resolve([]),
+    slotWorkForOwner(user.organizationId, user.id),
+    canReview ? slotReviewQueue(user.organizationId, user.id) : Promise.resolve([]),
   ]);
-  const openTasks = taskCount + controlCount;
+  // Controls in a running audit are counted by their audit slots, not again as a control.
+  const inAudit = new Set(slotWork.map((s) => s.control.id));
+  const controlCount = ownedControls.filter((c) => c.reason !== "IN_REVIEW" && !inAudit.has(c.id)).length + controlReviews.length;
+  const openTasks = taskCount + controlCount + slotWork.filter((s) => OWNER_ACTION.includes(s.slot.status)).length + slotReviews.length;
 
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get(SIDEBAR_COOKIE)?.value !== "false";

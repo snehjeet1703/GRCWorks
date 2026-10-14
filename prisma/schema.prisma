@@ -17,6 +17,10 @@ model Organization {
   mfaRequired        Boolean  @default(false) @map("mfa_required")
   // Closing a control needs a reviewer's approval (someone other than the owner/submitter).
   controlApprovalRequired Boolean @default(true) @map("control_approval_required")
+  // Evidence reminders for open audit-period slots: weekly, then daily in the final days of a period.
+  remindersEnabled        Boolean @default(true) @map("reminders_enabled")
+  reminderWeekday         Int     @default(1) @map("reminder_weekday") // 0 = Sunday … 6 = Saturday
+  reminderFinalDays       Int     @default(7) @map("reminder_final_days")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
@@ -26,6 +30,7 @@ model Organization {
   controls       Control[]
   evidence       Evidence[]
   tasks          Task[]
+  auditPeriods   AuditPeriod[]
   risks          Risk[]
   policies       Policy[]
   findings       Finding[]
@@ -112,6 +117,9 @@ model User {
   webauthnCredentials WebAuthnCredential[]
 
   ownedControls     Control[]          @relation("ControlOwner")
+  submittedSlotReviews EvidenceSlotReview[] @relation("SlotSubmitter")
+  reviewedSlotReviews  EvidenceSlotReview[] @relation("SlotReviewer")
+  reminderLogs      ReminderLog[]
   submittedControlReviews Control[]    @relation("ControlReviewSubmitter")
   assignedTasks     Task[]             @relation("TaskAssignee")
   createdTasks      Task[]             @relation("TaskCreator")
@@ -190,6 +198,7 @@ model Framework {
   organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   requirements   FrameworkRequirement[]
   userScopes     UserFrameworkScope[]
+  auditPeriods   AuditPeriod[]
 
   @@index([organizationId])
   @@map("frameworks")
@@ -278,6 +287,7 @@ model Control {
   exceptions     ControlException[]
   trustDocLinks  TrustDocumentControl[]
   tasks          Task[]
+  slotReviews    EvidenceSlotReview[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -340,6 +350,9 @@ model Evidence {
   description    String         @default("")
   notes          String         @default("")
   collectedAt    DateTime       @default(now()) @map("collected_at")
+  // The period this evidence covers (e.g. Q1 of an audit year), which can differ from the upload date.
+  periodStart    DateTime?      @map("period_start")
+  periodEnd      DateTime?      @map("period_end")
   validFrom      DateTime?      @map("valid_from")
   validUntil     DateTime?      @map("valid_until")
   status         EvidenceStatus @default(VALID)
@@ -1086,4 +1099,74 @@ model Task {
   @@index([organizationId, status])
   @@index([assigneeId, status])
   @@map("tasks")
+}
+
+// ─── Audit periods ───────────────────────────────────────────
+
+// An audit window (e.g. SOC 2 Type II, 1 Jan – 31 Dec 2026). Each in-scope control is split into
+// evidence slots by its frequency (monthly, quarterly, …) and needs approved evidence for every slot.
+model AuditPeriod {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  frameworkId    String   @map("framework_id")
+  name           String
+  startDate      DateTime @map("start_date")
+  endDate        DateTime @map("end_date")
+  createdById    String?  @map("created_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  framework    Framework           @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  slotReviews  EvidenceSlotReview[]
+  reminderLogs ReminderLog[]
+
+  @@index([organizationId])
+  @@map("audit_periods")
+}
+
+enum SlotReviewStatus {
+  IN_REVIEW
+  CHANGES_REQUESTED
+  APPROVED
+}
+
+// Approval state of one control's evidence for one slot of an audit period (created on first submission).
+model EvidenceSlotReview {
+  id            String           @id @default(uuid())
+  auditPeriodId String           @map("audit_period_id")
+  controlId     String           @map("control_id")
+  slotIndex     Int              @map("slot_index")
+  status        SlotReviewStatus
+  note          String           @default("")
+  submittedById String?          @map("submitted_by_id")
+  submittedAt   DateTime?        @map("submitted_at")
+  reviewedById  String?          @map("reviewed_by_id")
+  reviewedAt    DateTime?        @map("reviewed_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  auditPeriod AuditPeriod @relation(fields: [auditPeriodId], references: [id], onDelete: Cascade)
+  control     Control     @relation(fields: [controlId], references: [id], onDelete: Cascade)
+  submittedBy User?       @relation("SlotSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  reviewedBy  User?       @relation("SlotReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([auditPeriodId, controlId, slotIndex])
+  @@index([status])
+  @@map("evidence_slot_reviews")
+}
+
+// One row per reminder email sent, so a reminder is never sent twice for the same day.
+model ReminderLog {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  auditPeriodId String?  @map("audit_period_id")
+  kind          String
+  sentOn        String   @map("sent_on") // YYYY-MM-DD in UTC
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  auditPeriod AuditPeriod? @relation(fields: [auditPeriodId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, sentOn])
+  @@map("reminder_logs")
 }

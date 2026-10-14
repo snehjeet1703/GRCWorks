@@ -7,6 +7,7 @@ import { logAudit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
 import { saveUpload } from "@/lib/storage";
 import { ownsAllControls } from "@/lib/control-work";
+import { resolveSlot } from "@/lib/audit-periods";
 
 const controlIdsSchema = z.array(z.string().uuid()).min(1, "Select at least one control").max(200);
 
@@ -16,6 +17,8 @@ const policyEvidenceSchema = z.object({
   controlIds: controlIdsSchema.optional(),
   policyId: z.string().min(1),
   notes: z.string().max(2000).default(""),
+  auditPeriodId: z.string().uuid().optional(),
+  slotIndex: z.number().int().min(0).max(400).optional(),
 }).strict();
 
 const MAX_BYTES = 20 * 1024 * 1024; // 20 MB
@@ -37,6 +40,40 @@ const ALLOWED: { ext: string; mime: string[] }[] = [
   { ext: ".xlsx", mime: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"] },
   { ext: ".zip", mime: ["application/zip", "application/x-zip-compressed"] },
 ];
+
+// The period an upload covers. With an audit-period slot it's that slot (which must have started);
+// otherwise explicit dates (not in the future) or, by default, today.
+async function coveredPeriod(
+  organizationId: string,
+  controlIds: string[],
+  opts: { auditPeriodId?: string | null; slotIndex?: number | null; periodStart?: string | null; periodEnd?: string | null }
+): Promise<{ periodStart: Date; periodEnd: Date }> {
+  const now = new Date();
+  if (opts.auditPeriodId) {
+    if (controlIds.length !== 1 || opts.slotIndex === null || opts.slotIndex === undefined || Number.isNaN(opts.slotIndex)) {
+      throw new HttpError(400, "Evidence for an audit period slot must be for exactly one control and one slot");
+    }
+    const resolved = await resolveSlot(organizationId, opts.auditPeriodId, controlIds[0], opts.slotIndex);
+    if (!resolved) throw new HttpError(404, "That audit period slot doesn't exist for this control");
+    if (resolved.slot.start > now) {
+      throw new HttpError(
+        400,
+        `Evidence for ${resolved.slot.label} can be uploaded from ${resolved.slot.start.toISOString().slice(0, 10)}, when that period starts.`
+      );
+    }
+    return { periodStart: resolved.slot.start, periodEnd: resolved.slot.end };
+  }
+  if (opts.periodStart) {
+    const start = new Date(opts.periodStart);
+    const end = opts.periodEnd ? new Date(opts.periodEnd) : start;
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+      throw new HttpError(400, "Invalid evidence period");
+    }
+    if (start > now) throw new HttpError(400, "Evidence can't cover a period that hasn't started yet.");
+    return { periodStart: start, periodEnd: end };
+  }
+  return { periodStart: now, periodEnd: now };
+}
 
 // Loads the controls by id, all of which must belong to the organisation.
 async function loadControls(organizationId: string, ids: string[]) {
@@ -138,7 +175,7 @@ export async function POST(req: Request) {
     const isJson = contentType.includes("application/json");
 
     if (isJson) {
-      const { controlId, controlIds, policyId, notes } = await parseBody(req, policyEvidenceSchema);
+      const { controlId, controlIds, policyId, notes, auditPeriodId, slotIndex } = await parseBody(req, policyEvidenceSchema);
 
       const [controls, policy] = await Promise.all([
         loadControls(user.organizationId, controlIds ?? (controlId ? [controlId] : [])),
@@ -148,6 +185,7 @@ export async function POST(req: Request) {
       ]);
       if (!policy) throw new HttpError(404, "Policy not found");
       await assertMayUpload(controls.map((c) => c.id));
+      const period = await coveredPeriod(user.organizationId, controls.map((c) => c.id), { auditPeriodId, slotIndex });
 
       const evidence = await prisma.$transaction(async (tx) => {
         const row = await tx.evidence.create({
@@ -158,6 +196,7 @@ export async function POST(req: Request) {
             type: "POLICY",
             policyId,
             fileName: policy.title,
+            ...period,
             fileUrl: "",
             fileSize: 0,
             notes,
@@ -208,6 +247,13 @@ export async function POST(req: Request) {
 
     const controls = await loadControls(user.organizationId, controlIds);
     await assertMayUpload(controls.map((c) => c.id));
+    const slotField = form.get("slotIndex");
+    const period = await coveredPeriod(user.organizationId, controls.map((c) => c.id), {
+      auditPeriodId: (form.get("auditPeriodId") as string | null) || null,
+      slotIndex: typeof slotField === "string" && slotField !== "" ? Number(slotField) : null,
+      periodStart: (form.get("periodStart") as string | null) || null,
+      periodEnd: (form.get("periodEnd") as string | null) || null,
+    });
 
     const arr = await file.arrayBuffer();
     assertMagicBytes(file.name, new Uint8Array(arr));
@@ -227,6 +273,7 @@ export async function POST(req: Request) {
           description,
           notes,
           collectedAt: collectedAt ? new Date(collectedAt) : new Date(),
+          ...period,
           validFrom: validFrom ? new Date(validFrom) : null,
           validUntil: validUntil ? new Date(validUntil) : null,
         },
