@@ -32,7 +32,7 @@ export default async function AppLayout({
   // Badge on "My Tasks": open tasks plus controls they own that aren't closed yet.
   const [taskCount, controlCount] = await Promise.all([
     prisma.task.count({ where: { assigneeId: user.id, status: { not: "DONE" } } }),
-    pendingControlCount(user.organizationId, user.id),
+    pendingControlCount(user.organizationId, user.id, (user.permissions ?? []).includes("evidence:review")),
   ]);
   const openTasks = taskCount + controlCount;
 

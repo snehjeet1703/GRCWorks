@@ -665,6 +665,8 @@ export function SettingsClient({
 function SecurityTab({ canManageOrg, toast }: { canManageOrg: boolean; toast: ReturnType<typeof useToast> }) {
   const [mfaStatus, setMfaStatus] = useState<any>(null);
   const [orgMfaRequired, setOrgMfaRequired] = useState(false);
+  const [approvalRequired, setApprovalRequired] = useState(true);
+  const [approvalSaving, setApprovalSaving] = useState(false);
   const [enforceSaving, setEnforceSaving] = useState(false);
 
   const [setupMode, setSetupMode] = useState<"totp" | "email" | null>(null);
@@ -694,9 +696,24 @@ function SecurityTab({ canManageOrg, toast }: { canManageOrg: boolean; toast: Re
     const sec = await secRes.json();
     setMfaStatus(s);
     setOrgMfaRequired(sec.mfaRequired ?? false);
+    setApprovalRequired(sec.controlApprovalRequired ?? true);
   }, []);
 
   useEffect(() => { loadStatus(); }, [loadStatus]);
+
+  async function toggleApproval() {
+    setApprovalSaving(true);
+    const res = await fetch("/api/settings/security", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ controlApprovalRequired: !approvalRequired }),
+    });
+    if (res.ok) {
+      setApprovalRequired(!approvalRequired);
+      toast.success(approvalRequired ? "Control owners can now close controls themselves" : "Closing a control now needs a reviewer's approval");
+    }
+    setApprovalSaving(false);
+  }
 
   async function toggleOrgEnforce() {
     setEnforceSaving(true);
@@ -852,6 +869,31 @@ function SecurityTab({ canManageOrg, toast }: { canManageOrg: boolean; toast: Re
             </button>
             <span className="text-sm font-medium text-gray-700">
               Require MFA for all users
+            </span>
+          </label>
+          <label className="mt-4 flex cursor-pointer items-start gap-3 border-t border-gray-100 pt-4">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={approvalRequired}
+              onClick={toggleApproval}
+              disabled={approvalSaving}
+              className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                approvalRequired ? "bg-brand-600" : "bg-gray-200"
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                  approvalRequired ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </button>
+            <span>
+              <span className="block text-sm font-medium text-gray-700">Require approval to close controls</span>
+              <span className="block text-xs text-gray-500">
+                Owners submit controls with evidence; someone with &ldquo;Review evidence&rdquo; who isn&apos;t the owner approves them.
+                Turn off to let owners close their own controls.
+              </span>
             </span>
           </label>
         </div>

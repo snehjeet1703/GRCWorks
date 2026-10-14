@@ -15,6 +15,8 @@ model Organization {
   slug               String   @unique
   onboardingComplete Boolean  @default(false) @map("onboarding_complete")
   mfaRequired        Boolean  @default(false) @map("mfa_required")
+  // Closing a control needs a reviewer's approval (someone other than the owner/submitter).
+  controlApprovalRequired Boolean @default(true) @map("control_approval_required")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
@@ -110,6 +112,7 @@ model User {
   webauthnCredentials WebAuthnCredential[]
 
   ownedControls     Control[]          @relation("ControlOwner")
+  submittedControlReviews Control[]    @relation("ControlReviewSubmitter")
   assignedTasks     Task[]             @relation("TaskAssignee")
   createdTasks      Task[]             @relation("TaskCreator")
   ownedRisks        Risk[]             @relation("RiskOwner")
@@ -213,6 +216,12 @@ model FrameworkRequirement {
 
 // ─── Controls ────────────────────────────────────────────────
 
+enum ControlReviewState {
+  NONE
+  PENDING
+  CHANGES_REQUESTED
+}
+
 enum ControlStatus {
   NOT_STARTED
   IN_PROGRESS
@@ -249,11 +258,17 @@ model Control {
   applicability          Applicability    @default(APPLICABLE)
   applicabilityJustification String       @default("") @map("applicability_justification")
   implementationNotes    String           @default("") @map("implementation_notes")
+  // Approval workflow on top of status: the control stays IN_PROGRESS while it's being reviewed.
+  reviewState            ControlReviewState @default(NONE) @map("review_state")
+  reviewSubmittedAt      DateTime?        @map("review_submitted_at")
+  reviewSubmittedById    String?          @map("review_submitted_by_id")
+  reviewNote             String           @default("") @map("review_note")
   createdAt              DateTime         @default(now()) @map("created_at")
   updatedAt              DateTime         @updatedAt @map("updated_at")
 
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   owner          User?             @relation("ControlOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  reviewSubmittedBy User?          @relation("ControlReviewSubmitter", fields: [reviewSubmittedById], references: [id], onDelete: SetNull)
   mappings       ControlMapping[]
   evidenceLinks  EvidenceControl[]
   risks          RiskControl[]

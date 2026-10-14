@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckSquare, Plus, Pencil, Trash2, UserRound, Inbox, Send, ListTodo, CalendarClock, ShieldCheck, TriangleAlert, Upload, PlayCircle, CheckCircle2 } from "lucide-react";
+import { CheckSquare, Plus, Pencil, Trash2, UserRound, Inbox, Send, ListTodo, CalendarClock, ShieldCheck, TriangleAlert, Upload, PlayCircle, CheckCircle2, Send as SendIcon, Undo2, XCircle, Download, MessageSquareWarning, ClipboardCheck } from "lucide-react";
 import type { ControlWorkItem } from "@/lib/control-work";
 import { Modal, ConfirmDialog } from "@/components/modal";
 import { Field, Select, TextArea, TextInput, FormError } from "@/components/form";
@@ -90,13 +90,21 @@ const CONTROL_REASON: Record<string, { label: string; style: string }> = {
   NOT_STARTED: { label: "Not started", style: statusStyle.TODO },
   IN_PROGRESS: { label: "In progress", style: statusStyle.IN_PROGRESS },
   NEEDS_EVIDENCE: { label: "Evidence expired", style: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" },
+  IN_REVIEW: { label: "Waiting for review", style: "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300" },
+  CHANGES_REQUESTED: { label: "Changes requested", style: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" },
+};
+
+const EVIDENCE_TONE: Record<string, string> = {
+  VALID: "text-green-700", EXPIRING: "text-amber-600", EXPIRED: "text-red-600", REJECTED: "text-red-600", PENDING: "text-gray-500",
 };
 
 export function TasksClient({
-  tasks, controlWork, currentUserId, users, controls, risks, canReadAll, canManage,
+  tasks, controlWork, reviewQueue, approvalRequired, currentUserId, users, controls, risks, canReadAll, canManage,
 }: {
   tasks: TaskRow[];
   controlWork: ControlWorkItem[];
+  reviewQueue: ControlWorkItem[];
+  approvalRequired: boolean;
   currentUserId: string;
   users: { id: string; name: string }[];
   controls: { id: string; code: string; title: string }[];
@@ -130,6 +138,9 @@ export function TasksClient({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [busyControl, setBusyControl] = useState<string | null>(null);
+  const [sendBack, setSendBack] = useState<ControlWorkItem | null>(null);
+  const [sendBackNote, setSendBackNote] = useState("");
+  const [sendBackError, setSendBackError] = useState<string | null>(null);
 
   const mine = tasks.filter((t) => t.assignee?.id === currentUserId);
   const created = tasks.filter((t) => t.createdBy?.id === currentUserId);
@@ -137,7 +148,7 @@ export function TasksClient({
 
   const myControls = controlWork.filter((c) => c.owner?.id === currentUserId);
   const tabs = [
-    { key: "mine", label: `My tasks (${openCount(mine) + myControls.length})`, icon: Inbox },
+    { key: "mine", label: `My tasks (${openCount(mine) + myControls.length + reviewQueue.length})`, icon: Inbox },
     ...(canManage ? [{ key: "created", label: `Created by me (${openCount(created)})`, icon: Send }] : []),
     ...(canReadAll ? [{ key: "all", label: `All tasks (${openCount(tasks) + controlWork.length})`, icon: ListTodo }] : []),
   ];
@@ -151,6 +162,9 @@ export function TasksClient({
       !q || [c.code, c.title, c.owner?.name, ...c.frameworks].some((v) => v?.toLowerCase().includes(q))
     );
   }, [scopedControls, search, statusFilter, priorityFilter]);
+  const visibleReviews = tab === "mine" && !statusFilter && !priorityFilter
+    ? reviewQueue.filter((c) => !search.trim() || [c.code, c.title, c.owner?.name].some((v) => v?.toLowerCase().includes(search.trim().toLowerCase())))
+    : [];
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -244,21 +258,50 @@ export function TasksClient({
     refresh();
   }
 
-  async function setControlStatus(c: ControlWorkItem, status: "IN_PROGRESS" | "IMPLEMENTED") {
+  async function startControl(c: ControlWorkItem) {
     setBusyControl(c.id);
     const res = await fetch(`/api/controls/${c.id}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status: "IN_PROGRESS" }),
+    });
+    setBusyControl(null);
+    const b = await res.json().catch(() => ({}));
+    if (!res.ok) return toast.error(b?.error ?? "Couldn't update the control");
+    toast.success(`Started ${c.code}.`);
+    refresh();
+  }
+
+  // submit | withdraw | approve | reject
+  async function reviewAction(c: ControlWorkItem, action: string, note?: string) {
+    setBusyControl(c.id);
+    const res = await fetch(`/api/controls/${c.id}/review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(note !== undefined ? { action, note } : { action }),
     });
     setBusyControl(null);
     const b = await res.json().catch(() => ({}));
     if (!res.ok) {
       toast.error(b?.error ?? "Couldn't update the control");
-      return;
+      return false;
     }
-    toast.success(status === "IMPLEMENTED" ? `${c.code} is implemented and closed.` : `Started ${c.code}.`);
+    const done: Record<string, string> = {
+      submit: b.status === "IMPLEMENTED" ? `${c.code} is implemented and closed.` : `${c.code} submitted for review.`,
+      withdraw: `Withdrew ${c.code} from review.`,
+      approve: `Approved ${c.code}. It's now implemented.`,
+      reject: `Sent ${c.code} back to ${c.owner?.name ?? "the owner"}.`,
+    };
+    toast.success(done[action]);
     refresh();
+    return true;
+  }
+
+  async function submitSendBack(e: React.FormEvent) {
+    e.preventDefault();
+    if (!sendBack) return;
+    if (!sendBackNote.trim()) return setSendBackError("Tell the owner what needs to change.");
+    if (await reviewAction(sendBack, "reject", sendBackNote.trim())) setSendBack(null);
   }
 
   function openUpload(c: ControlWorkItem) {
@@ -286,7 +329,7 @@ export function TasksClient({
     }
     const code = uploadFor.code;
     setUploadFor(null);
-    toast.success(`Evidence added to ${code}. You can now mark it implemented.`);
+    toast.success(`Evidence added to ${code}. ${approvalRequired ? "Submit it for review when you're ready." : "You can now mark it implemented."}`);
     refresh();
   }
 
@@ -324,7 +367,7 @@ export function TasksClient({
       <PageTabs tabs={tabs} activeTab={tab} onTabChange={(k) => { setTab(k); setAssigneeFilter(""); }} />
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Open" value={open.length + scopedControls.length} tone="text-gray-900 dark:text-gray-100" />
+        <Stat label="Open" value={open.length + scopedControls.length + (tab === "mine" ? reviewQueue.length : 0)} tone="text-gray-900 dark:text-gray-100" />
         <Stat label="Overdue" value={overdue} tone="text-red-600" />
         <Stat label="Due this week" value={dueSoon} tone="text-amber-600" />
         <Stat label="Done" value={doneCount} tone="text-green-700" />
@@ -351,6 +394,71 @@ export function TasksClient({
         }
       />
 
+      {visibleReviews.length > 0 && (
+        <div className="card mb-4 !p-0 overflow-hidden border-purple-200 dark:border-purple-900">
+          <div className="border-b border-border px-4 py-3">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <ClipboardCheck className="h-4 w-4 text-purple-600" />
+              Controls to review
+              <span className="rounded-full bg-purple-100 px-1.5 text-xs font-medium text-purple-700 dark:bg-purple-950 dark:text-purple-300">{visibleReviews.length}</span>
+            </h2>
+            <p className="mt-0.5 text-xs text-gray-500">Check the evidence. Approving closes the control and marks its evidence as reviewed.</p>
+          </div>
+          <ul className="divide-y divide-border">
+            {visibleReviews.map((c) => (
+              <li key={c.id} className="px-4 py-3">
+                <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      <span className="mr-1.5 font-mono text-xs text-gray-500">{c.code}</span>{c.title}
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      Submitted{c.submittedBy ? ` by ${c.submittedBy.name}` : ""}{c.submittedAt ? ` on ${formatDate(c.submittedAt)}` : ""}
+                      {c.owner && c.owner.id !== c.submittedBy?.id && <> · Owner: {c.owner.name}</>}
+                      {c.frameworks.length > 0 && <> · {c.frameworks.slice(0, 3).join(", ")}{c.frameworks.length > 3 ? ` +${c.frameworks.length - 3}` : ""}</>}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => { setSendBack(c); setSendBackNote(""); setSendBackError(null); }}
+                      disabled={busyControl === c.id}
+                      className="btn-secondary !px-2.5 !py-1 text-xs"
+                    >
+                      <XCircle className="mr-1 h-3.5 w-3.5" /> Send back
+                    </button>
+                    <button
+                      onClick={() => reviewAction(c, "approve")}
+                      disabled={busyControl === c.id || c.validEvidence === 0}
+                      title={c.validEvidence === 0 ? "The evidence has expired; send it back" : "Approve and close"}
+                      className="btn-primary !px-2.5 !py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Approve
+                    </button>
+                  </div>
+                </div>
+                {c.evidence.length > 0 && (
+                  <ul className="mt-2 space-y-1 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-900/50">
+                    {c.evidence.map((e) => (
+                      <li key={e.id} className="flex items-center gap-2 text-xs">
+                        <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">{e.fileName}</span>
+                        <span className={`shrink-0 capitalize ${EVIDENCE_TONE[e.status] ?? "text-gray-500"}`}>
+                          {e.status.toLowerCase()}{e.validUntil ? ` · until ${formatDate(e.validUntil)}` : ""}
+                        </span>
+                        {e.type !== "POLICY" && (
+                          <a href={`/api/evidence/${e.id}/download`} className="shrink-0 text-gray-400 hover:text-gray-700" aria-label={`Download ${e.fileName}`}>
+                            <Download className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {visibleControls.length > 0 && (
         <div className="card mb-4 !p-0 overflow-hidden">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
@@ -360,7 +468,11 @@ export function TasksClient({
                 {tab === "all" ? "Controls waiting on their owners" : "Controls assigned to you"}
                 <span className="rounded-full bg-gray-100 px-1.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{visibleControls.length}</span>
               </h2>
-              <p className="mt-0.5 text-xs text-gray-500">Upload evidence, then mark the control implemented to close it.</p>
+              <p className="mt-0.5 text-xs text-gray-500">
+                {approvalRequired
+                  ? "Upload evidence, then submit the control for review. A reviewer approves it to close it."
+                  : "Upload evidence, then mark the control implemented to close it."}
+              </p>
             </div>
           </div>
           <ul className="divide-y divide-border">
@@ -380,25 +492,39 @@ export function TasksClient({
                         : c.totalEvidence > 0 ? "Evidence has expired or was rejected" : "No evidence yet"}
                       {c.frameworks.length > 0 && <> · {c.frameworks.slice(0, 3).join(", ")}{c.frameworks.length > 3 ? ` +${c.frameworks.length - 3}` : ""}</>}
                       {tab === "all" && c.owner && <> · Owner: {mineControl ? "you" : c.owner.name}</>}
+                      {c.reason === "IN_REVIEW" && c.submittedAt && <> · Submitted {formatDate(c.submittedAt)}{c.submittedBy && !mineControl ? ` by ${c.submittedBy.name}` : ""}</>}
                     </p>
+                    {c.reason === "CHANGES_REQUESTED" && c.reviewNote && (
+                      <p className="mt-1.5 flex items-start gap-1.5 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                        <MessageSquareWarning className="mt-px h-3.5 w-3.5 shrink-0" />
+                        <span><span className="font-medium">Reviewer:</span> {c.reviewNote}</span>
+                      </p>
+                    )}
                   </div>
-                  {mineControl && (
+                  {mineControl && c.reason === "IN_REVIEW" && (
+                    <button onClick={() => reviewAction(c, "withdraw")} disabled={busyControl === c.id} className="btn-secondary shrink-0 !px-2.5 !py-1 text-xs">
+                      <Undo2 className="mr-1 h-3.5 w-3.5" /> Withdraw
+                    </button>
+                  )}
+                  {mineControl && c.reason !== "IN_REVIEW" && (
                     <div className="flex shrink-0 items-center gap-2">
                       <button onClick={() => openUpload(c)} className="btn-secondary !px-2.5 !py-1 text-xs">
                         <Upload className="mr-1 h-3.5 w-3.5" /> Upload evidence
                       </button>
                       {c.reason === "NOT_STARTED" && (
-                        <button onClick={() => setControlStatus(c, "IN_PROGRESS")} disabled={busyControl === c.id} className="btn-secondary !px-2.5 !py-1 text-xs">
+                        <button onClick={() => startControl(c)} disabled={busyControl === c.id} className="btn-secondary !px-2.5 !py-1 text-xs">
                           <PlayCircle className="mr-1 h-3.5 w-3.5" /> Start
                         </button>
                       )}
                       <button
-                        onClick={() => setControlStatus(c, "IMPLEMENTED")}
+                        onClick={() => reviewAction(c, "submit")}
                         disabled={c.validEvidence === 0 || busyControl === c.id}
-                        title={c.validEvidence === 0 ? "Upload valid evidence first" : "Close this control"}
+                        title={c.validEvidence === 0 ? "Upload valid evidence first" : approvalRequired ? "Send to a reviewer for approval" : "Close this control"}
                         className="btn-primary !px-2.5 !py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Mark implemented
+                        {approvalRequired
+                          ? <><SendIcon className="mr-1 h-3.5 w-3.5" /> {c.reason === "CHANGES_REQUESTED" ? "Resubmit" : "Submit for review"}</>
+                          : <><CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Mark implemented</>}
                       </button>
                     </div>
                   )}
@@ -500,7 +626,7 @@ export function TasksClient({
             <p className="text-sm">
               {scoped.length === 0
                 ? tab === "mine"
-                  ? visibleControls.length > 0 ? "No other tasks assigned to you." : "Nothing is assigned to you right now."
+                  ? visibleControls.length + visibleReviews.length > 0 ? "No other tasks assigned to you." : "Nothing is assigned to you right now."
                   : "No tasks yet."
                 : "No tasks match these filters."}
             </p>
@@ -558,6 +684,32 @@ export function TasksClient({
             <button type="submit" disabled={saving} className="btn-primary">{saving ? "Saving…" : editing ? "Save" : "Create task"}</button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={!!sendBack} onClose={() => setSendBack(null)} title="Send back for changes" size="md">
+        {sendBack && (
+          <form onSubmit={submitSendBack} className="space-y-4">
+            <FormError message={sendBackError} />
+            <p className="text-sm text-gray-600">
+              <span className="font-mono text-xs">{sendBack.code}</span>{" "}
+              <span className="font-medium text-gray-900 dark:text-gray-100">{sendBack.title}</span> goes back to{" "}
+              {sendBack.owner?.name ?? "its owner"} with your note.
+            </p>
+            <Field label="What needs to change?" htmlFor="sendBackNote">
+              <TextArea
+                id="sendBackNote"
+                value={sendBackNote}
+                onChange={(e) => setSendBackNote(e.target.value)}
+                placeholder="e.g. The screenshot doesn't show MFA enforced for the admin group; export the policy settings instead."
+                autoFocus
+              />
+            </Field>
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setSendBack(null)} className="btn-secondary">Cancel</button>
+              <button type="submit" disabled={busyControl === sendBack.id} className="btn-primary">Send back</button>
+            </div>
+          </form>
+        )}
       </Modal>
 
       <Modal open={!!uploadFor} onClose={() => setUploadFor(null)} title="Upload evidence" size="md">

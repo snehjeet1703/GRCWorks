@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { HttpError, handleError, parseBody, requirePermission } from "@/lib/api";
+import { HttpError, handleError, parseBody, requirePermission, userHasPermission } from "@/lib/api";
 import { diffChanges, logAudit, snapshotEntity } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
 import { notifyControlOwner } from "@/lib/control-work";
@@ -129,8 +129,22 @@ export async function PATCH(
     const after = await prisma.$transaction(async (tx) => {
       const before = await tx.control.findFirst({
         where: { id, organizationId: user.organizationId },
+        include: { organization: { select: { controlApprovalRequired: true } } },
       });
       if (!before) throw new HttpError(404, "Control not found");
+
+      // With approval on, only reviewers may mark a control implemented directly (an audited override);
+      // everyone else submits it for review from their tasks.
+      if (
+        data.status === "IMPLEMENTED" && before.status !== "IMPLEMENTED" &&
+        before.organization.controlApprovalRequired &&
+        !(await userHasPermission(user.id, PERMISSIONS.EVIDENCE_REVIEW))
+      ) {
+        throw new HttpError(400, "Closing a control needs a reviewer's approval. The owner can submit it for review from their tasks.");
+      }
+      if (data.status && data.status !== before.status) {
+        Object.assign(data, { reviewState: "NONE", reviewSubmittedAt: null, reviewSubmittedById: null });
+      }
 
       if (data.code && data.code !== before.code) {
         const dup = await tx.control.findFirst({

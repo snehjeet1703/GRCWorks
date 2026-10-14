@@ -44,6 +44,7 @@ export default async function ControlsPage() {
         title: c.title,
         description: c.description,
         status: c.status,
+        reviewState: c.reviewState,
         frequency: c.frequency,
         applicability: c.applicability,
         applicabilityJustification: c.applicabilityJustification,

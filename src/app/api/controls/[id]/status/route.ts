@@ -19,7 +19,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const control = await prisma.control.findFirst({
       where: { id, organizationId: user.organizationId },
       select: {
-        id: true, code: true, title: true, status: true, ownerId: true,
+        id: true, code: true, title: true, status: true, ownerId: true, reviewState: true,
+        organization: { select: { controlApprovalRequired: true } },
         evidenceLinks: { select: { evidence: { select: { status: true, validFrom: true, validUntil: true } } } },
       },
     });
@@ -29,6 +30,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       throw new HttpError(403, `Only the control's owner or someone with the "Edit controls" permission can change its status.`);
     }
 
+    if (status === "IMPLEMENTED" && control.organization.controlApprovalRequired) {
+      throw new HttpError(400, "Closing a control needs a reviewer's approval. Submit it for review instead.");
+    }
     if (status === "IMPLEMENTED") {
       const now = new Date();
       const valid = control.evidenceLinks.filter((l) => ["VALID", "EXPIRING"].includes(computeEvidenceStatus(l.evidence, now)));
@@ -37,10 +41,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
     }
 
-    if (status === control.status) return NextResponse.json({ id, status });
+    if (status === control.status && control.reviewState === "NONE") return NextResponse.json({ id, status });
 
     await prisma.$transaction(async (tx) => {
-      await tx.control.update({ where: { id }, data: { status } });
+      // Moving the status by hand withdraws any pending review or earlier feedback.
+      await tx.control.update({ where: { id }, data: { status, reviewState: "NONE", reviewSubmittedAt: null, reviewSubmittedById: null } });
       await logAudit(
         {
           organizationId: user.organizationId,

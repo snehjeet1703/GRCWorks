@@ -186,6 +186,53 @@ Upload evidence for it and mark it implemented. Until then it stays in your pend
   });
 }
 
+export async function sendControlReviewRequestEmail(
+  to: string[],
+  d: { submitterName: string; code: string; title: string; evidenceCount: number; link: string }
+) {
+  if (to.length === 0) return;
+  await transporter.sendMail({
+    from: FROM,
+    to: to.join(", "),
+    subject: `Review needed: ${d.code} ${d.title}`,
+    text:
+      `${d.submitterName} submitted control ${d.code}: ${d.title} for approval with ` +
+      `${d.evidenceCount} evidence file${d.evidenceCount === 1 ? "" : "s"}.\n\nReview it: ${d.link}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#111">
+        <p><strong>${escapeHtml(d.submitterName)}</strong> submitted a control for approval:</p>
+        <p style="font-size:18px;font-weight:600;margin:8px 0"><span style="font-family:monospace">${escapeHtml(d.code)}</span> ${escapeHtml(d.title)}</p>
+        <p style="color:#555;font-size:14px;margin:0">${d.evidenceCount} evidence file${d.evidenceCount === 1 ? "" : "s"} attached</p>
+        <p><a href="${escapeHtml(d.link)}" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Review control</a></p>
+      </div>
+    `,
+  });
+}
+
+export async function sendControlReviewDecisionEmail(
+  to: string,
+  d: { ownerName: string; reviewerName: string; code: string; title: string; approved: boolean; reason: string; link: string }
+) {
+  const verdict = (code: string) => (d.approved ? `approved and closed control ${code}` : `sent control ${code} back for changes`);
+  await transporter.sendMail({
+    from: FROM,
+    to,
+    subject: `${d.code} ${d.approved ? "approved" : "needs changes"}: ${d.title}`,
+    text:
+      `Hi ${d.ownerName},\n\n${d.reviewerName} ${verdict(d.code)}: ${d.title}.` +
+      (d.reason ? `\n\nReviewer's note: ${d.reason}` : "") +
+      (d.approved ? "" : `\n\nUpdate the evidence and submit it again: ${d.link}`),
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#111">
+        <p>Hi ${escapeHtml(d.ownerName)},</p>
+        <p><strong>${escapeHtml(d.reviewerName)}</strong> ${verdict(`<span style="font-family:monospace">${escapeHtml(d.code)}</span>`)}: ${escapeHtml(d.title)}.</p>
+        ${d.reason ? `<p style="background:#f5f5f5;padding:12px;border-radius:6px;white-space:pre-wrap">${escapeHtml(d.reason)}</p>` : ""}
+        ${d.approved ? "" : `<p><a href="${escapeHtml(d.link)}" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Open my tasks</a></p>`}
+      </div>
+    `,
+  });
+}
+
 export async function sendTrustOtpEmail(to: string, code: string, orgName: string) {
   await transporter.sendMail({
     from: FROM,

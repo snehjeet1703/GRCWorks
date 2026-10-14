@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { taskInclude } from "@/lib/tasks";
-import { pendingControlWork } from "@/lib/control-work";
+import { controlReviewQueue, pendingControlWork } from "@/lib/control-work";
 import { TasksClient, type TaskRow } from "./tasks-client";
 
 // Open to everyone: each user always sees the tasks assigned to them.
@@ -13,8 +13,9 @@ export default async function TasksPage() {
   const permissions: string[] = user.permissions ?? [];
   const canReadAll = permissions.includes("tasks:read");
   const canManage = permissions.includes("tasks:manage");
+  const canReview = permissions.includes("evidence:review");
 
-  const [tasks, users, controls, risks, controlWork] = await Promise.all([
+  const [tasks, users, controls, risks, controlWork, reviewQueue, org] = await Promise.all([
     prisma.task.findMany({
       // Without "View all tasks", only your own and ones you created are loaded.
       where: canReadAll
@@ -34,6 +35,8 @@ export default async function TasksPage() {
       : [],
     // Owned controls that aren't closed: yours, or everyone's for people who can see all tasks.
     pendingControlWork(orgId, canReadAll ? undefined : user.id),
+    canReview ? controlReviewQueue(orgId, user.id) : [],
+    prisma.organization.findUnique({ where: { id: orgId }, select: { controlApprovalRequired: true } }),
   ]);
 
   const rows: TaskRow[] = tasks.map((t) => ({
@@ -55,6 +58,8 @@ export default async function TasksPage() {
     <TasksClient
       tasks={rows}
       controlWork={controlWork}
+      reviewQueue={reviewQueue}
+      approvalRequired={org?.controlApprovalRequired ?? true}
       currentUserId={user.id}
       users={users}
       controls={controls}

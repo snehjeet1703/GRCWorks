@@ -25,6 +25,7 @@ type ControlRow = {
   title: string;
   description: string;
   status: string;
+  reviewState: string;
   frequency: string;
   applicability: string;
   applicabilityJustification: string;
@@ -319,6 +320,12 @@ export function ControlsClient({
                         >
                           {humanLabel(c.status)}
                         </span>
+                        {c.reviewState === "PENDING" && (
+                          <span className="ml-1.5 badge bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300">In review</span>
+                        )}
+                        {c.reviewState === "CHANGES_REQUESTED" && (
+                          <span className="ml-1.5 badge bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300">Changes requested</span>
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 capitalize">
                         {humanLabel(c.frequency)}
