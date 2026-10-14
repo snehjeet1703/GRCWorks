@@ -157,6 +157,35 @@ export async function sendTaskAssignedEmail(
   });
 }
 
+export async function sendControlAssignedEmail(
+  to: string,
+  d: { ownerName: string; assignerName: string; code: string; title: string; frameworks: string[]; link: string }
+) {
+  await transporter.sendMail({
+    from: FROM,
+    to,
+    subject: `Control assigned to you: ${d.code} ${d.title}`,
+    text:
+      `Hi ${d.ownerName},
+
+${d.assignerName} made you the owner of control ${d.code}: ${d.title}` +
+      (d.frameworks.length ? ` (${d.frameworks.join(", ")})` : "") +
+      `.
+
+Upload evidence for it and mark it implemented. Until then it stays in your pending tasks: ${d.link}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#111">
+        <p>Hi ${escapeHtml(d.ownerName)},</p>
+        <p><strong>${escapeHtml(d.assignerName)}</strong> made you the owner of a control:</p>
+        <p style="font-size:18px;font-weight:600;margin:8px 0"><span style="font-family:monospace">${escapeHtml(d.code)}</span> ${escapeHtml(d.title)}</p>
+        ${d.frameworks.length ? `<p style="color:#555;font-size:14px;margin:0">Counts towards ${escapeHtml(d.frameworks.join(", "))}</p>` : ""}
+        <p>Upload evidence for it and mark it implemented. Until then it stays in your pending tasks.</p>
+        <p><a href="${escapeHtml(d.link)}" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Open my tasks</a></p>
+      </div>
+    `,
+  });
+}
+
 export async function sendTrustOtpEmail(to: string, code: string, orgName: string) {
   await transporter.sendMail({
     from: FROM,

@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { taskInclude } from "@/lib/tasks";
+import { pendingControlWork } from "@/lib/control-work";
 import { TasksClient, type TaskRow } from "./tasks-client";
 
 // Open to everyone: each user always sees the tasks assigned to them.
@@ -13,7 +14,7 @@ export default async function TasksPage() {
   const canReadAll = permissions.includes("tasks:read");
   const canManage = permissions.includes("tasks:manage");
 
-  const [tasks, users, controls, risks] = await Promise.all([
+  const [tasks, users, controls, risks, controlWork] = await Promise.all([
     prisma.task.findMany({
       // Without "View all tasks", only your own and ones you created are loaded.
       where: canReadAll
@@ -31,6 +32,8 @@ export default async function TasksPage() {
     canManage
       ? prisma.risk.findMany({ where: { organizationId: orgId }, select: { id: true, title: true }, orderBy: { title: "asc" } })
       : [],
+    // Owned controls that aren't closed: yours, or everyone's for people who can see all tasks.
+    pendingControlWork(orgId, canReadAll ? undefined : user.id),
   ]);
 
   const rows: TaskRow[] = tasks.map((t) => ({
@@ -51,6 +54,7 @@ export default async function TasksPage() {
   return (
     <TasksClient
       tasks={rows}
+      controlWork={controlWork}
       currentUserId={user.id}
       users={users}
       controls={controls}

@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import path from "path";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { HttpError, handleError, parseBody, readUploadForm, requirePermission } from "@/lib/api";
+import { HttpError, handleError, parseBody, readUploadForm, requirePermission, requireSession, userHasPermission } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
 import { saveUpload } from "@/lib/storage";
+import { ownsAllControls } from "@/lib/control-work";
 
 const controlIdsSchema = z.array(z.string().uuid()).min(1, "Select at least one control").max(200);
 
@@ -37,8 +38,6 @@ const ALLOWED: { ext: string; mime: string[] }[] = [
   { ext: ".zip", mime: ["application/zip", "application/x-zip-compressed"] },
 ];
 
-const EXPIRY_WARNING_DAYS = 30;
-
 // Loads the controls by id, all of which must belong to the organisation.
 async function loadControls(organizationId: string, ids: string[]) {
   const unique = [...new Set(ids)];
@@ -52,24 +51,9 @@ async function loadControls(organizationId: string, ids: string[]) {
   return controls;
 }
 
-export function computeEvidenceStatus(
-  e: { status: string; validFrom: Date | null; validUntil: Date | null },
-  now: Date = new Date()
-): string {
-  if (e.status === "REJECTED") return "REJECTED";
-  if (e.validUntil) {
-    const until = new Date(e.validUntil);
-    if (until < now) return "EXPIRED";
-    const diffMs = until.getTime() - now.getTime();
-    const diffDays = diffMs / (1000 * 60 * 60 * 24);
-    if (diffDays <= EXPIRY_WARNING_DAYS) return "EXPIRING";
-  }
-  if (e.validFrom) {
-    const from = new Date(e.validFrom);
-    if (from > now) return "PENDING";
-  }
-  return "VALID";
-}
+// Kept here for existing importers; the logic lives in lib so other lib code can use it.
+export { computeEvidenceStatus } from "@/lib/evidence-status";
+import { computeEvidenceStatus } from "@/lib/evidence-status";
 
 const MAGIC_BYTES: Record<string, number[]> = {
   ".pdf": [0x25, 0x50, 0x44, 0x46], // %PDF
@@ -143,7 +127,13 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const { resolved, ...user } = await requirePermission(PERMISSIONS.EVIDENCE_UPLOAD);
+    // Uploaders need "Upload evidence", except a control's owner may evidence their own controls.
+    const user = await requireSession();
+    const canUpload = await userHasPermission(user.id, PERMISSIONS.EVIDENCE_UPLOAD);
+    const assertMayUpload = async (controlIds: string[]) => {
+      if (canUpload || (await ownsAllControls(user.id, user.organizationId, controlIds))) return;
+      throw new HttpError(403, `Your role doesn't allow uploading evidence here. You can add evidence to controls you own, or ask an admin for the "Upload evidence" permission.`);
+    };
     const contentType = req.headers.get("content-type") ?? "";
     const isJson = contentType.includes("application/json");
 
@@ -157,6 +147,7 @@ export async function POST(req: Request) {
         }),
       ]);
       if (!policy) throw new HttpError(404, "Policy not found");
+      await assertMayUpload(controls.map((c) => c.id));
 
       const evidence = await prisma.$transaction(async (tx) => {
         const row = await tx.evidence.create({
@@ -216,6 +207,7 @@ export async function POST(req: Request) {
     assertAllowed(file.name, file.type);
 
     const controls = await loadControls(user.organizationId, controlIds);
+    await assertMayUpload(controls.map((c) => c.id));
 
     const arr = await file.arrayBuffer();
     assertMagicBytes(file.name, new Uint8Array(arr));

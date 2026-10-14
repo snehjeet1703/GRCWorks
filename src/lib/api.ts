@@ -101,6 +101,15 @@ export async function requirePermission(
   return { ...sessionUser, role: dbUser.role, roleId: dbUser.roleId, resolved };
 }
 
+// Live check of one permission for a user, without throwing.
+export async function userHasPermission(userId: string, permission: Permission): Promise<boolean> {
+  const dbUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, customRole: { select: { name: true, permissions: true } } },
+  });
+  return !!dbUser && hasPermission(resolvePermissions(dbUser), permission);
+}
+
 export async function parseBody<T>(req: Request, schema: ZodSchema<T>): Promise<T> {
   let raw: unknown;
   try {

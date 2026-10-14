@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { SIDEBAR_COOKIE } from "@/lib/sidebar-state";
 import { Providers } from "@/components/providers";
 import { prisma } from "@/lib/db";
+import { pendingControlCount } from "@/lib/control-work";
 
 export default async function AppLayout({
   children,
@@ -28,10 +29,12 @@ export default async function AppLayout({
     redirect("/onboarding");
   }
 
-  // Badge on "My Tasks": open work assigned to the signed-in user.
-  const openTasks = await prisma.task.count({
-    where: { assigneeId: user.id, status: { not: "DONE" } },
-  });
+  // Badge on "My Tasks": open tasks plus controls they own that aren't closed yet.
+  const [taskCount, controlCount] = await Promise.all([
+    prisma.task.count({ where: { assigneeId: user.id, status: { not: "DONE" } } }),
+    pendingControlCount(user.organizationId, user.id),
+  ]);
+  const openTasks = taskCount + controlCount;
 
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get(SIDEBAR_COOKIE)?.value !== "false";

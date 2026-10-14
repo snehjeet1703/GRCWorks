@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckSquare, Plus, Pencil, Trash2, UserRound, Inbox, Send, ListTodo, CalendarClock, ShieldCheck, TriangleAlert } from "lucide-react";
+import { CheckSquare, Plus, Pencil, Trash2, UserRound, Inbox, Send, ListTodo, CalendarClock, ShieldCheck, TriangleAlert, Upload, PlayCircle, CheckCircle2 } from "lucide-react";
+import type { ControlWorkItem } from "@/lib/control-work";
 import { Modal, ConfirmDialog } from "@/components/modal";
 import { Field, Select, TextArea, TextInput, FormError } from "@/components/form";
 import { FilterBar } from "@/components/filter-bar";
@@ -85,10 +86,17 @@ const emptyForm = (assigneeId = ""): Form => ({
   title: "", description: "", status: "TODO", priority: "MEDIUM", dueDate: "", assigneeId, controlId: "", riskId: "",
 });
 
+const CONTROL_REASON: Record<string, { label: string; style: string }> = {
+  NOT_STARTED: { label: "Not started", style: statusStyle.TODO },
+  IN_PROGRESS: { label: "In progress", style: statusStyle.IN_PROGRESS },
+  NEEDS_EVIDENCE: { label: "Evidence expired", style: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" },
+};
+
 export function TasksClient({
-  tasks, currentUserId, users, controls, risks, canReadAll, canManage,
+  tasks, controlWork, currentUserId, users, controls, risks, canReadAll, canManage,
 }: {
   tasks: TaskRow[];
+  controlWork: ControlWorkItem[];
   currentUserId: string;
   users: { id: string; name: string }[];
   controls: { id: string; code: string; title: string }[];
@@ -116,17 +124,33 @@ export function TasksClient({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TaskRow | null>(null);
+  const [uploadFor, setUploadFor] = useState<ControlWorkItem | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadNotes, setUploadNotes] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [busyControl, setBusyControl] = useState<string | null>(null);
 
   const mine = tasks.filter((t) => t.assignee?.id === currentUserId);
   const created = tasks.filter((t) => t.createdBy?.id === currentUserId);
   const openCount = (list: TaskRow[]) => list.filter((t) => t.status !== "DONE").length;
 
+  const myControls = controlWork.filter((c) => c.owner?.id === currentUserId);
   const tabs = [
-    { key: "mine", label: `My tasks (${openCount(mine)})`, icon: Inbox },
+    { key: "mine", label: `My tasks (${openCount(mine) + myControls.length})`, icon: Inbox },
     ...(canManage ? [{ key: "created", label: `Created by me (${openCount(created)})`, icon: Send }] : []),
-    ...(canReadAll ? [{ key: "all", label: `All tasks (${openCount(tasks)})`, icon: ListTodo }] : []),
+    ...(canReadAll ? [{ key: "all", label: `All tasks (${openCount(tasks) + controlWork.length})`, icon: ListTodo }] : []),
   ];
   const scoped = tab === "created" ? created : tab === "all" ? tasks : mine;
+  const scopedControls = tab === "created" ? [] : tab === "all" ? controlWork : myControls;
+  const visibleControls = useMemo(() => {
+    // Status and priority filters describe tasks; hide control work while they're in use.
+    if (statusFilter || priorityFilter) return [];
+    const q = search.trim().toLowerCase();
+    return scopedControls.filter((c) =>
+      !q || [c.code, c.title, c.owner?.name, ...c.frameworks].some((v) => v?.toLowerCase().includes(q))
+    );
+  }, [scopedControls, search, statusFilter, priorityFilter]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -220,6 +244,52 @@ export function TasksClient({
     refresh();
   }
 
+  async function setControlStatus(c: ControlWorkItem, status: "IN_PROGRESS" | "IMPLEMENTED") {
+    setBusyControl(c.id);
+    const res = await fetch(`/api/controls/${c.id}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    setBusyControl(null);
+    const b = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(b?.error ?? "Couldn't update the control");
+      return;
+    }
+    toast.success(status === "IMPLEMENTED" ? `${c.code} is implemented and closed.` : `Started ${c.code}.`);
+    refresh();
+  }
+
+  function openUpload(c: ControlWorkItem) {
+    setUploadFor(c);
+    setUploadFile(null);
+    setUploadNotes("");
+    setUploadError(null);
+  }
+
+  async function submitUpload(e: React.FormEvent) {
+    e.preventDefault();
+    if (!uploadFor) return;
+    if (!uploadFile) return setUploadError("Choose a file to upload.");
+    setUploading(true);
+    setUploadError(null);
+    const body = new FormData();
+    body.append("controlIds", uploadFor.id);
+    body.append("notes", uploadNotes);
+    body.append("file", uploadFile);
+    const res = await fetch("/api/evidence", { method: "POST", body });
+    setUploading(false);
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
+      return setUploadError(b?.error ?? "Upload failed");
+    }
+    const code = uploadFor.code;
+    setUploadFor(null);
+    toast.success(`Evidence added to ${code}. You can now mark it implemented.`);
+    refresh();
+  }
+
   async function confirmDelete() {
     if (!deleteTarget) return;
     const t = deleteTarget;
@@ -254,7 +324,7 @@ export function TasksClient({
       <PageTabs tabs={tabs} activeTab={tab} onTabChange={(k) => { setTab(k); setAssigneeFilter(""); }} />
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Open" value={open.length} tone="text-gray-900 dark:text-gray-100" />
+        <Stat label="Open" value={open.length + scopedControls.length} tone="text-gray-900 dark:text-gray-100" />
         <Stat label="Overdue" value={overdue} tone="text-red-600" />
         <Stat label="Due this week" value={dueSoon} tone="text-amber-600" />
         <Stat label="Done" value={doneCount} tone="text-green-700" />
@@ -280,6 +350,64 @@ export function TasksClient({
           )
         }
       />
+
+      {visibleControls.length > 0 && (
+        <div className="card mb-4 !p-0 overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <div>
+              <h2 className="flex items-center gap-2 text-sm font-semibold">
+                <ShieldCheck className="h-4 w-4 text-gray-500" />
+                {tab === "all" ? "Controls waiting on their owners" : "Controls assigned to you"}
+                <span className="rounded-full bg-gray-100 px-1.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{visibleControls.length}</span>
+              </h2>
+              <p className="mt-0.5 text-xs text-gray-500">Upload evidence, then mark the control implemented to close it.</p>
+            </div>
+          </div>
+          <ul className="divide-y divide-border">
+            {visibleControls.map((c) => {
+              const mineControl = c.owner?.id === currentUserId;
+              const reason = CONTROL_REASON[c.reason];
+              return (
+                <li key={c.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${reason.style}`}>{reason.label}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      <span className="mr-1.5 font-mono text-xs text-gray-500">{c.code}</span>{c.title}
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      {c.validEvidence > 0
+                        ? `${c.validEvidence} valid evidence file${c.validEvidence === 1 ? "" : "s"}${c.nextExpiry ? ` · renews ${formatDate(c.nextExpiry)}` : ""}`
+                        : c.totalEvidence > 0 ? "Evidence has expired or was rejected" : "No evidence yet"}
+                      {c.frameworks.length > 0 && <> · {c.frameworks.slice(0, 3).join(", ")}{c.frameworks.length > 3 ? ` +${c.frameworks.length - 3}` : ""}</>}
+                      {tab === "all" && c.owner && <> · Owner: {mineControl ? "you" : c.owner.name}</>}
+                    </p>
+                  </div>
+                  {mineControl && (
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button onClick={() => openUpload(c)} className="btn-secondary !px-2.5 !py-1 text-xs">
+                        <Upload className="mr-1 h-3.5 w-3.5" /> Upload evidence
+                      </button>
+                      {c.reason === "NOT_STARTED" && (
+                        <button onClick={() => setControlStatus(c, "IN_PROGRESS")} disabled={busyControl === c.id} className="btn-secondary !px-2.5 !py-1 text-xs">
+                          <PlayCircle className="mr-1 h-3.5 w-3.5" /> Start
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setControlStatus(c, "IMPLEMENTED")}
+                        disabled={c.validEvidence === 0 || busyControl === c.id}
+                        title={c.validEvidence === 0 ? "Upload valid evidence first" : "Close this control"}
+                        className="btn-primary !px-2.5 !py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Mark implemented
+                      </button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       <div className="card !p-0 overflow-hidden">
         <div className="overflow-x-auto">
@@ -371,7 +499,9 @@ export function TasksClient({
             <CheckSquare className="mb-2 h-8 w-8" />
             <p className="text-sm">
               {scoped.length === 0
-                ? tab === "mine" ? "Nothing is assigned to you right now." : "No tasks yet."
+                ? tab === "mine"
+                  ? visibleControls.length > 0 ? "No other tasks assigned to you." : "Nothing is assigned to you right now."
+                  : "No tasks yet."
                 : "No tasks match these filters."}
             </p>
           </div>
@@ -428,6 +558,29 @@ export function TasksClient({
             <button type="submit" disabled={saving} className="btn-primary">{saving ? "Saving…" : editing ? "Save" : "Create task"}</button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={!!uploadFor} onClose={() => setUploadFor(null)} title="Upload evidence" size="md">
+        {uploadFor && (
+          <form onSubmit={submitUpload} className="space-y-4">
+            <FormError message={uploadError} />
+            <p className="text-sm text-gray-600">
+              For <span className="font-mono text-xs">{uploadFor.code}</span>{" "}
+              <span className="font-medium text-gray-900 dark:text-gray-100">{uploadFor.title}</span>
+              {uploadFor.frameworks.length > 0 && <>. Counts towards {uploadFor.frameworks.join(", ")}.</>}
+            </p>
+            <Field label="File" htmlFor="ctlFile" hint="Max 20 MB. PDF, images, Office files, CSV, text or ZIP.">
+              <input id="ctlFile" type="file" className="input" onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)} />
+            </Field>
+            <Field label="Notes" htmlFor="ctlNotes" hint="Optional. What does this file show?">
+              <TextArea id="ctlNotes" value={uploadNotes} onChange={(e) => setUploadNotes(e.target.value)} />
+            </Field>
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setUploadFor(null)} className="btn-secondary">Cancel</button>
+              <button type="submit" disabled={uploading} className="btn-primary">{uploading ? "Uploading…" : "Upload"}</button>
+            </div>
+          </form>
+        )}
       </Modal>
 
       <ConfirmDialog

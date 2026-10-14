@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { HttpError, handleError, parseBody, requirePermission } from "@/lib/api";
 import { logAudit, snapshotEntity } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
+import { notifyControlOwner } from "@/lib/control-work";
+import { portalBaseUrl } from "@/lib/vendor-portal";
 
 const SNAP_KEYS = [
   "code",
@@ -137,6 +139,7 @@ export async function POST(req: Request) {
       );
       return created;
     });
+    if (control.ownerId) await notifyControlOwner(control.id, user.id, user.name, portalBaseUrl(req));
 
     return NextResponse.json(control, { status: 201 });
   } catch (err) {
