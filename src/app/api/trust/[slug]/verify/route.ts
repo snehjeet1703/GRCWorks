@@ -86,7 +86,8 @@ export async function GET(
       email: accessRequest.email,
       name: accessRequest.name,
       company: accessRequest.company,
-      documents,
+      // Nothing about restricted documents (not even names) is shared until the NDA is accepted.
+      documents: ndaAccepted ? documents : [],
       ndaRequired,
       ndaAccepted,
     });

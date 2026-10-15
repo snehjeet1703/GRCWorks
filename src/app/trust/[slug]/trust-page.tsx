@@ -59,8 +59,9 @@ export function TrustPage({ slug }: { slug: string }) {
   const [ndaRequired, setNdaRequired] = useState(false);
   const [ndaAccepted, setNdaAccepted] = useState(true);
   const [ndaData, setNdaData] = useState<{ id: string; title: string; content: string; version: number } | null>(null);
-  const [showNdaModal, setShowNdaModal] = useState(false);
+  const [ndaAgreed, setNdaAgreed] = useState(false);
   const [acceptingNda, setAcceptingNda] = useState(false);
+  const [ndaError, setNdaError] = useState("");
 
   useEffect(() => {
     try {
@@ -283,23 +284,6 @@ export function TrustPage({ slug }: { slug: string }) {
           )}
         </div>
       </header>
-
-      {token && ndaRequired && !ndaAccepted && ndaData && (
-        <div className="border-b border-amber-200 bg-amber-50">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-            <p className="text-sm text-amber-800">
-              <Shield className="mr-1.5 inline h-4 w-4" />
-              You must accept the NDA before viewing restricted documents.
-            </p>
-            <button
-              onClick={() => setShowNdaModal(true)}
-              className="rounded-lg bg-amber-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
-            >
-              Review & Accept NDA
-            </button>
-          </div>
-        </div>
-      )}
 
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
         {config.showCompliance && badges.length > 0 && (
@@ -561,42 +545,88 @@ export function TrustPage({ slug }: { slug: string }) {
         </Dialog>
       )}
 
-      {showNdaModal && ndaData && token && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-          <div className="mx-4 flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b px-6 py-4">
-              <h2 className="text-lg font-semibold text-gray-900">{ndaData.title} (v{ndaData.version})</h2>
-              <button onClick={() => setShowNdaModal(false)} className="text-gray-400 hover:text-gray-600" aria-label="Close"><X className="h-5 w-5" /></button>
+      {/* The NDA comes first: shown on arrival and can't be dismissed. Restricted documents stay hidden
+          (and are not sent by the server) until it's accepted; declining continues as a public visitor. */}
+      {token && ndaRequired && !ndaAccepted && ndaData && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-gray-900/60 p-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="nda-title"
+            className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl"
+          >
+            <div className="border-b px-6 py-4">
+              <p className="text-xs font-medium uppercase tracking-wide" style={{ color: primary }}>
+                Before you continue
+              </p>
+              <h2 id="nda-title" className="mt-0.5 text-lg font-semibold text-gray-900">
+                {ndaData.title} <span className="font-normal text-gray-500">(v{ndaData.version})</span>
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                {orgName} shares restricted documents only with people who accept this agreement.
+                {accessUser ? <> You&apos;re signing as <span className="font-medium text-gray-700">{accessUser.name}</span>, {accessUser.company}.</> : null}
+              </p>
             </div>
-            <div className="flex-1 overflow-y-auto px-6 py-4">
-              <pre className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700">{ndaData.content}</pre>
+            <div className="flex-1 overflow-y-auto bg-gray-50 px-6 py-4">
+              <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-gray-700">{ndaData.content}</pre>
             </div>
-            <div className="flex justify-end gap-3 border-t px-6 py-4">
-              <button onClick={() => setShowNdaModal(false)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                Cancel
-              </button>
-              <button
-                disabled={acceptingNda}
-                onClick={async () => {
-                  setAcceptingNda(true);
-                  try {
-                    const res = await fetch(`/api/trust/${slug}/nda`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ token, ndaId: ndaData.id }),
-                    });
-                    if (res.ok) {
+            <div className="space-y-3 border-t px-6 py-4">
+              {ndaError && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{ndaError}</p>}
+              <label className="flex cursor-pointer items-start gap-2.5 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={ndaAgreed}
+                  onChange={(e) => setNdaAgreed(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300"
+                  style={{ accentColor: primary }}
+                />
+                I have read and agree to the terms of this agreement.
+              </label>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <button
+                  onClick={() => {
+                    // Declining drops the access link on this device; public content stays visible.
+                    try { localStorage.removeItem(`trust_token_${slug}`); } catch {}
+                    setToken(null);
+                    setGrantedDocs([]);
+                    setAccessUser(null);
+                    setNdaRequired(false);
+                    setNdaAccepted(true);
+                    setNdaData(null);
+                  }}
+                  className="text-sm font-medium text-gray-500 hover:text-gray-800"
+                >
+                  Decline and view public content only
+                </button>
+                <button
+                  disabled={!ndaAgreed || acceptingNda}
+                  onClick={async () => {
+                    setAcceptingNda(true);
+                    setNdaError("");
+                    try {
+                      const res = await fetch(`/api/trust/${slug}/nda`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ token, ndaId: ndaData.id }),
+                      });
+                      if (!res.ok) {
+                        const b = await res.json().catch(() => ({}));
+                        throw new Error(b?.error || "We couldn't record your acceptance. Please try again.");
+                      }
                       setNdaAccepted(true);
-                      setShowNdaModal(false);
                       if (token) verifyToken(token);
+                    } catch (err: any) {
+                      setNdaError(err.message);
+                    } finally {
+                      setAcceptingNda(false);
                     }
-                  } catch {} finally { setAcceptingNda(false); }
-                }}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                style={{ backgroundColor: primary }}
-              >
-                {acceptingNda ? "Accepting..." : "I Accept the NDA"}
-              </button>
+                  }}
+                  className="rounded-lg px-5 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ backgroundColor: primary }}
+                >
+                  {acceptingNda ? "Accepting…" : "Accept and continue"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

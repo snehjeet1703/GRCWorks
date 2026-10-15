@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { taskInclude } from "@/lib/tasks";
+import { pendingAccessRequests, taskInclude } from "@/lib/tasks";
 import { controlReviewQueue, pendingControlWork } from "@/lib/control-work";
 import { slotReviewQueue, slotWorkForOwner } from "@/lib/audit-periods";
 import { TasksClient, type TaskRow } from "./tasks-client";
@@ -15,8 +15,9 @@ export default async function TasksPage() {
   const canReadAll = permissions.includes("tasks:read");
   const canManage = permissions.includes("tasks:manage");
   const canReview = permissions.includes("evidence:review");
+  const canApproveAccess = permissions.includes("trust_vault:manage");
 
-  const [tasks, users, controls, risks, controlWork, reviewQueue, org, slotWork, slotReviews] = await Promise.all([
+  const [tasks, users, controls, risks, controlWork, reviewQueue, org, slotWork, slotReviews, accessRequests] = await Promise.all([
     prisma.task.findMany({
       // Without "View all tasks", only your own and ones you created are loaded.
       where: canReadAll
@@ -40,6 +41,7 @@ export default async function TasksPage() {
     prisma.organization.findUnique({ where: { id: orgId }, select: { controlApprovalRequired: true } }),
     slotWorkForOwner(orgId, user.id),
     canReview ? slotReviewQueue(orgId, user.id) : [],
+    canApproveAccess ? pendingAccessRequests(orgId) : [],
   ]);
 
   const rows: TaskRow[] = tasks.map((t) => ({
@@ -64,6 +66,7 @@ export default async function TasksPage() {
       reviewQueue={reviewQueue}
       slotWork={slotWork}
       slotReviews={slotReviews}
+      accessRequests={accessRequests.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }))}
       approvalRequired={org?.controlApprovalRequired ?? true}
       currentUserId={user.id}
       users={users}

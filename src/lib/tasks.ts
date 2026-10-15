@@ -47,3 +47,12 @@ export async function notifyAssignee(taskId: string, assignerId: string, assigne
     return false;
   }
 }
+
+// Trust Center access requests waiting for a decision, for people who can approve them.
+export async function pendingAccessRequests(organizationId: string) {
+  return prisma.trustAccessRequest.findMany({
+    where: { status: "PENDING", config: { organizationId } },
+    select: { id: true, name: true, email: true, company: true, reason: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+  });
+}

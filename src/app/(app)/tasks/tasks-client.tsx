@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckSquare, Plus, Pencil, Trash2, UserRound, Inbox, Send, ListTodo, CalendarClock, ShieldCheck, TriangleAlert, Upload, PlayCircle, CheckCircle2, Send as SendIcon, Undo2, XCircle, Download, MessageSquareWarning, ClipboardCheck, CalendarRange } from "lucide-react";
+import { CheckSquare, Plus, Pencil, Trash2, UserRound, Inbox, Send, ListTodo, CalendarClock, ShieldCheck, TriangleAlert, Upload, PlayCircle, CheckCircle2, Send as SendIcon, Undo2, XCircle, Download, MessageSquareWarning, ClipboardCheck, CalendarRange, KeyRound } from "lucide-react";
 import type { ControlWorkItem } from "@/lib/control-work";
 import type { SlotWorkItem } from "@/lib/audit-periods";
 import { Modal, ConfirmDialog } from "@/components/modal";
@@ -108,13 +108,14 @@ const EVIDENCE_TONE: Record<string, string> = {
 };
 
 export function TasksClient({
-  tasks, controlWork, reviewQueue, slotWork, slotReviews, approvalRequired, currentUserId, users, controls, risks, canReadAll, canManage,
+  tasks, controlWork, reviewQueue, slotWork, slotReviews, accessRequests, approvalRequired, currentUserId, users, controls, risks, canReadAll, canManage,
 }: {
   tasks: TaskRow[];
   controlWork: ControlWorkItem[];
   reviewQueue: ControlWorkItem[];
   slotWork: SlotWorkItem[];
   slotReviews: SlotWorkItem[];
+  accessRequests: { id: string; name: string; email: string; company: string; reason: string | null; createdAt: string }[];
   approvalRequired: boolean;
   currentUserId: string;
   users: { id: string; name: string }[];
@@ -163,7 +164,7 @@ export function TasksClient({
   const auditControlIds = new Set(slotWork.map((s) => s.control.id));
   const myControls = controlWork.filter((c) => c.owner?.id === currentUserId && !auditControlIds.has(c.id));
   const tabs = [
-    { key: "mine", label: `My tasks (${openCount(mine) + myControls.length + reviewQueue.length + slotWork.length + slotReviews.length})`, icon: Inbox },
+    { key: "mine", label: `My tasks (${openCount(mine) + myControls.length + reviewQueue.length + slotWork.length + slotReviews.length + accessRequests.length})`, icon: Inbox },
     ...(canManage ? [{ key: "created", label: `Created by me (${openCount(created)})`, icon: Send }] : []),
     ...(canReadAll ? [{ key: "all", label: `All tasks (${openCount(tasks) + controlWork.length})`, icon: ListTodo }] : []),
   ];
@@ -186,6 +187,10 @@ export function TasksClient({
     ? slotWork.filter(slotMatches).sort((a, b) => Date.parse(a.slot.end) - Date.parse(b.slot.end))
     : [];
   const visibleSlotReviews = showSlots ? slotReviews.filter(slotMatches) : [];
+  const q = search.trim().toLowerCase();
+  const visibleAccessRequests = showSlots
+    ? accessRequests.filter((r) => !q || [r.name, r.email, r.company, r.reason ?? ""].some((v) => v.toLowerCase().includes(q)))
+    : [];
   const visibleReviews = tab === "mine" && !statusFilter && !priorityFilter
     ? reviewQueue.filter((c) => !search.trim() || [c.code, c.title, c.owner?.name].some((v) => v?.toLowerCase().includes(search.trim().toLowerCase())))
     : [];
@@ -451,7 +456,7 @@ export function TasksClient({
       <PageTabs tabs={tabs} activeTab={tab} onTabChange={(k) => { setTab(k); setAssigneeFilter(""); }} />
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Open" value={open.length + scopedControls.length + (tab === "mine" ? reviewQueue.length + slotWork.length + slotReviews.length : 0)} tone="text-gray-900 dark:text-gray-100" />
+        <Stat label="Open" value={open.length + scopedControls.length + (tab === "mine" ? reviewQueue.length + slotWork.length + slotReviews.length + accessRequests.length : 0)} tone="text-gray-900 dark:text-gray-100" />
         <Stat label="Overdue" value={overdue} tone="text-red-600" />
         <Stat label="Due this week" value={dueSoon} tone="text-amber-600" />
         <Stat label="Done" value={doneCount} tone="text-green-700" />
@@ -477,6 +482,33 @@ export function TasksClient({
           )
         }
       />
+
+      {visibleAccessRequests.length > 0 && (
+        <div className="card mb-4 !p-0 overflow-hidden border-blue-200 dark:border-blue-900">
+          <div className="border-b border-border px-4 py-3">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <KeyRound className="h-4 w-4 text-blue-600" />
+              Trust Center access requests
+              <span className="rounded-full bg-blue-100 px-1.5 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">{visibleAccessRequests.length}</span>
+            </h2>
+            <p className="mt-0.5 text-xs text-gray-500">Customers waiting for access to restricted documents. Choose the files, access level and duration when you review.</p>
+          </div>
+          <ul className="divide-y divide-border">
+            {visibleAccessRequests.map((r) => (
+              <li key={r.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {r.name} <span className="font-normal text-gray-500">· {r.company}</span>
+                  </p>
+                  <p className="mt-0.5 text-xs text-gray-500">{r.email} · Requested {formatDate(r.createdAt)}</p>
+                  {r.reason && <p className="mt-1 line-clamp-2 text-xs text-gray-600 dark:text-gray-400">&ldquo;{r.reason}&rdquo;</p>}
+                </div>
+                <a href="/trust-vault?tab=requests" className="btn-primary shrink-0 !px-2.5 !py-1 text-xs">Review request</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {visibleSlotReviews.length > 0 && (
         <div className="card mb-4 !p-0 overflow-hidden border-purple-200 dark:border-purple-900">
@@ -832,7 +864,7 @@ export function TasksClient({
             <p className="text-sm">
               {scoped.length === 0
                 ? tab === "mine"
-                  ? visibleControls.length + visibleReviews.length + visibleSlotWork.length + visibleSlotReviews.length > 0
+                  ? visibleControls.length + visibleReviews.length + visibleSlotWork.length + visibleSlotReviews.length + visibleAccessRequests.length > 0
                     ? "No other tasks assigned to you."
                     : "Nothing is assigned to you right now."
                   : "No tasks yet."
