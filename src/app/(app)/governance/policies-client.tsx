@@ -10,6 +10,7 @@ import { ControlPicker, PickerControl } from "@/components/control-picker";
 import { useToast } from "@/components/toast";
 import { AuditLogPanel } from "@/components/audit-log-panel";
 import { PageTabs } from "@/components/page-tabs";
+import { SortSelect, rank, useSort } from "@/components/sortable";
 
 type Approver = { id: string; name: string };
 type PolicyRow = {
@@ -137,6 +138,14 @@ export function PoliciesClient({
     startTransition(() => router.refresh());
   }
 
+  const { sorted: sortedPolicies, sort, setSort } = useSort(initialPolicies, {
+    title: (p) => p.title,
+    status: (p) => rank(["DRAFT", "IN_REVIEW", "APPROVED", "EXPIRED", "ARCHIVED"])(p.status),
+    approved: (p) => p.approvedAt,
+    expires: (p) => p.expiresAt,
+    approver: (p) => p.approver?.name,
+  });
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -168,8 +177,23 @@ export function PoliciesClient({
       )}
 
       {activeTab === "content" && (<>
+      {initialPolicies.length > 1 && (
+        <div className="mb-3 flex justify-end">
+          <SortSelect
+            sort={sort}
+            onSort={setSort}
+            options={[
+              { key: "title", label: "Title" },
+              { key: "status", label: "Status", asc: "draft → archived", desc: "archived → draft" },
+              { key: "approved", label: "Approved", asc: "oldest first", desc: "newest first" },
+              { key: "expires", label: "Expires", asc: "soonest first", desc: "latest first" },
+              { key: "approver", label: "Approver" },
+            ]}
+          />
+        </div>
+      )}
       <div className="grid gap-4">
-        {initialPolicies.map((policy) => (
+        {sortedPolicies.map((policy) => (
           <div key={policy.id} className="card">
             <div className="flex items-center justify-between">
               <button

@@ -10,6 +10,7 @@ import { Field, Select, TextArea, TextInput, FormError } from "@/components/form
 import { FilterBar } from "@/components/filter-bar";
 import { PageTabs } from "@/components/page-tabs";
 import { useToast } from "@/components/toast";
+import { SortHeader, useSort } from "@/components/sortable";
 
 export type TaskRow = {
   id: string;
@@ -214,6 +215,14 @@ export function TasksClient({
         return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
       });
   }, [scoped, search, statusFilter, priorityFilter, assigneeFilter, showDone]);
+  // Column sort overrides the default order (open first, then by due date and priority).
+  const { sorted: sortedTasks, sort, setSort } = useSort(visible, {
+    status: (t) => STATUSES.findIndex((x) => x.value === t.status),
+    task: (t) => t.title,
+    priority: (t) => PRIORITY_RANK[t.priority],
+    due: (t) => t.dueDate,
+    person: (t) => (tab === "mine" ? t.createdBy?.name : t.assignee?.name),
+  });
 
   const open = scoped.filter((t) => t.status !== "DONE");
   const daysLeft = (t: TaskRow) => (today && t.dueDate ? daysBetween(today, dueDay(t.dueDate)) : null);
@@ -778,13 +787,14 @@ export function TasksClient({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                {["Status", "Task", "Priority", "Due", tab === "mine" ? "From" : "Assignee", ""].map((h, i) => (
-                  <th key={i} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">{h}</th>
+                {([["Status", "status"], ["Task", "task"], ["Priority", "priority"], ["Due", "due"], [tab === "mine" ? "From" : "Assignee", "person"]] as const).map(([h, key]) => (
+                  <SortHeader key={key} label={h} sortKey={key} sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
                 ))}
+                <th className="h-10 px-4" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {visible.map((t) => {
+              {sortedTasks.map((t) => {
                 const due = dueInfo(t, today);
                 return (
                   <tr key={t.id} className={`transition-colors hover:bg-muted/50 ${t.status === "DONE" ? "opacity-60" : ""}`}>

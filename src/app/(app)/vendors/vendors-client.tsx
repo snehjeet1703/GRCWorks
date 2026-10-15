@@ -10,6 +10,7 @@ import { FilterBar } from "@/components/filter-bar";
 import { useToast } from "@/components/toast";
 import { AuditLogPanel } from "@/components/audit-log-panel";
 import { PageTabs } from "@/components/page-tabs";
+import { SortSelect, rank, useSort } from "@/components/sortable";
 
 type AssessmentPreview = {
   id: string;
@@ -261,6 +262,15 @@ export function VendorsClient({
     withData: initialVendors.filter((v) => v.dataAccess).length,
   };
 
+  const { sorted: sortedVendors, sort, setSort } = useSort(filtered, {
+    name: (v) => v.name,
+    criticality: (v) => rank(CRITICALITIES)(v.criticality),
+    risk: (v) => v.riskScore,
+    status: (v) => v.status,
+    contractEnd: (v) => v.contractEnd,
+    assessed: (v) => v.assessments[0]?.assessmentDate,
+  });
+
   return (
     <div>
       {/* Header */}
@@ -342,6 +352,20 @@ export function VendorsClient({
             options: CRITICALITIES.map((c) => ({ label: humanLabel(c), value: c })),
           },
         ]}
+        right={
+          <SortSelect
+            sort={sort}
+            onSort={setSort}
+            options={[
+              { key: "name", label: "Name" },
+              { key: "criticality", label: "Criticality", asc: "highest first", desc: "lowest first" },
+              { key: "risk", label: "Risk score", asc: "low → high", desc: "high → low" },
+              { key: "status", label: "Status" },
+              { key: "contractEnd", label: "Contract end", asc: "soonest first", desc: "latest first" },
+              { key: "assessed", label: "Last assessed", asc: "oldest first", desc: "newest first" },
+            ]}
+          />
+        }
       />
 
       {/* Vendor list */}
@@ -352,7 +376,7 @@ export function VendorsClient({
             <p className="text-sm">No vendors found</p>
           </div>
         )}
-        {filtered.map((v) => {
+        {sortedVendors.map((v) => {
           const latestAssessment = v.assessments[0] ?? null;
           const isExpanded = expandedId === v.id;
           return (

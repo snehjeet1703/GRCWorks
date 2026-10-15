@@ -18,6 +18,7 @@ import { PageTabs } from "@/components/page-tabs";
 import { ConfirmDialog } from "@/components/modal";
 import { getControlStatusColor } from "@/lib/utils";
 import { FrameworkBadge } from "@/components/framework-badge";
+import { SortHeader, rank, useSort } from "@/components/sortable";
 
 type UserRef = { id: string; name: string };
 type ControlRow = {
@@ -220,6 +221,16 @@ export function ControlsClient({
     startTransition(() => router.refresh());
   }
 
+  const { sorted: sortedSortRows, sort: sort, setSort: setSort } = useSort(filtered, {
+    code: (c) => c.code,
+    title: (c) => c.title,
+    frameworks: (c) => c.frameworks.map((f) => f.name).join(", "),
+    owner: (c) => c.ownerName,
+    status: (c) => rank(STATUSES)(c.status),
+    frequency: (c) => c.frequency,
+    applicability: (c) => c.applicability,
+  }, null);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -283,27 +294,13 @@ export function ControlsClient({
               <table className="w-full caption-bottom text-sm">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="h-10 w-px whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
-                      Code
-                    </th>
-                    <th className="h-10 w-full min-w-[16rem] whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
-                      Title
-                    </th>
-                    <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
-                      Frameworks
-                    </th>
-                    <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
-                      Owner
-                    </th>
-                    <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
-                      Status
-                    </th>
-                    <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
-                      Frequency
-                    </th>
-                    <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
-                      Applicability
-                    </th>
+                    <SortHeader label="Code" sortKey="code" sort={sort} onSort={setSort} className="h-10 w-px whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                    <SortHeader label="Title" sortKey="title" sort={sort} onSort={setSort} className="h-10 w-full min-w-[16rem] whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                    <SortHeader label="Frameworks" sortKey="frameworks" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                    <SortHeader label="Owner" sortKey="owner" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                    <SortHeader label="Status" sortKey="status" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                    <SortHeader label="Frequency" sortKey="frequency" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                    <SortHeader label="Applicability" sortKey="applicability" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
                     <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
                       Deps
                     </th>
@@ -315,7 +312,7 @@ export function ControlsClient({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filtered.map((c) => (
+                  {sortedSortRows.map((c) => (
                     <tr
                       key={c.id}
                       className="transition-colors hover:bg-muted/50 cursor-pointer"

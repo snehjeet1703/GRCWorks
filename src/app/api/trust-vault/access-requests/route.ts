@@ -21,8 +21,19 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
+    // reviewedBy holds a user id; resolve it so the page can say who decided.
+    const reviewerIds = [...new Set(requests.map((r) => r.reviewedBy).filter((id): id is string => !!id))];
+    const reviewers = reviewerIds.length
+      ? await prisma.user.findMany({ where: { id: { in: reviewerIds } }, select: { id: true, name: true } })
+      : [];
+    const nameOf = new Map(reviewers.map((u) => [u.id, u.name]));
+
     return NextResponse.json(
-      requests.map(({ accessTokenHash, ...r }) => ({ ...r, linkIssued: !!accessTokenHash }))
+      requests.map(({ accessTokenHash, ...r }) => ({
+        ...r,
+        linkIssued: !!accessTokenHash,
+        reviewedByName: r.reviewedBy ? nameOf.get(r.reviewedBy) ?? "a former user" : null,
+      }))
     );
   } catch (err) {
     return handleError(err);

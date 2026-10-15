@@ -14,6 +14,7 @@ import { AuditLogPanel } from "@/components/audit-log-panel";
 import { PageTabs } from "@/components/page-tabs";
 import { ControlPicker } from "@/components/control-picker";
 import { FrameworkBadge } from "@/components/framework-badge";
+import { SortHeader, rank, useSort } from "@/components/sortable";
 
 type ControlRef = { id: string; code: string; title: string };
 type Control = ControlRef & { frameworkIds: string[]; citations: { frameworkId: string; code: string }[] };
@@ -381,6 +382,18 @@ export function EvidenceClient({
     );
   }
 
+  const { sorted: sortedSortRows, sort: sort, setSort: setSort } = useSort(filteredEvidence, {
+    type: (ev) => ev.type,
+    file: (ev) => ev.fileName,
+    controls: (ev) => controlsOf(ev)[0]?.code,
+    frameworks: (ev) => new Set(controlsOf(ev).flatMap((c) => c.frameworkIds)).size,
+    status: (ev) => ev.effectiveStatus,
+    validity: (ev) => ev.validUntil,
+    reviewed: (ev) => ev.reviewedAt,
+    addedBy: (ev) => ev.uploadedBy?.name,
+    size: (ev) => ev.fileSize,
+  }, null);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -476,20 +489,20 @@ export function EvidenceClient({
           <table className="w-full caption-bottom text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Type</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">File / Policy</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Controls</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Frameworks</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Status</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Validity</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Reviewed</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Added by</th>
-                <th className="h-10 whitespace-nowrap px-4 text-right align-middle text-xs font-medium text-muted-foreground">Size</th>
+                <SortHeader label="Type" sortKey="type" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="File / Policy" sortKey="file" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Controls" sortKey="controls" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Frameworks" sortKey="frameworks" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Status" sortKey="status" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Validity" sortKey="validity" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Reviewed" sortKey="reviewed" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Added by" sortKey="addedBy" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Size" sortKey="size" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-right align-middle text-xs font-medium text-muted-foreground" align="right" />
                 <th className="h-10 px-4" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredEvidence.map((ev) => (
+              {sortedSortRows.map((ev) => (
                 <tr key={ev.id} className="transition-colors hover:bg-muted/50">
                   <td className="px-4 py-3 align-middle">
                     {ev.type === "POLICY" ? (

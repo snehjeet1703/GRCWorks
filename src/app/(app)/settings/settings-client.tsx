@@ -9,6 +9,7 @@ import { PasswordInput } from "@/components/password-input";
 import { useToast } from "@/components/toast";
 import { PageTabs } from "@/components/page-tabs";
 import { PERMISSION_CATEGORIES, type Permission } from "@/lib/permissions";
+import { SortHeader, useSort } from "@/components/sortable";
 
 type Org = { id: string; name: string; slug: string };
 type UserRow = {
@@ -279,6 +280,12 @@ export function SettingsClient({
     startTransition(() => router.refresh());
   }
 
+  const { sorted: sortedSortRows, sort: sort, setSort: setSort } = useSort(users, {
+    name: (u) => u.name,
+    email: (u) => u.email,
+    role: (u) => u.roleName,
+  }, null);
+
   return (
     <div>
       <div className="mb-6">
@@ -306,14 +313,14 @@ export function SettingsClient({
             <table className="w-full caption-bottom text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Name</th>
-                  <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Email</th>
-                  <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Role</th>
+                  <SortHeader label="Name" sortKey="name" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                  <SortHeader label="Email" sortKey="email" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                  <SortHeader label="Role" sortKey="role" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
                   {canManageUsers && <th className="h-10 px-4" />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {users.map((u) => (
+                {sortedSortRows.map((u) => (
                   <tr key={u.id}>
                     <td className="px-4 py-3 text-sm text-gray-900">
                       {u.name}

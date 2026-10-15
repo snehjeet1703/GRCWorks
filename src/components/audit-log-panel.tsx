@@ -2,6 +2,7 @@
 
 import { Fragment, useState, useEffect, useCallback } from "react";
 import { History, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import { SortHeader, useSort } from "@/components/sortable";
 
 type AuditEntry = {
   id: string;
@@ -142,6 +143,14 @@ export function AuditLogPanel({
     });
   };
 
+  const { sorted: sortedSortRows, sort: sort, setSort: setSort } = useSort(logs, {
+    when: (l) => l.createdAt,
+    user: (l) => l.userName,
+    action: (l) => l.action,
+    entity: (l) => l.entityType,
+    name: (l) => l.entityName,
+  }, null);
+
   return (
     <div className="card mt-6">
       <div className="flex items-center justify-between mb-3">
@@ -186,15 +195,15 @@ export function AuditLogPanel({
                 <thead>
                   <tr className="border-b border-gray-100 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <th className="pb-2 pr-3 w-8"></th>
-                    <th className="pb-2 pr-3">When</th>
-                    <th className="pb-2 pr-3">User</th>
-                    <th className="pb-2 pr-3">Action</th>
-                    <th className="pb-2 pr-3">Entity</th>
-                    <th className="pb-2">Name</th>
+                    <SortHeader label="When" sortKey="when" sort={sort} onSort={setSort} className="pb-2 pr-3" />
+                    <SortHeader label="User" sortKey="user" sort={sort} onSort={setSort} className="pb-2 pr-3" />
+                    <SortHeader label="Action" sortKey="action" sort={sort} onSort={setSort} className="pb-2 pr-3" />
+                    <SortHeader label="Entity" sortKey="entity" sort={sort} onSort={setSort} className="pb-2 pr-3" />
+                    <SortHeader label="Name" sortKey="name" sort={sort} onSort={setSort} className="pb-2" />
                   </tr>
                 </thead>
                 <tbody>
-                  {logs.map((log) => {
+                  {sortedSortRows.map((log) => {
                     const isOpen = expandedRows.has(log.id);
                     const hasDetails =
                       (log.beforeJson && log.afterJson) ||

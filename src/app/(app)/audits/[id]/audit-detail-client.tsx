@@ -10,6 +10,7 @@ import { FrameworkBadge } from "@/components/framework-badge";
 import { useToast } from "@/components/toast";
 import type { ControlCoverage, SlotView } from "@/lib/audit-periods";
 import { ProgressBar, fmtDay, type Counts } from "../audits-client";
+import { SortHeader, useSort } from "@/components/sortable";
 
 type Coverage = {
   period: { id: string; name: string; startDate: string; endDate: string; approvalRequired: boolean; framework: { id: string; name: string } };
@@ -108,6 +109,13 @@ export function AuditDetailClient({
     toast.success(`Deleted ${period.name}.`);
     startTransition(() => router.push("/audits"));
   }
+
+  const { sorted: sortedSortRows, sort: sort, setSort: setSort } = useSort(rows, {
+    control: (c) => c.code,
+    owner: (c) => c.owner?.name,
+    frequency: (c) => c.frequency,
+    evidence: (c) => c.slots.length ? c.slots.filter((s) => s.status === "APPROVED").length / c.slots.length : 0,
+  }, null);
 
   return (
     <div>
@@ -208,14 +216,14 @@ export function AuditDetailClient({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-medium text-muted-foreground">
-                <th className="h-10 px-4">Control</th>
-                <th className="h-10 px-4">Owner</th>
-                <th className="h-10 px-4">Frequency</th>
-                <th className="h-10 px-4">Evidence by period</th>
+                <SortHeader label="Control" sortKey="control" sort={sort} onSort={setSort} className="h-10 px-4" />
+                <SortHeader label="Owner" sortKey="owner" sort={sort} onSort={setSort} className="h-10 px-4" />
+                <SortHeader label="Frequency" sortKey="frequency" sort={sort} onSort={setSort} className="h-10 px-4" />
+                <SortHeader label="Evidence by period" sortKey="evidence" sort={sort} onSort={setSort} className="h-10 px-4" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {rows.map((c) => (
+              {sortedSortRows.map((c) => (
                 <tr key={c.id} className="hover:bg-muted/40">
                   <td className="max-w-xs px-4 py-2.5 align-top">
                     <p className="truncate font-medium text-gray-900 dark:text-gray-100" title={c.title}>

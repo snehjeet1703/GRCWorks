@@ -9,6 +9,7 @@ import { FilterBar } from "@/components/filter-bar";
 import { useToast } from "@/components/toast";
 import { AuditLogPanel } from "@/components/audit-log-panel";
 import { PageTabs } from "@/components/page-tabs";
+import { SortHeader, rank, useSort } from "@/components/sortable";
 
 type ControlRef = { id: string; code: string; title: string };
 type UserRef = { id: string; name: string };
@@ -189,6 +190,16 @@ export function FindingsClient({
   const openCount = initialFindings.filter((f) => f.status === "OPEN" || f.status === "IN_PROGRESS").length;
   const criticalCount = initialFindings.filter((f) => f.severity === "CRITICAL" && f.status !== "CLOSED" && f.status !== "RESOLVED").length;
 
+  const { sorted: sortedSortRows, sort: sort, setSort: setSort } = useSort(filtered, {
+    title: (f) => f.title,
+    control: (f) => f.control?.code,
+    severity: (f) => rank(SEVERITIES)(f.severity),
+    status: (f) => rank(STATUSES)(f.status),
+    owner: (f) => f.owner?.name,
+    due: (f) => f.dueDate,
+    created: (f) => f.createdAt,
+  }, null);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -250,17 +261,17 @@ export function FindingsClient({
           <table className="w-full caption-bottom text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Title</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Control</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Severity</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Status</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Owner</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Due</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Created</th>
+                <SortHeader label="Title" sortKey="title" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Control" sortKey="control" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Severity" sortKey="severity" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Status" sortKey="status" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Owner" sortKey="owner" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Due" sortKey="due" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Created" sortKey="created" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.map((f) => {
+              {sortedSortRows.map((f) => {
                 const overdue = f.dueDate && new Date(f.dueDate) < new Date() && f.status !== "CLOSED" && f.status !== "RESOLVED";
                 return (
                   <tr

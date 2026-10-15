@@ -9,6 +9,7 @@ import { FilterBar } from "@/components/filter-bar";
 import { useToast } from "@/components/toast";
 import { AuditLogPanel } from "@/components/audit-log-panel";
 import { PageTabs } from "@/components/page-tabs";
+import { SortHeader, rank, useSort } from "@/components/sortable";
 
 type ControlRef = { id: string; code: string; title: string };
 type UserRef = { id: string; name: string };
@@ -166,6 +167,14 @@ export function ExceptionsClient({
   const activeCount = initialExceptions.filter((ex) => ex.status === "APPROVED").length;
   const pendingCount = initialExceptions.filter((ex) => ex.status === "REQUESTED").length;
 
+  const { sorted: sortedSortRows, sort: sort, setSort: setSort } = useSort(filtered, {
+    control: (ex) => ex.control.code,
+    reason: (ex) => ex.reason,
+    status: (ex) => rank(STATUSES)(ex.status),
+    valid: (ex) => ex.validUntil,
+    requester: (ex) => ex.requestedBy?.name,
+  }, null);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -221,16 +230,16 @@ export function ExceptionsClient({
           <table className="w-full caption-bottom text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Control</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Reason</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Status</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Valid period</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Requested by</th>
+                <SortHeader label="Control" sortKey="control" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Reason" sortKey="reason" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Status" sortKey="status" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Valid period" sortKey="valid" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Requested by" sortKey="requester" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
                 <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.map((ex) => {
+              {sortedSortRows.map((ex) => {
                 const isExpired = new Date(ex.validUntil) < new Date() && ex.status === "APPROVED";
                 return (
                   <tr

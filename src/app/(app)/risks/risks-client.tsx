@@ -11,6 +11,7 @@ import { ControlPicker, PickerControl } from "@/components/control-picker";
 import { useToast } from "@/components/toast";
 import { AuditLogPanel } from "@/components/audit-log-panel";
 import { PageTabs } from "@/components/page-tabs";
+import { SortHeader, rank, useSort } from "@/components/sortable";
 
 type Owner = { id: string; name: string };
 type RiskActionRow = {
@@ -275,6 +276,16 @@ export function RisksClient({
     startTransition(() => router.refresh());
   }
 
+  const { sorted: sortedSortRows, sort: sort, setSort: setSort } = useSort(filteredRisks, {
+    risk: (r) => r.title,
+    controls: (r) => r.linkedControlIds.length,
+    inherent: (r) => r.inherentScore,
+    residual: (r) => r.residualScore,
+    status: (r) => r.status,
+    treatment: (r) => r.treatment,
+    owner: (r) => r.owner?.name,
+  }, null);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -346,18 +357,18 @@ export function RisksClient({
             <thead>
               <tr className="border-b border-border">
                 <th className="h-10 px-4 w-6" />
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Risk</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Controls</th>
-                <th className="h-10 whitespace-nowrap px-4 text-center align-middle text-xs font-medium text-muted-foreground">Inherent</th>
-                <th className="h-10 whitespace-nowrap px-4 text-center align-middle text-xs font-medium text-muted-foreground">Residual</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Status</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Treatment</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Owner</th>
+                <SortHeader label="Risk" sortKey="risk" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Controls" sortKey="controls" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Inherent" sortKey="inherent" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-center align-middle text-xs font-medium text-muted-foreground" align="center" />
+                <SortHeader label="Residual" sortKey="residual" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-center align-middle text-xs font-medium text-muted-foreground" align="center" />
+                <SortHeader label="Status" sortKey="status" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Treatment" sortKey="treatment" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Owner" sortKey="owner" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
                 {canEdit && <th className="h-10 px-4" />}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredRisks.map((risk) => {
+              {sortedSortRows.map((risk) => {
                 const score = getRiskScore(risk.likelihood, risk.impact);
                 const level = getRiskLevel(score);
                 const isExpanded = expandedRisk === risk.id;

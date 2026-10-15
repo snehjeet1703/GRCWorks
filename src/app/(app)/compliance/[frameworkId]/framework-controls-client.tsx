@@ -11,6 +11,7 @@ import { Field, Select, TextArea, FormError } from "@/components/form";
 import { useToast } from "@/components/toast";
 import { AuditLogPanel } from "@/components/audit-log-panel";
 import { PageTabs } from "@/components/page-tabs";
+import { SortHeader, rank, useSort } from "@/components/sortable";
 
 type Owner = { id: string; name: string };
 type ControlRow = {
@@ -156,6 +157,15 @@ export function FrameworkControlsClient({
     startTransition(() => router.refresh());
   }
 
+  const { sorted: sortedSortRows, sort: sort, setSort: setSort } = useSort(filteredControls, {
+    code: (c) => c.code,
+    title: (c) => c.title,
+    owner: (c) => c.ownerName,
+    status: (c) => rank(["NOT_STARTED", "IN_PROGRESS", "IMPLEMENTED", "NOT_APPLICABLE"])(c.status),
+    testing: (c) => c.nextTestDue ?? c.lastTestDate,
+    coverage: (c) => c.evidenceCount,
+  }, null);
+
   return (
     <div>
       <PageTabs
@@ -200,16 +210,16 @@ export function FrameworkControlsClient({
           <table className="w-full caption-bottom text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Code</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Title</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Owner</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Status</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Testing</th>
-                <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Coverage</th>
+                <SortHeader label="Code" sortKey="code" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Title" sortKey="title" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Owner" sortKey="owner" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Status" sortKey="status" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Testing" sortKey="testing" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+                <SortHeader label="Coverage" sortKey="coverage" sort={sort} onSort={setSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredControls.map((control) => {
+              {sortedSortRows.map((control) => {
                 const test = testBadge(control);
                 return (
                   <tr key={`${control.code}:${control.id}`} className="transition-colors hover:bg-muted/50">

@@ -11,6 +11,7 @@ import { PageTabs, type TabDef } from "@/components/page-tabs";
 import { Modal, ConfirmDialog } from "@/components/modal";
 import { useToast } from "@/components/toast";
 import { FrameworkBadge } from "@/components/framework-badge";
+import { SortHeader, SortSelect, useSort } from "@/components/sortable";
 
 const TABS: TabDef[] = [
   { key: "settings", label: "Settings", icon: Settings },
@@ -113,6 +114,7 @@ type AccessRequest = {
   tokenExpiresAt: string | null;
   createdAt: string;
   reviewedAt: string | null;
+  reviewedByName: string | null;
   documentAccess: { documentId: string; permission: Permission; document: { name: string } }[];
 };
 
@@ -655,6 +657,17 @@ function DocumentsTab({ docs, canManage, onRefresh, toast }: {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const { sorted: sortedDocSortRows, sort: docSort, setSort: setDocSort } = useSort(docs, {
+    name: (d) => d.name,
+    category: (d) => d.category,
+    visibility: (d) => d.visibility,
+    permission: (d) => d.permission,
+    size: (d) => d.fileSize,
+    version: (d) => d.version,
+    expires: (d) => d.validUntil,
+    status: (d) => (d.enabled ? 0 : 1),
+  }, null);
+
   return (
     <div>
       {canManage && (
@@ -668,19 +681,19 @@ function DocumentsTab({ docs, canManage, onRefresh, toast }: {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-muted-foreground">
-              <th className="pb-3 font-medium">Name</th>
-              <th className="pb-3 font-medium">Category</th>
-              <th className="pb-3 font-medium">Visibility</th>
-              <th className="pb-3 font-medium">Permission</th>
-              <th className="pb-3 font-medium">Size</th>
-              <th className="pb-3 font-medium">Ver</th>
-              <th className="pb-3 font-medium">Expires</th>
-              <th className="pb-3 font-medium">Status</th>
+              <SortHeader label="Name" sortKey="name" sort={docSort} onSort={setDocSort} className="pb-3 font-medium" />
+              <SortHeader label="Category" sortKey="category" sort={docSort} onSort={setDocSort} className="pb-3 font-medium" />
+              <SortHeader label="Visibility" sortKey="visibility" sort={docSort} onSort={setDocSort} className="pb-3 font-medium" />
+              <SortHeader label="Permission" sortKey="permission" sort={docSort} onSort={setDocSort} className="pb-3 font-medium" />
+              <SortHeader label="Size" sortKey="size" sort={docSort} onSort={setDocSort} className="pb-3 font-medium" />
+              <SortHeader label="Ver" sortKey="version" sort={docSort} onSort={setDocSort} className="pb-3 font-medium" />
+              <SortHeader label="Expires" sortKey="expires" sort={docSort} onSort={setDocSort} className="pb-3 font-medium" />
+              <SortHeader label="Status" sortKey="status" sort={docSort} onSort={setDocSort} className="pb-3 font-medium" />
               {canManage && <th className="pb-3 font-medium">Actions</th>}
             </tr>
           </thead>
           <tbody>
-            {docs.map((d) => (
+            {sortedDocSortRows.map((d) => (
               <tr key={d.id} className="border-b border-gray-100">
                 <td className="py-3 font-medium text-gray-900">{d.name}</td>
                 <td className="py-3 text-gray-600">{d.category}</td>
@@ -1184,6 +1197,13 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
     .filter((r) => filter === "ALL" || r.status === filter)
     .filter((r) => !q || [r.name, r.email, r.company, r.reason ?? ""].some((v) => v.toLowerCase().includes(q)));
   const pending = requests.filter((r) => r.status === "PENDING").length;
+  const { sorted: sortedRequests, sort: requestSort, setSort: setRequestSort } = useSort(filtered, {
+    requested: (r) => r.createdAt,
+    name: (r) => r.name,
+    company: (r) => r.company,
+    decided: (r) => r.reviewedAt,
+    expires: (r) => r.tokenExpiresAt,
+  });
 
   return (
     <div>
@@ -1209,10 +1229,22 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
             {f === "PENDING" && pending > 0 && <span className="ml-1 bg-red-500 text-white rounded-full px-1.5 text-[10px]">{pending}</span>}
           </button>
         ))}
+        <SortSelect
+          className="ml-auto"
+          sort={requestSort}
+          onSort={setRequestSort}
+          options={[
+            { key: "requested", label: "Requested", asc: "oldest first", desc: "newest first" },
+            { key: "name", label: "Name" },
+            { key: "company", label: "Company" },
+            { key: "decided", label: "Approved / denied", asc: "oldest first", desc: "newest first" },
+            { key: "expires", label: "Access ends", asc: "soonest first", desc: "latest first" },
+          ]}
+        />
       </div>
 
       <div className="space-y-3">
-        {filtered.map((r) => (
+        {sortedRequests.map((r) => (
           <div key={r.id} className="rounded-lg border border-gray-200 p-4">
             <div className="flex items-start justify-between">
               <div>
@@ -1223,6 +1255,12 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
                 <p className="text-sm text-gray-500 mt-0.5">{r.email}</p>
                 <p className="text-xs text-gray-400">{r.company} &middot; {new Date(r.createdAt).toLocaleDateString()}</p>
                 {r.reason && <p className="text-sm text-gray-600 mt-2">{r.reason}</p>}
+                {r.status !== "PENDING" && r.reviewedAt && (
+                  <p className={`mt-2 text-xs ${r.status === "APPROVED" ? "text-green-700" : "text-red-700"}`}>
+                    {r.status === "APPROVED" ? "Approved" : "Denied / revoked"} by {r.reviewedByName ?? "unknown"} on{" "}
+                    {new Date(r.reviewedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                  </p>
+                )}
                 {r.linkIssued && r.status === "APPROVED" && (
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
                     <span>
@@ -1493,6 +1531,13 @@ function NdaTab({ canManage, toast }: { canManage: boolean; toast: any }) {
 
   const activeNda = ndas.find((n) => n.active);
 
+  const { sorted: sortedNdaSortRows, sort: ndaSort, setSort: setNdaSort } = useSort(ndas, {
+    title: (n) => n.title,
+    version: (n) => n.version,
+    status: (n) => (n.active ? 0 : 1),
+    created: (n) => n.createdAt,
+  }, null);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -1512,15 +1557,15 @@ function NdaTab({ canManage, toast }: { canManage: boolean; toast: any }) {
         <table className="min-w-full text-sm">
           <thead>
             <tr>
-              <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Title</th>
-              <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Version</th>
-              <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Status</th>
-              <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Created</th>
+              <SortHeader label="Title" sortKey="title" sort={ndaSort} onSort={setNdaSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+              <SortHeader label="Version" sortKey="version" sort={ndaSort} onSort={setNdaSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+              <SortHeader label="Status" sortKey="status" sort={ndaSort} onSort={setNdaSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
+              <SortHeader label="Created" sortKey="created" sort={ndaSort} onSort={setNdaSort} className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground" />
               <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {ndas.map((n) => (
+            {sortedNdaSortRows.map((n) => (
               <tr key={n.id}>
                 <td className="px-4 py-3 text-gray-900">{n.title}</td>
                 <td className="px-4 py-3 text-gray-500">v{n.version}</td>
