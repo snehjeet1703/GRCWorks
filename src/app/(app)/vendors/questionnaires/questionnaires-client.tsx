@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ClipboardList, Plus, Trash2, Send, Eye, CheckCircle2, Clock,
-  ChevronDown, ChevronUp, FileQuestion, ArrowLeft, Upload, Download, History,
+  ChevronDown, ChevronUp, FileQuestion, ArrowLeft, Upload, Download, History, FileSpreadsheet,
 } from "lucide-react";
 import { Modal, ConfirmDialog } from "@/components/modal";
 import { Field, Select, TextArea, FormError } from "@/components/form";
@@ -13,6 +13,7 @@ import { useToast } from "@/components/toast";
 import { AuditLogPanel } from "@/components/audit-log-panel";
 import { PageTabs } from "@/components/page-tabs";
 import { IssuedLinkDialog, ResponsesPanel } from "./responses-panel";
+import { ImportQuestionsModal, readQuestionSheet, SheetIssues, type SheetResult } from "./import-questions-modal";
 
 type QuestionnaireRow = {
   id: string;
@@ -102,10 +103,13 @@ export function QuestionnairesClient({
   const [sendEmail, setSendEmail] = useState("");
   const [issued, setIssued] = useState<{ link: string; email: string; emailSent: boolean } | null>(null);
   const [responsesTarget, setResponsesTarget] = useState<QuestionnaireRow | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [sheetIssues, setSheetIssues] = useState<SheetResult | null>(null);
+  const [readingSheet, setReadingSheet] = useState(false);
 
   function resetForm() {
     setTitle(""); setDescription(""); setCategory("GENERAL");
-    setFormStatus("DRAFT"); setQuestions([]); setError("");
+    setFormStatus("DRAFT"); setQuestions([]); setError(""); setSheetIssues(null);
   }
 
   function openCreate() {
@@ -122,6 +126,7 @@ export function QuestionnairesClient({
     setFormStatus(q.status);
     setQuestions(q.questions ?? []);
     setError("");
+    setSheetIssues(null);
     setShowCreateModal(true);
   }
 
@@ -164,88 +169,24 @@ export function QuestionnairesClient({
     );
   }
 
-  const VALID_TYPES = new Set<string>(QUESTION_TYPES.map((t) => t.value));
 
-  function parseCSVLine(line: string): string[] {
-    const fields: string[] = [];
-    let current = "";
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (inQuotes) {
-        if (ch === '"' && line[i + 1] === '"') { current += '"'; i++; }
-        else if (ch === '"') { inQuotes = false; }
-        else { current += ch; }
-      } else {
-        if (ch === '"') { inQuotes = true; }
-        else if (ch === ",") { fields.push(current.trim()); current = ""; }
-        else { current += ch; }
-      }
-    }
-    fields.push(current.trim());
-    return fields;
-  }
-
-  function handleCSVUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  // Adds questions from a filled-in sheet (.xlsx or .csv) to the questionnaire being edited.
+  async function importIntoEditor(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
     e.target.value = "";
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const text = ev.target?.result as string;
-        const lines = text.split(/\r?\n/).filter((l) => l.trim());
-        if (lines.length < 2) { setError("CSV must have a header row and at least one data row"); return; }
-        const headers = parseCSVLine(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, "_"));
-        const qIdx = headers.indexOf("question");
-        const tIdx = headers.indexOf("type");
-        const rIdx = headers.indexOf("required");
-        const oIdx = headers.indexOf("options");
-        const cIdx = headers.indexOf("category");
-        if (qIdx === -1) { setError("CSV must have a 'question' column"); return; }
-
-        const parsed: Question[] = [];
-        const errors: string[] = [];
-        for (let i = 1; i < lines.length; i++) {
-          const cols = parseCSVLine(lines[i]);
-          const questionText = cols[qIdx]?.trim();
-          if (!questionText) continue;
-          const rawType = (cols[tIdx] ?? "TEXT").toUpperCase().replace(/\s+/g, "_");
-          const type = VALID_TYPES.has(rawType) ? rawType : "TEXT";
-          if (!VALID_TYPES.has(rawType)) errors.push(`Row ${i + 1}: unknown type "${cols[tIdx]}", defaulting to TEXT`);
-          const required = rIdx >= 0 ? !["no", "false", "0"].includes((cols[rIdx] ?? "").toLowerCase()) : true;
-          const options = oIdx >= 0 && cols[oIdx] ? cols[oIdx].split("|").map((o) => o.trim()).filter(Boolean) : [];
-          const category = cIdx >= 0 ? (cols[cIdx] ?? "").trim() : "";
-          parsed.push({ id: newQuestionId(), text: questionText, type, required, options, category });
-        }
-        if (parsed.length === 0) { setError("No valid questions found in CSV"); return; }
-        setQuestions((prev) => [...prev, ...parsed]);
-        toast.success(`Imported ${parsed.length} question${parsed.length !== 1 ? "s" : ""} from CSV`);
-        if (errors.length > 0) setError(errors.join("; "));
-        else setError("");
-      } catch {
-        setError("Failed to parse CSV file");
-      }
-    };
-    reader.readAsText(file);
-  }
-
-  function downloadTemplate() {
-    const csv = [
-      "question,type,required,options,category",
-      "Does your organization have an information security policy?,YES_NO,yes,,SECURITY",
-      "Describe your data encryption practices,TEXT,yes,,DATA_PRIVACY",
-      "Which compliance certifications do you hold?,MULTI_CHOICE,yes,SOC 2|ISO 27001|PCI DSS|HIPAA|None,COMPLIANCE",
-      "Rate your incident response maturity (1-5),RATING,yes,,INCIDENT_RESPONSE",
-      "What access control mechanisms are in place?,SINGLE_CHOICE,yes,RBAC|ABAC|ACL|None,ACCESS_CONTROL",
-    ].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "questionnaire_template.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    if (!file) return;
+    setReadingSheet(true); setError(""); setSheetIssues(null);
+    try {
+      const result: SheetResult = await readQuestionSheet(file);
+      if (result.errors.length) { setSheetIssues(result); return; }
+      setQuestions((prev) => [...prev, ...result.questions]);
+      if (result.warnings.length) setSheetIssues(result);
+      toast.success(`Added ${result.questions.length} question${result.questions.length === 1 ? "" : "s"} from ${file.name}`);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setReadingSheet(false);
+    }
   }
 
   async function handleSave() {
@@ -338,9 +279,14 @@ export function QuestionnairesClient({
           </p>
         </div>
         {canWrite && (
-          <button onClick={openCreate} className="btn-primary flex items-center gap-1.5">
-            <Plus className="h-4 w-4" /> New questionnaire
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => setImportOpen(true)} className="btn-secondary flex items-center gap-1.5">
+              <FileSpreadsheet className="h-4 w-4" /> Import from sheet
+            </button>
+            <button onClick={openCreate} className="btn-primary flex items-center gap-1.5">
+              <Plus className="h-4 w-4" /> New questionnaire
+            </button>
+          </div>
         )}
       </div>
 
@@ -516,12 +462,17 @@ export function QuestionnairesClient({
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-medium text-gray-700">Questions ({questions.length})</p>
               <div className="flex items-center gap-2">
-                <button onClick={downloadTemplate} className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1" title="Download CSV template">
+                <a
+                  href={`/api/vendors/questionnaires/template${editTarget ? `?questionnaireId=${editTarget.id}` : ""}`}
+                  download
+                  className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                  title={editTarget ? "Download this questionnaire's questions as a sheet" : "Download the question sheet template"}
+                >
                   <Download className="h-3 w-3" /> Template
-                </button>
-                <label className="text-xs text-brand-600 hover:underline flex items-center gap-1 cursor-pointer" title="Upload questions from CSV">
-                  <Upload className="h-3 w-3" /> Import CSV
-                  <input type="file" accept=".csv" onChange={handleCSVUpload} className="hidden" />
+                </a>
+                <label className="text-xs text-brand-600 hover:underline flex items-center gap-1 cursor-pointer" title="Add questions from a filled-in sheet">
+                  <Upload className="h-3 w-3" /> {readingSheet ? "Reading…" : "Import from sheet"}
+                  <input type="file" accept=".xlsx,.csv" onChange={importIntoEditor} className="hidden" disabled={readingSheet} />
                 </label>
                 <button onClick={addQuestion} className="text-xs text-brand-600 hover:underline flex items-center gap-1">
                   <Plus className="h-3 w-3" /> Add question
@@ -529,8 +480,9 @@ export function QuestionnairesClient({
               </div>
             </div>
             <p className="mb-2 text-[11px] text-gray-400">
-              CSV format: question, type (TEXT/YES_NO/SINGLE_CHOICE/MULTI_CHOICE/RATING), required (yes/no), options (pipe-separated), category
+              Add questions one by one, or download the template (.xlsx), fill it in and import it. Imported questions are added to the end.
             </p>
+            {sheetIssues && <div className="mb-3 space-y-2"><SheetIssues result={sheetIssues} /></div>}
             <div className="space-y-3">
               {questions.map((q, idx) => (
                 <div key={q.id} className="rounded-lg border border-gray-200 bg-gray-50/50 p-3">
@@ -669,6 +621,16 @@ export function QuestionnairesClient({
         onConfirm={handleDelete}
         title="Delete questionnaire"
         message={`Delete "${deleteTarget?.title}"? All responses will also be deleted. This action cannot be undone.`}
+      />
+      <ImportQuestionsModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        categories={Q_CATEGORIES}
+        onCreated={(t, count) => {
+          setImportOpen(false);
+          toast.success(`Created "${t}" with ${count} questions as a draft.`);
+          startTransition(() => router.refresh());
+        }}
       />
       </>)}
     </div>
