@@ -624,7 +624,10 @@ async function tc80() {
   const fw = await api("GET", `/api/frameworks/${soc2Id}`, cookieAdminA);
   const cc61 = fw.data.requirements.find((r: any) => r.code === "CC6.1");
   assert(cc61.readiness !== "COMPLIANT", `Not compliant with only expired evidence (got ${cc61.readiness})`);
-  assert(cc61.readiness === "IMPLEMENTED_NO_EVIDENCE", `Expired evidence = no valid evidence (got ${cc61.readiness})`);
+  // Deleting the last valid evidence reopens the implemented control (it can't stay closed on expired files).
+  assert(cc61.readiness === "MAPPED_NOT_IMPLEMENTED", `Removing the last valid evidence reopens the control (got ${cc61.readiness})`);
+  const ctrlAfter = await api("GET", `/api/controls/${ctrl001Id}`, cookieAdminA);
+  assert(ctrlAfter.data?.status === "IN_PROGRESS", `Control back to In progress (got ${ctrlAfter.data?.status})`);
 
   // Re-create valid evidence for remaining tests
   const pdfContent = makePdf("Q3 re-created");

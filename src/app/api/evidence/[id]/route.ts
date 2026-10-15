@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { HttpError, handleError, parseBody, requirePermission } from "@/lib/api";
+import { HttpError, handleError, parseBody, requirePermission, userHasPermission } from "@/lib/api";
+import { applyEvidenceRemoval, evidenceRemovalImpact, impactSummary } from "@/lib/evidence-impact";
 import { logAudit, snapshotEntity } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
 import { deleteUpload } from "@/lib/storage";
@@ -28,6 +29,21 @@ export async function PATCH(
     });
     if (!evidence) throw new HttpError(404, "Evidence not found");
 
+    // Rejecting evidence means it no longer supports its controls or audit slots.
+    const rejecting = body.status === "REJECTED" && evidence.status !== "REJECTED";
+    const impact = rejecting
+      ? await evidenceRemovalImpact(
+          user.organizationId, id,
+          (await prisma.evidenceControl.findMany({ where: { evidenceId: id }, select: { controlId: true } })).map((l) => l.controlId)
+        )
+      : null;
+    if (impact) {
+      // Approved evidence of a finished audit period is the audit record: only admins may remove it.
+      if (impact.protected && !(await userHasPermission(user.id, PERMISSIONS.ROLES_MANAGE))) {
+        throw new HttpError(403, `This file is the approved evidence for a finished audit (${impact.slots.filter((s) => s.periodClosed).map((s) => `${s.periodName} · ${s.code} · ${s.label}`).slice(0, 3).join("; ")}). Only an admin can remove it.`);
+      }
+    }
+
     const snapKeys = ["status", "validFrom", "validUntil", "description", "notes", "reviewedById", "reviewedAt"];
     const before = snapshotEntity(evidence as unknown as Record<string, unknown>, snapKeys);
 
@@ -46,6 +62,7 @@ export async function PATCH(
 
     const updated = await prisma.$transaction(async (tx) => {
       const row = await tx.evidence.update({ where: { id }, data });
+      if (impact) await applyEvidenceRemoval(tx, impact);
       await logAudit(
         {
           organizationId: user.organizationId,
@@ -55,7 +72,7 @@ export async function PATCH(
           entityId: id,
           entityName: evidence.fileName,
           action: "UPDATE",
-          changes: data,
+          changes: impact ? { ...data, ...impactSummary(impact) } : data,
           beforeJson: before,
           afterJson: snapshotEntity(row as unknown as Record<string, unknown>, snapKeys),
         },
@@ -82,12 +99,19 @@ export async function DELETE(
     // *after* the DB commit — that way a rollback never leaves the row orphaned.
     const evidence = await prisma.evidence.findFirst({
       where: { id, organizationId: user.organizationId },
-      include: { controls: { select: { control: { select: { code: true } } } } },
+      include: { controls: { select: { control: { select: { id: true, code: true } } } } },
     });
     if (!evidence) throw new HttpError(404, "Evidence not found");
 
+    const impact = await evidenceRemovalImpact(user.organizationId, id, evidence.controls.map((l) => l.control.id));
+    // Approved evidence of a finished audit period is the audit record: only admins may remove it.
+    if (impact.protected && !(await userHasPermission(user.id, PERMISSIONS.ROLES_MANAGE))) {
+      throw new HttpError(403, `This file is the approved evidence for a finished audit (${impact.slots.filter((s) => s.periodClosed).map((s) => `${s.periodName} · ${s.code} · ${s.label}`).slice(0, 3).join("; ")}). Only an admin can remove it.`);
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.evidence.delete({ where: { id } });
+      await applyEvidenceRemoval(tx, impact);
       await logAudit(
         {
           organizationId: user.organizationId,
@@ -97,7 +121,7 @@ export async function DELETE(
           entityId: id,
           entityName: evidence.fileName,
           action: "DELETE",
-          changes: { fileName: evidence.fileName, controlCodes: evidence.controls.map((l) => l.control.code) },
+          changes: { fileName: evidence.fileName, controlCodes: evidence.controls.map((l) => l.control.code), ...impactSummary(impact) },
         },
         tx
       );
@@ -107,7 +131,7 @@ export async function DELETE(
       await deleteUpload(evidence.fileUrl.slice("local:".length));
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, reopened: { controls: impact.controls.length, slots: impact.slots.length } });
   } catch (err) {
     return handleError(err);
   }

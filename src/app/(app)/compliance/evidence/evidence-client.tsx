@@ -6,7 +6,8 @@ import {
   FileCheck, Upload, Trash2, Download, Search, X, ScrollText,
   CheckCircle, XCircle, Clock, AlertTriangle, History, Link2,
 } from "lucide-react";
-import { Modal, ConfirmDialog } from "@/components/modal";
+import { Modal } from "@/components/modal";
+import { EvidenceImpactNotice } from "./evidence-impact-notice";
 import { Field, Select, TextArea, FormError } from "@/components/form";
 import { FilterBar } from "@/components/filter-bar";
 import { useToast } from "@/components/toast";
@@ -153,6 +154,9 @@ export function EvidenceClient({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<EvidenceRow | null>(null);
+  const [deleteCheck, setDeleteCheck] = useState({ loading: true, blocked: false });
+  const [deleting, setDeleting] = useState(false);
+  const [unlinkCheck, setUnlinkCheck] = useState({ loading: false, blocked: false });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [controlFilter, setControlFilter] = useState(preselectedControlId ?? "");
@@ -357,14 +361,17 @@ export function EvidenceClient({
   async function confirmDelete() {
     if (!deleteTarget) return;
     const target = deleteTarget;
-    setDeleteTarget(null);
+    setDeleting(true);
     const res = await fetch(`/api/evidence/${target.id}`, { method: "DELETE" });
+    setDeleting(false);
+    const b = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const b = await res.json().catch(() => ({}));
       toast.error(b?.error ?? "Delete failed");
       return;
     }
-    toast.success(`Deleted "${target.fileName}".`);
+    setDeleteTarget(null);
+    const reopened = (b.reopened?.controls ?? 0) + (b.reopened?.slots ?? 0);
+    toast.success(`Deleted "${target.fileName}".${reopened ? ` Reopened ${reopened} item${reopened === 1 ? "" : "s"} that depended on it.` : ""}`);
     startTransition(() => router.refresh());
   }
 
@@ -845,9 +852,15 @@ export function EvidenceClient({
             </p>
             <ControlPicker allControls={pickerControls} selectedIds={editIds} onChange={setEditIds} />
             {editIds.length > 0 && <CoverageSummary coverage={coverageFor(editIds, controlById, frameworks)} />}
+            <EvidenceImpactNotice
+              evidenceId={editTarget.id}
+              remove={editTarget.controlIds.filter((c) => !editIds.includes(c))}
+              verb="Unlinking"
+              onState={setUnlinkCheck}
+            />
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setEditTarget(null)} className="btn-secondary">Cancel</button>
-              <button type="button" onClick={saveEditControls} disabled={editSaving} className="btn-primary">
+              <button type="button" onClick={saveEditControls} disabled={editSaving || unlinkCheck.loading || unlinkCheck.blocked} className="btn-primary">
                 {editSaving ? "Saving…" : "Save"}
               </button>
             </div>
@@ -855,13 +868,28 @@ export function EvidenceClient({
         )}
       </Modal>
 
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={confirmDelete}
-        title="Delete evidence"
-        message={`Delete "${deleteTarget?.fileName}"? ${deleteTarget?.type === "POLICY" ? "The policy link will be removed." : "The file will be removed from storage."}`}
-      />
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete evidence" size="md">
+        {deleteTarget && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              Delete <span className="font-medium">&ldquo;{deleteTarget.fileName}&rdquo;</span>?{" "}
+              {deleteTarget.type === "POLICY" ? "The policy link will be removed." : "The file will be permanently removed from storage."}
+            </p>
+            <EvidenceImpactNotice evidenceId={deleteTarget.id} verb="Deleting" onState={setDeleteCheck} />
+            <div className="flex justify-end gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
+              <button type="button" onClick={() => setDeleteTarget(null)} className="btn-secondary">Cancel</button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deleteCheck.loading || deleteCheck.blocked || deleting}
+                className="inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? "Deleting…" : "Delete evidence"}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       </>)}
     </div>

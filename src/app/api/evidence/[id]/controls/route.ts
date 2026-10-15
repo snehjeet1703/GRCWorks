@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { HttpError, handleError, parseBody, requirePermission } from "@/lib/api";
+import { HttpError, handleError, parseBody, requirePermission, userHasPermission } from "@/lib/api";
+import { applyEvidenceRemoval, evidenceRemovalImpact, impactSummary } from "@/lib/evidence-impact";
 import { logAudit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
 
@@ -32,12 +33,18 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const before = evidence.controls.map((l) => l.control);
     const added = controls.filter((c) => !before.some((b) => b.id === c.id));
     const removed = before.filter((b) => !wanted.includes(b.id));
+    const impact = await evidenceRemovalImpact(user.organizationId, id, removed.map((c) => c.id));
+    // Approved evidence of a finished audit period is the audit record: only admins may remove it.
+    if (impact.protected && !(await userHasPermission(user.id, PERMISSIONS.ROLES_MANAGE))) {
+      throw new HttpError(403, `This file is the approved evidence for a finished audit (${impact.slots.filter((s) => s.periodClosed).map((s) => `${s.periodName} · ${s.code} · ${s.label}`).slice(0, 3).join("; ")}). Only an admin can remove it.`);
+    }
 
     await prisma.$transaction(async (tx) => {
       if (removed.length > 0) {
         await tx.evidenceControl.deleteMany({
           where: { evidenceId: id, controlId: { in: removed.map((c) => c.id) } },
         });
+        await applyEvidenceRemoval(tx, impact);
       }
       if (added.length > 0) {
         await tx.evidenceControl.createMany({
@@ -56,6 +63,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             action: "UPDATE",
             changes: {
               controls: { from: before.map((c) => c.code), to: controls.map((c) => c.code) },
+              ...impactSummary(impact),
             },
           },
           tx
