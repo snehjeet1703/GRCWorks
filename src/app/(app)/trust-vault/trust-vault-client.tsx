@@ -1124,12 +1124,8 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
     }
   };
 
-  // Extensions add to the time left; an expired grant restarts from today.
-  const extendedUntil = (r: AccessRequest, days: Expiry) => {
-    if (days === null) return null;
-    const base = Math.max(Date.now(), r.tokenExpiresAt ? new Date(r.tokenExpiresAt).getTime() : 0);
-    return new Date(base + days * 86400000);
-  };
+  // Extensions run from today, not from the current end date.
+  const extendedUntil = (days: Expiry) => (days === null ? null : new Date(Date.now() + days * 86400000));
 
   const openReview = (r: AccessRequest) => {
     setReviewing(r);
@@ -1296,11 +1292,11 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
               <strong>{extending.name}</strong> ({extending.email}) keeps the same link and documents.{" "}
               {!extending.tokenExpiresAt ? "Their access currently never expires."
                 : new Date(extending.tokenExpiresAt) < new Date()
-                  ? `Their access expired on ${new Date(extending.tokenExpiresAt).toLocaleDateString()}; extending restarts it from today.`
+                  ? `Their access expired on ${new Date(extending.tokenExpiresAt).toLocaleDateString()}.`
                   : `Their access currently ends on ${new Date(extending.tokenExpiresAt).toLocaleDateString()}.`}
             </p>
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Extend by:</p>
+              <p className="text-sm font-medium text-gray-700 mb-2">Give access for, starting today:</p>
               <div role="radiogroup" aria-label="Extend by" className="flex flex-wrap gap-2">
                 {EXPIRY_OPTIONS.map((o) => (
                   <button
@@ -1311,14 +1307,14 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
                     onClick={() => setExtendBy(o.value)}
                     className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${extendBy === o.value ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
                   >
-                    {o.value === null ? o.label : `+${o.label}`}
+                    {o.label}
                   </button>
                 ))}
               </div>
               <p className="mt-1.5 text-xs text-gray-500">
                 {extendBy === null
                   ? "Access will work until you revoke it."
-                  : `New end date: ${extendedUntil(extending, extendBy)!.toLocaleDateString()}.`}{" "}
+                  : `New end date: ${extendedUntil(extendBy)!.toLocaleDateString()}.`}{" "}
                 We&apos;ll email the customer to let them know.
               </p>
             </div>

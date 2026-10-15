@@ -142,9 +142,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     const { extendByDays } = await parseBody(req, extendSchema);
-    // Adds to whatever is left; an expired grant restarts from today.
-    const base = Math.max(Date.now(), existing.tokenExpiresAt?.getTime() ?? 0);
-    const tokenExpiresAt = extendByDays === null ? null : new Date(base + extendByDays * 86_400_000);
+    // The new period always runs from today, whatever was left on the old one.
+    const tokenExpiresAt = extendByDays === null ? null : new Date(Date.now() + extendByDays * 86_400_000);
 
     const updated = await prisma.trustAccessRequest.update({ where: { id }, data: { tokenExpiresAt } });
 
