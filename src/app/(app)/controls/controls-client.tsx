@@ -17,6 +17,7 @@ import { AuditLogPanel } from "@/components/audit-log-panel";
 import { PageTabs } from "@/components/page-tabs";
 import { ConfirmDialog } from "@/components/modal";
 import { getControlStatusColor } from "@/lib/utils";
+import { FrameworkBadge } from "@/components/framework-badge";
 
 type UserRef = { id: string; name: string };
 type ControlRow = {
@@ -32,6 +33,7 @@ type ControlRow = {
   implementationNotes: string;
   ownerId: string | null;
   ownerName: string | null;
+  frameworks: { id: string; name: string; codes: string[] }[];
   createdAt: string;
   deps: {
     evidence: number;
@@ -72,10 +74,12 @@ function depTotal(d: ControlRow["deps"]) {
 export function ControlsClient({
   initialControls,
   users,
+  frameworks,
   canEdit,
 }: {
   initialControls: ControlRow[];
   users: UserRef[];
+  frameworks: { id: string; name: string }[];
   canEdit: boolean;
 }) {
   const router = useRouter();
@@ -83,6 +87,7 @@ export function ControlsClient({
   const [, startTransition] = useTransition();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [frameworkFilter, setFrameworkFilter] = useState("");
   const [activeTab, setActiveTab] = useState("content");
 
   // Modal state
@@ -105,12 +110,16 @@ export function ControlsClient({
 
   const filtered = initialControls.filter((c) => {
     if (statusFilter && c.status !== statusFilter) return false;
+    if (frameworkFilter === "none" ? c.frameworks.length > 0 : frameworkFilter && !c.frameworks.some((f) => f.id === frameworkFilter)) {
+      return false;
+    }
     if (search) {
       const q = search.toLowerCase();
       if (
         !c.code.toLowerCase().includes(q) &&
         !c.title.toLowerCase().includes(q) &&
-        !c.description.toLowerCase().includes(q)
+        !c.description.toLowerCase().includes(q) &&
+        !c.frameworks.some((f) => f.name.toLowerCase().includes(q) || f.codes.some((code) => code.toLowerCase().includes(q)))
       )
         return false;
     }
@@ -246,8 +255,17 @@ export function ControlsClient({
           <FilterBar
             search={search}
             onSearchChange={setSearch}
-            searchPlaceholder="Search controls by code, title, or description…"
+            searchPlaceholder="Search controls, frameworks or requirement codes (e.g. CC6.1)…"
             selects={[
+              {
+                label: "Framework",
+                value: frameworkFilter,
+                onChange: setFrameworkFilter,
+                options: [
+                  ...frameworks.map((f) => ({ value: f.id, label: f.name })),
+                  { value: "none", label: "Not mapped to any framework" },
+                ],
+              },
               {
                 label: "Status",
                 value: statusFilter,
@@ -270,6 +288,9 @@ export function ControlsClient({
                     </th>
                     <th className="h-10 w-full min-w-[16rem] whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
                       Title
+                    </th>
+                    <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
+                      Frameworks
                     </th>
                     <th className="h-10 whitespace-nowrap px-4 text-left align-middle text-xs font-medium text-muted-foreground">
                       Owner
@@ -309,6 +330,27 @@ export function ControlsClient({
                           <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">
                             {c.description}
                           </p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 align-middle">
+                        {c.frameworks.length === 0 ? (
+                          <span className="text-xs text-gray-400">Not mapped</span>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            {c.frameworks.slice(0, 4).map((f) => (
+                              <span key={f.id} title={`${f.name}: ${f.codes.join(", ")}`}>
+                                <FrameworkBadge name={f.name} size={22} className="!rounded-md" />
+                              </span>
+                            ))}
+                            {c.frameworks.length > 4 && (
+                              <span
+                                className="text-[11px] text-gray-500"
+                                title={c.frameworks.slice(4).map((f) => `${f.name}: ${f.codes.join(", ")}`).join("\n")}
+                              >
+                                +{c.frameworks.length - 4}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">
