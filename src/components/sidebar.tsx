@@ -76,11 +76,14 @@ export function activeItem(pathname: string) {
     .sort((a, b) => b.href.length - a.href.length)[0];
 }
 
+export type Brand = { name: string; logoUrl: string | null };
+
 export function Sidebar({
   permissions,
   roleName,
   userName,
   badges,
+  brand,
   collapsed = false,
   onNavigate,
 }: {
@@ -88,6 +91,7 @@ export function Sidebar({
   roleName?: string;
   userName?: string;
   badges?: Record<string, number>;
+  brand?: Brand;
   collapsed?: boolean;
   onNavigate?: () => void;
 }) {
@@ -106,12 +110,23 @@ export function Sidebar({
     <div className="flex h-full w-full flex-col bg-sidebar-bg text-sidebar-foreground">
       <div className="flex items-center gap-2 p-2">
         <div className="flex h-12 w-full items-center gap-2 overflow-hidden rounded-md px-2 group-data-[collapsed=true]:px-0">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary">
-            <Shield className="h-4 w-4 text-sidebar-primary-foreground" />
-          </div>
-          {!collapsed && (
-            <div className="grid flex-1 text-left leading-tight">
-              <span className="truncate text-sm font-semibold text-foreground">GRC Platform</span>
+          {brand?.logoUrl ? (
+            // The organisation's own logo; collapsed, it's cropped to a square mark.
+            <img
+              src={brand.logoUrl}
+              alt={`${brand.name} logo`}
+              title={brand.name}
+              className={collapsed ? "h-8 w-8 shrink-0 rounded-lg object-cover object-left" : "h-9 max-w-full shrink object-contain object-left"}
+            />
+          ) : (
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary">
+              <Shield className="h-4 w-4 text-sidebar-primary-foreground" />
+            </div>
+          )}
+          {/* With a logo, the logo is the brand; the name shows only without one. */}
+          {!collapsed && !brand?.logoUrl && (
+            <div className="grid min-w-0 flex-1 text-left leading-tight">
+              <span className="truncate text-sm font-semibold text-foreground">{brand?.name || "GRC Platform"}</span>
               <span className="truncate text-xs text-muted-foreground">Governance & compliance</span>
             </div>
           )}

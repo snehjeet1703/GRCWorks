@@ -11,7 +11,7 @@ type Question = {
 type Answer = { questionId: string; value: string | string[] | number | boolean };
 type FileMeta = { id: string; questionId: string; fileName: string; fileSize: number };
 type PortalData = {
-  organizationName: string; vendorName: string; title: string; maskedEmail: string;
+  organizationName: string; vendorName: string; title: string; maskedEmail: string; logoVersion: number | null;
   status: string; expiresAt: string; verified: boolean;
   description?: string; questions?: Question[]; answers?: Answer[]; files?: FileMeta[];
   reviewNotes?: string; submittedAt?: string | null;
@@ -92,9 +92,13 @@ function Verify({ api, data, onVerified }: { api: string; data: PortalData; onVe
   return (
     <Shell>
       <div className="mb-6 text-center">
-        <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-gray-900">
-          <ShieldCheck className="h-6 w-6 text-white" />
-        </div>
+        {data.logoVersion ? (
+          <img src={`${api}/logo?v=${data.logoVersion}`} alt={`${data.organizationName} logo`} className="mx-auto h-11 max-w-[12rem] object-contain" />
+        ) : (
+          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-gray-900">
+            <ShieldCheck className="h-6 w-6 text-white" />
+          </div>
+        )}
         <h1 className="mt-4 text-xl font-semibold">{data.title}</h1>
         <p className="mt-1 text-sm text-gray-600">
           <strong>{data.organizationName}</strong> has asked <strong>{data.vendorName}</strong> to complete this questionnaire.
@@ -238,6 +242,9 @@ function Questionnaire({ api, data, accept, onChange }: { api: string; data: Por
   return (
     <Shell wide>
       <header className="mb-6">
+        {data.logoVersion && (
+          <img src={`${api}/logo?v=${data.logoVersion}`} alt={`${data.organizationName} logo`} className="mb-3 h-9 max-w-[12rem] object-contain" />
+        )}
         <p className="text-sm text-gray-500">{data.organizationName} · for {data.vendorName}</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight">{data.title}</h1>
         {data.description && <p className="mt-2 text-sm text-gray-600">{data.description}</p>}

@@ -7,6 +7,7 @@ import {
   Shield, Link2, ListChecks, ImageUp, Sparkles, Search,
 } from "lucide-react";
 import { TrustControlIcon } from "@/components/trust-control-icon";
+import { LogoUpload } from "@/components/logo-upload";
 import { PageTabs, type TabDef } from "@/components/page-tabs";
 import { Modal, ConfirmDialog } from "@/components/modal";
 import { useToast } from "@/components/toast";
@@ -285,7 +286,15 @@ function SettingsTab({ config, canManage, onSave, toast }: {
         </div>
       </div>
 
-      <LogoCard hasLogo={!!config.logoStorageKey} canManage={canManage} onChange={onSave} toast={toast} />
+      <LogoUpload
+        endpoint="/api/trust-vault/logo"
+        title="Trust page logo"
+        description="Shown in the trust page header. Leave empty to use your organisation logo from Settings. PNG, JPEG or WebP, up to 1 MB."
+        emptyHint="Using organisation logo"
+        hasLogo={!!config.logoStorageKey}
+        canManage={canManage}
+        onChange={onSave}
+      />
 
       <div className="rounded-lg border border-gray-200 p-6 space-y-4">
         <h3 className="font-medium text-gray-900">Hero Section</h3>
@@ -366,84 +375,6 @@ function SettingsTab({ config, canManage, onSave, toast }: {
           {saving ? "Saving..." : "Save Settings"}
         </button>
       )}
-    </div>
-  );
-}
-
-function LogoCard({ hasLogo, canManage, onChange, toast }: {
-  hasLogo: boolean; canManage: boolean; onChange: () => void; toast: any;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [version, setVersion] = useState(() => Date.now());
-
-  const upload = async (file: File) => {
-    setBusy(true);
-    try {
-      const body = new FormData();
-      body.append("file", file);
-      const res = await fetch("/api/trust-vault/logo", { method: "POST", body });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Upload failed");
-      setVersion(Date.now());
-      toast.success("Logo updated");
-      onChange();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const remove = async () => {
-    setBusy(true);
-    try {
-      const res = await fetch("/api/trust-vault/logo", { method: "DELETE" });
-      if (!res.ok) throw new Error();
-      toast.success("Logo removed");
-      onChange();
-    } catch {
-      toast.error("Failed to remove logo");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="rounded-lg border border-gray-200 p-6">
-      <h3 className="font-medium text-gray-900">Logo</h3>
-      <p className="mb-4 text-sm text-gray-500">Shown in the trust page header. PNG, JPEG or WebP, up to 1MB.</p>
-      <div className="flex items-center gap-4">
-        <div className="flex h-16 w-40 items-center justify-center rounded-md border border-dashed border-gray-300 bg-gray-50 p-2">
-          {hasLogo ? (
-            <img src={`/api/trust-vault/logo?v=${version}`} alt="Current logo" className="max-h-full max-w-full object-contain" />
-          ) : (
-            <span className="text-xs text-gray-400">No logo</span>
-          )}
-        </div>
-        {canManage && (
-          <div className="flex gap-2">
-            <label className={`btn-secondary btn-sm cursor-pointer ${busy ? "pointer-events-none opacity-50" : ""}`}>
-              <ImageUp className="h-4 w-4" /> {hasLogo ? "Replace" : "Upload"}
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                className="sr-only"
-                disabled={busy}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = "";
-                  if (f) upload(f);
-                }}
-              />
-            </label>
-            {hasLogo && (
-              <button type="button" onClick={remove} disabled={busy} className="btn-ghost btn-sm text-red-600">
-                Remove
-              </button>
-            )}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

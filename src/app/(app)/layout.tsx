@@ -25,7 +25,7 @@ export default async function AppLayout({
 
   const org = await prisma.organization.findUnique({
     where: { id: user.organizationId },
-    select: { onboardingComplete: true },
+    select: { onboardingComplete: true, name: true, logoStorageKey: true, logoUpdatedAt: true },
   });
   if (org && !org.onboardingComplete) {
     redirect("/onboarding");
@@ -60,6 +60,10 @@ export default async function AppLayout({
         roleName={user.roleName ?? user.role}
         userName={user.name ?? user.email}
         badges={{ openTasks }}
+        brand={{
+          name: org?.name ?? "",
+          logoUrl: org?.logoStorageKey ? `/api/organization/logo?v=${org.logoUpdatedAt?.getTime() ?? 1}` : null,
+        }}
       >
         {children}
       </AppShell>

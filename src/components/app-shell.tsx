@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { PanelLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SIDEBAR_COOKIE } from "@/lib/sidebar-state";
-import { Sidebar, activeItem } from "./sidebar";
+import { Sidebar, activeItem, type Brand } from "./sidebar";
 import { ThemeCustomizer } from "./theme-customizer";
 
 export function AppShell({
@@ -15,6 +15,7 @@ export function AppShell({
   roleName,
   userName,
   badges,
+  brand,
 }: {
   children: ReactNode;
   defaultOpen: boolean;
@@ -22,6 +23,7 @@ export function AppShell({
   roleName?: string;
   userName?: string;
   badges?: Record<string, number>;
+  brand?: Brand;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -53,7 +55,7 @@ export function AppShell({
     return () => window.removeEventListener("keydown", onKey);
   }, [toggle]);
 
-  const sidebarProps = { permissions, roleName, userName, badges };
+  const sidebarProps = { permissions, roleName, userName, badges, brand };
 
   return (
     <div className="flex min-h-svh w-full">

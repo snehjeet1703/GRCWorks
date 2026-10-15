@@ -10,8 +10,9 @@ import { useToast } from "@/components/toast";
 import { PageTabs } from "@/components/page-tabs";
 import { PERMISSION_CATEGORIES, type Permission } from "@/lib/permissions";
 import { SortHeader, useSort } from "@/components/sortable";
+import { LogoUpload } from "@/components/logo-upload";
 
-type Org = { id: string; name: string; slug: string };
+type Org = { id: string; name: string; slug: string; hasLogo: boolean };
 type UserRow = {
   id: string;
   email: string;
@@ -465,6 +466,14 @@ export function SettingsClient({
             )}
           </form>
         </div>
+        <LogoUpload
+          endpoint="/api/organization/logo"
+          title="Organisation logo"
+          description="Shown at the top of the sidebar for everyone in your organisation, and used on your Trust Center and vendor questionnaires unless the Trust Vault has its own logo. PNG, JPEG or WebP, up to 1 MB; a wide logo on a transparent background works best."
+          hasLogo={organization.hasLogo}
+          canManage={canManageOrg}
+          onChange={() => startTransition(() => router.refresh())}
+        />
         {canManageOrg && <RemindersCard toast={toast} />}
         </div>
       )}

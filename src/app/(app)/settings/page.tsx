@@ -12,7 +12,7 @@ export default async function SettingsPage() {
   const [org, users, roles] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: orgId },
-      select: { id: true, name: true, slug: true },
+      select: { id: true, name: true, slug: true, logoStorageKey: true },
     }),
     prisma.user.findMany({
       where: { organizationId: orgId },
@@ -43,7 +43,7 @@ export default async function SettingsPage() {
 
   return (
     <SettingsClient
-      organization={org!}
+      organization={{ id: org!.id, name: org!.name, slug: org!.slug, hasLogo: !!org!.logoStorageKey }}
       users={users.map((u) => ({
         id: u.id,
         email: u.email,

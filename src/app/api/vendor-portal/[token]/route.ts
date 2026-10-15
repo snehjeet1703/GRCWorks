@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { handleError, HttpError } from "@/lib/api";
 import { clientIp, limitOrNull } from "@/lib/rate-limit";
+import { orgLogoVersion } from "@/lib/org-logo";
 import { hasPortalSession, loadPortalResponse, maskEmail, parseQuestions } from "@/lib/vendor-portal";
 
 // Before email verification only the invite's context is revealed, never questions or answers.
@@ -20,6 +21,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
       maskedEmail: maskEmail(r.contactEmail),
       status: r.status,
       expiresAt: r.inviteExpiresAt,
+      logoVersion: await orgLogoVersion(r.questionnaire.organizationId),
     };
     if (!(await hasPortalSession(r.id))) return NextResponse.json({ ...base, verified: false });
 

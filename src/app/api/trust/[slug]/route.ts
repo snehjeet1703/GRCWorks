@@ -15,7 +15,7 @@ export async function GET(
 
     const org = await prisma.organization.findUnique({
       where: { slug },
-      select: { id: true, name: true, slug: true },
+      select: { id: true, name: true, slug: true, logoStorageKey: true },
     });
     if (!org) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -91,7 +91,7 @@ export async function GET(
         showControls: config.showControls,
         showSubprocessors: config.showSubprocessors,
         requireNda: config.requireNda,
-        hasLogo: !!config.logoStorageKey,
+        hasLogo: !!(config.logoStorageKey || org.logoStorageKey),
       },
       badges,
       documents,

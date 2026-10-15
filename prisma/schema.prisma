@@ -21,6 +21,10 @@ model Organization {
   remindersEnabled        Boolean @default(true) @map("reminders_enabled")
   reminderWeekday         Int     @default(1) @map("reminder_weekday") // 0 = Sunday … 6 = Saturday
   reminderFinalDays       Int     @default(7) @map("reminder_final_days")
+  // Organisation logo for the portal (and the default for the Trust Vault and vendor portal).
+  logoStorageKey     String?  @map("logo_storage_key")
+  logoMimeType       String?  @map("logo_mime_type")
+  logoUpdatedAt      DateTime? @map("logo_updated_at")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
