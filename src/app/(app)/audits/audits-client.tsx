@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarRange, Plus, ArrowRight } from "lucide-react";
+import { CalendarRange, Plus, ArrowRight, FileSpreadsheet } from "lucide-react";
+import { ImportSheetModal } from "./import-sheet-modal";
 import { Modal } from "@/components/modal";
 import { Field, Select, TextInput, FormError } from "@/components/form";
 import { FrameworkBadge } from "@/components/framework-badge";
@@ -57,6 +58,7 @@ export function AuditsClient({
   const toast = useToast();
   const [, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const year = new Date().getFullYear();
   const [form, setForm] = useState({ name: "", frameworkId: "", startDate: `${year}-01-01`, endDate: `${year}-12-31` });
   const [saving, setSaving] = useState(false);
@@ -89,6 +91,10 @@ export function AuditsClient({
           </p>
         </div>
         {canManage && (
+          <div className="flex gap-2">
+          <button className="btn-secondary" onClick={() => setImportOpen(true)}>
+            <FileSpreadsheet className="mr-2 h-4 w-4" /> Import from sheet
+          </button>
           <button className="btn-primary" onClick={() => {
             setForm({ name: "", frameworkId: frameworks[0]?.id ?? "", startDate: `${year}-01-01`, endDate: `${year}-12-31` });
             setError(null);
@@ -96,6 +102,7 @@ export function AuditsClient({
           }}>
             <Plus className="mr-2 h-4 w-4" /> New audit period
           </button>
+          </div>
         )}
       </div>
 
@@ -176,6 +183,16 @@ export function AuditsClient({
           </div>
         </form>
       </Modal>
+      <ImportSheetModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        frameworks={frameworks}
+        onImported={(id, created, updated) => {
+          setImportOpen(false);
+          toast.success(`Imported ${created} new and ${updated} updated controls.`);
+          startTransition(() => router.push(`/audits/${id}`));
+        }}
+      />
     </div>
   );
 }
