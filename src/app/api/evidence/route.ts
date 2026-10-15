@@ -6,10 +6,27 @@ import { HttpError, handleError, parseBody, readUploadForm, requirePermission, r
 import { logAudit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
 import { saveUpload } from "@/lib/storage";
+import { safeDisplayName } from "@/lib/vendor-upload";
 import { ownsAllControls } from "@/lib/control-work";
 import { resolveSlot } from "@/lib/audit-periods";
 
 const controlIdsSchema = z.array(z.string().uuid()).min(1, "Select at least one control").max(200);
+
+// Text fields sent with a file upload (multipart), validated like a JSON body would be.
+const optionalDate = z.string().trim().max(40).optional().transform((v, ctx) => {
+  if (!v) return null;
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) { ctx.addIssue({ code: "custom", message: "Invalid date" }); return z.NEVER; }
+  return d;
+});
+const uploadFieldsSchema = z.object({
+  notes: z.string().max(5000).default(""),
+  description: z.string().max(5000).default(""),
+  type: z.enum(["UPLOAD", "DOCUMENT", "SCREENSHOT", "REPORT", "CONFIGURATION", "EXPORT", "LOG"]).default("UPLOAD"),
+  collectedAt: optionalDate,
+  validFrom: optionalDate,
+  validUntil: optionalDate,
+});
 
 const policyEvidenceSchema = z.object({
   // `controlId` is the legacy single-control form; `controlIds` links one artifact to several controls.
@@ -98,6 +115,7 @@ const MAGIC_BYTES: Record<string, number[]> = {
   ".jpg": [0xff, 0xd8, 0xff],
   ".jpeg": [0xff, 0xd8, 0xff],
   ".gif": [0x47, 0x49, 0x46],       // GIF
+  ".webp": [0x52, 0x49, 0x46, 0x46], // RIFF
   ".zip": [0x50, 0x4b, 0x03, 0x04],
   ".docx": [0x50, 0x4b, 0x03, 0x04],
   ".xlsx": [0x50, 0x4b, 0x03, 0x04],
@@ -106,7 +124,11 @@ const MAGIC_BYTES: Record<string, number[]> = {
 function assertMagicBytes(fileName: string, data: Uint8Array) {
   const ext = path.extname(fileName).toLowerCase();
   const expected = MAGIC_BYTES[ext];
-  if (!expected) return;
+  // Text formats must really be text (no binary payload behind a .txt/.csv name).
+  if (!expected) {
+    if (data.includes(0)) throw new HttpError(400, `File content does not match expected format for "${ext}"`);
+    return;
+  }
   if (data.length < expected.length) {
     throw new HttpError(400, `File content does not match expected format for "${ext}"`);
   }
@@ -226,13 +248,16 @@ export async function POST(req: Request) {
     const controlIds = [...form.getAll("controlIds"), ...form.getAll("controlId")].filter(
       (v): v is string => typeof v === "string" && v.length > 0
     );
-    const notes = (form.get("notes") as string | null) ?? "";
-    const description = (form.get("description") as string | null) ?? "";
-    const evidenceType = (form.get("type") as string | null) ?? "UPLOAD";
-    const source = (form.get("source") as string | null) ?? "MANUAL_UPLOAD";
-    const collectedAt = form.get("collectedAt") as string | null;
-    const validFrom = form.get("validFrom") as string | null;
-    const validUntil = form.get("validUntil") as string | null;
+    const field = (k: string) => { const v = form.get(k); return typeof v === "string" && v !== "" ? v : undefined; };
+    const fields = uploadFieldsSchema.safeParse({
+      notes: field("notes"), description: field("description"), type: field("type"),
+      collectedAt: field("collectedAt"), validFrom: field("validFrom"), validUntil: field("validUntil"),
+    });
+    if (!fields.success) {
+      const issue = fields.error.issues[0];
+      throw new HttpError(400, `${issue?.path.join(".") || "Field"}: ${issue?.message ?? "invalid value"}`);
+    }
+    const { notes, description, type: evidenceType, collectedAt, validFrom, validUntil } = fields.data;
     const file = form.get("file");
     if (controlIds.length === 0) {
       throw new HttpError(400, "Select at least one control");
@@ -265,17 +290,18 @@ export async function POST(req: Request) {
           organizationId: user.organizationId,
           controls: { create: controls.map((c) => ({ controlId: c.id })) },
           uploadedById: user.id,
-          type: evidenceType as any,
-          source: source as any,
-          fileName: file.name,
+          type: evidenceType,
+          // Files uploaded here are always manual uploads; integrations and generated evidence use their own paths.
+          source: "MANUAL_UPLOAD",
+          fileName: safeDisplayName(file.name),
           fileUrl: `local:${stored.storageKey}`,
           fileSize: stored.size,
           description,
           notes,
-          collectedAt: collectedAt ? new Date(collectedAt) : new Date(),
+          collectedAt: collectedAt ?? new Date(),
           ...period,
-          validFrom: validFrom ? new Date(validFrom) : null,
-          validUntil: validUntil ? new Date(validUntil) : null,
+          validFrom,
+          validUntil,
         },
       });
       await logAudit(

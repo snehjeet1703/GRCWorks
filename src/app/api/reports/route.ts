@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { attachmentHeader, csvCell } from "@/lib/csv";
 import { prisma } from "@/lib/db";
 import { HttpError, handleError, requirePermission } from "@/lib/api";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -129,10 +130,14 @@ export async function GET(req: Request) {
       const rows = ["Requirement Code,Requirement Title,Readiness,Control Count,Controls"];
       for (const r of requirements) {
         const ctrlCodes = r.controls.map(c => c.code).join("; ");
-        rows.push(`"${r.code}","${r.title}","${r.readiness}",${r.controlCount},"${ctrlCodes}"`);
+        rows.push([r.code, r.title, r.readiness, r.controlCount, ctrlCodes].map(csvCell).join(","));
       }
-      return new Response(rows.join("\n"), {
-        headers: { "Content-Type": "text/csv", "Content-Disposition": `attachment; filename="${framework.name}-report.csv"` },
+      return new Response("﻿" + rows.join("\r\n"), {
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": attachmentHeader(`${framework.name}-report.csv`),
+          "X-Content-Type-Options": "nosniff",
+        },
       });
     }
 

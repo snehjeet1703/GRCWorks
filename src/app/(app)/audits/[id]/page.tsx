@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { requirePagePermission } from "@/lib/page-auth";
-import { periodCoverage } from "@/lib/audit-periods";
+import { controlsOutsideScope, periodCoverage } from "@/lib/audit-periods";
 import { AuditDetailClient } from "./audit-detail-client";
 
 export default async function AuditDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -14,10 +14,12 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
 
   const cov = await periodCoverage(user.organizationId, id);
   if (!cov) notFound();
+  const outsideScope = await controlsOutsideScope(user.organizationId, id, cov.period.framework.id);
 
   return (
     <AuditDetailClient
       coverage={cov}
+      outsideScope={outsideScope}
       canManage={permissions.includes("frameworks:manage")}
       canEditControls={permissions.includes("controls:write")}
       canExport={permissions.includes("reports:export")}

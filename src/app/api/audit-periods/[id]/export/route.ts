@@ -1,4 +1,5 @@
 import { strToU8, zipSync, type Zippable } from "fflate";
+import { csvCell } from "@/lib/csv";
 import { prisma } from "@/lib/db";
 import { HttpError, handleError, requirePermission } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
@@ -15,12 +16,6 @@ const STATUS_LABEL: Record<string, string> = {
 const segment = (s: string, max = 80) =>
   s.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-").replace(/\s+/g, " ").trim().slice(0, max).replace(/[. ]+$/, "") || "untitled";
 
-const csvCell = (v: unknown) => {
-  const s = v === null || v === undefined ? "" : String(v);
-  // Neutralise spreadsheet formulas (CSV injection) and quote everything.
-  const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
-  return `"${safe.replace(/"/g, '""')}"`;
-};
 
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 

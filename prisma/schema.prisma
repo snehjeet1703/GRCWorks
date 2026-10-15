@@ -288,6 +288,7 @@ model Control {
   trustDocLinks  TrustDocumentControl[]
   tasks          Task[]
   slotReviews    EvidenceSlotReview[]
+  auditScopes    AuditPeriodControl[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -1120,9 +1121,27 @@ model AuditPeriod {
   framework    Framework           @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
   slotReviews  EvidenceSlotReview[]
   reminderLogs ReminderLog[]
+  scope        AuditPeriodControl[]
 
   @@index([organizationId])
   @@map("audit_periods")
+}
+
+// The controls an audit period covers, with each control's evidence frequency for that period.
+// Saved when the period is created so later changes to controls don't rewrite past audits.
+model AuditPeriodControl {
+  id            String           @id @default(uuid())
+  auditPeriodId String           @map("audit_period_id")
+  controlId     String           @map("control_id")
+  frequency     ControlFrequency
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  auditPeriod AuditPeriod @relation(fields: [auditPeriodId], references: [id], onDelete: Cascade)
+  control     Control     @relation(fields: [controlId], references: [id], onDelete: Cascade)
+
+  @@unique([auditPeriodId, controlId])
+  @@index([controlId])
+  @@map("audit_period_controls")
 }
 
 enum SlotReviewStatus {

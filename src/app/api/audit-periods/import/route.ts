@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { HttpError, handleError, readUploadForm, requirePermission } from "@/lib/api";
+import { HttpError, handleError, readUploadForm, requirePermission, userHasPermission } from "@/lib/api";
+import { limitOrNull } from "@/lib/rate-limit";
 import { logAudit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
-import { parsePeriodDates, periodSchema } from "@/lib/audit-periods";
+import { addToScope, parsePeriodDates, periodSchema } from "@/lib/audit-periods";
 import { frequencyLabel, parseSheet } from "@/lib/control-sheet";
 
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -15,11 +16,20 @@ const MAX_BYTES = 5 * 1024 * 1024;
 export async function POST(req: Request) {
   try {
     const { resolved, ...user } = await requirePermission(PERMISSIONS.FRAMEWORKS_MANAGE);
+    // The import creates and edits controls too, so it needs both permissions.
+    if (!(await userHasPermission(user.id, PERMISSIONS.CONTROLS_WRITE))) {
+      throw new HttpError(403, `Importing a control sheet needs the "Edit controls" permission as well as "Manage frameworks".`);
+    }
+    const limited = limitOrNull(`control-import:${user.id}`, 30, 10 * 60 * 1000);
+    if (limited) return limited;
     const form = await readUploadForm(req, MAX_BYTES, "The sheet must be 5 MB or smaller.");
     const file = form.get("file");
     if (!(file instanceof File) || file.size === 0) throw new HttpError(400, "Choose the filled-in control sheet to upload");
     if (file.size > MAX_BYTES) throw new HttpError(413, "The sheet must be 5 MB or smaller.");
     const mode = form.get("mode") === "import" ? "import" : "preview";
+    // Full scope: the sheet is the complete control list. Framework controls missing from it are unlinked
+    // from the framework (not deleted) and left out of the period.
+    const fullScope = form.get("fullScope") === "true";
 
     const period = periodSchema.safeParse({
       name: String(form.get("name") ?? ""),
@@ -50,12 +60,13 @@ export async function POST(req: Request) {
       }),
       prisma.control.findMany({
         where: { organizationId: user.organizationId, mappings: { some: { requirement: { frameworkId: framework.id } } } },
-        select: { code: true },
+        select: { id: true, code: true },
       }),
     ]);
     const userByEmail = new Map(users.map((u) => [u.email.toLowerCase(), u]));
     const existingByCode = new Map(existing.map((c) => [c.code.toLowerCase(), c]));
     const reqByCode = new Map(framework.requirements.map((r) => [r.code.toLowerCase(), r]));
+    const MAX_NEW_CRITERIA = 300;
 
     const unknownOwners = new Set<string>();
     const newCriteria = new Map<string, string>();
@@ -79,8 +90,13 @@ export async function POST(req: Request) {
       unknownOwners: [...unknownOwners],
       newCriteria: [...newCriteria.values()],
       notInSheet: inScope.filter((c) => !sheetCodes.has(c.code.toLowerCase())).map((c) => c.code),
+      fullScope,
     };
+    const notInSheetIds = inScope.filter((c) => !sheetCodes.has(c.code.toLowerCase())).map((c) => c.id);
 
+    if (newCriteria.size > MAX_NEW_CRITERIA) {
+      throw new HttpError(400, `The sheet introduces ${newCriteria.size} criteria that ${framework.name} doesn't have (limit ${MAX_NEW_CRITERIA}). Check the criteria column matches the framework's IDs.`);
+    }
     if (mode === "preview") return NextResponse.json({ ...summary, rows });
     if (sheet.errors.length) throw new HttpError(400, "Fix the rows with problems and upload the sheet again.");
 
@@ -95,6 +111,7 @@ export async function POST(req: Request) {
         reqByCode.set(code.toLowerCase(), r);
       }
 
+      const sheetControlIds: string[] = [];
       for (const r of sheet.rows) {
         const ownerId = r.owner ? userByEmail.get(r.owner)?.id : undefined;
         // Blank optional cells keep what the control already has.
@@ -110,10 +127,18 @@ export async function POST(req: Request) {
         const control = current
           ? await tx.control.update({ where: { id: current.id }, data: fields, select: { id: true } })
           : await tx.control.create({ data: { organizationId: user.organizationId, code: r.code, ...fields }, select: { id: true } });
+        sheetControlIds.push(control.id);
         await tx.controlMapping.createMany({
           data: r.criteria.map((c) => ({ controlId: control.id, frameworkRequirementId: reqByCode.get(c.toLowerCase())!.id })),
           skipDuplicates: true,
         });
+      }
+
+      let unlinked = 0;
+      if (fullScope && notInSheetIds.length) {
+        unlinked = (await tx.controlMapping.deleteMany({
+          where: { controlId: { in: notInSheetIds }, requirement: { frameworkId: framework.id } },
+        })).count;
       }
 
       const p = await tx.auditPeriod.create({
@@ -122,6 +147,8 @@ export async function POST(req: Request) {
           startDate: start, endDate: end, createdById: user.id,
         },
       });
+      // Frequencies come from the sheet (already saved on the controls above).
+      const scoped = await addToScope(tx, user.organizationId, p.id, framework.id, fullScope ? sheetControlIds : undefined);
       await logAudit(
         {
           organizationId: user.organizationId, userId: user.id, userName: user.name,
@@ -129,7 +156,8 @@ export async function POST(req: Request) {
           afterJson: {
             name: p.name, framework: framework.name, startDate: period.data.startDate, endDate: period.data.endDate,
             importedFrom: file.name, controlsCreated: summary.create, controlsUpdated: summary.update,
-            criteriaAdded: summary.newCriteria,
+            criteriaAdded: summary.newCriteria, fullScope, controlsInScope: scoped,
+            unlinkedFromFramework: fullScope ? summary.notInSheet : [], mappingsRemoved: unlinked,
           },
         },
         tx

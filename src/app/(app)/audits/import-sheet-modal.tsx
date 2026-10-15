@@ -44,16 +44,18 @@ export function ImportSheetModal({
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [busy, setBusy] = useState<"preview" | "import" | null>(null);
+  const [fullScope, setFullScope] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const reset = () => { setForm(initial()); setFile(null); setPreview(null); setError(null); };
+  const reset = () => { setForm(initial()); setFile(null); setPreview(null); setError(null); setFullScope(false); };
   const close = () => { reset(); onClose(); };
 
   const send = async (mode: "preview" | "import", f: File) => {
     const body = new FormData();
     body.set("file", f);
     body.set("mode", mode);
+    body.set("fullScope", String(fullScope));
     Object.entries(form).forEach(([k, v]) => body.set(k, v));
     const res = await fetch("/api/audit-periods/import", { method: "POST", body });
     const data = await res.json().catch(() => ({}));
@@ -191,7 +193,7 @@ export function ImportSheetModal({
               </div>
             )}
 
-            {(preview.unknownOwners.length > 0 || preview.newCriteria.length > 0 || preview.notInSheet.length > 0) && (
+            {(preview.unknownOwners.length > 0 || preview.newCriteria.length > 0 || (preview.notInSheet.length > 0 && !fullScope)) && (
               <div className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
                 <p className="flex items-center gap-1.5 text-sm font-medium"><AlertTriangle className="h-4 w-4" /> Please check</p>
                 {preview.unknownOwners.length > 0 && (
@@ -200,10 +202,24 @@ export function ImportSheetModal({
                 {preview.newCriteria.length > 0 && (
                   <p>These criteria aren&apos;t in {fwName(form.frameworkId)} yet and will be added: {preview.newCriteria.join(", ")}</p>
                 )}
-                {preview.notInSheet.length > 0 && (
-                  <p>{preview.notInSheet.length} control{preview.notInSheet.length === 1 ? " is" : "s are"} mapped to {fwName(form.frameworkId)} but not in the sheet; {preview.notInSheet.length === 1 ? "it stays" : "they stay"} in scope: {preview.notInSheet.slice(0, 10).join(", ")}{preview.notInSheet.length > 10 ? "…" : ""}</p>
+                {preview.notInSheet.length > 0 && !fullScope && (
+                  <p>{preview.notInSheet.length} control{preview.notInSheet.length === 1 ? " is" : "s are"} mapped to {fwName(form.frameworkId)} but not in the sheet; {preview.notInSheet.length === 1 ? "it stays" : "they stay"} in {fwName(form.frameworkId)} and in this audit: {preview.notInSheet.slice(0, 10).join(", ")}{preview.notInSheet.length > 10 ? "…" : ""}</p>
                 )}
               </div>
+            )}
+
+            {preview.notInSheet.length > 0 && (
+              <label className={`flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 text-sm ${fullScope ? "border-brand-500 bg-brand-50/50 dark:bg-brand-950/30" : "border-border"}`}>
+                <input type="checkbox" checked={fullScope} onChange={(e) => setFullScope(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600" />
+                <span>
+                  <span className="font-medium">This sheet is the complete control list</span>
+                  <span className="mt-0.5 block text-xs text-gray-500">
+                    {fullScope
+                      ? <>The audit covers exactly the {preview.rows.length} controls in the sheet. These {preview.notInSheet.length} will be unlinked from {fwName(form.frameworkId)} (not deleted; their evidence and other frameworks are kept) and left out of this audit: <span className="font-mono">{preview.notInSheet.slice(0, 15).join(", ")}{preview.notInSheet.length > 15 ? ` and ${preview.notInSheet.length - 15} more` : ""}</span>. Earlier audit periods don&apos;t change.</>
+                      : <>Tick to make {fwName(form.frameworkId)} and this audit contain only the controls in the sheet ({preview.rows.length} instead of {preview.rows.length + preview.notInSheet.length}).</>}
+                  </span>
+                </span>
+              </label>
             )}
 
             {preview.rows.length > 0 && (

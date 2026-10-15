@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { HttpError, handleError, parseBody, requirePermission } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
-import { parsePeriodDates, periodCoverage, periodSchema } from "@/lib/audit-periods";
+import { addToScope, parsePeriodDates, periodCoverage, periodSchema } from "@/lib/audit-periods";
 
 export async function GET() {
   try {
@@ -42,11 +42,12 @@ export async function POST(req: Request) {
           startDate: start, endDate: end, createdById: user.id,
         },
       });
+      const inScope = await addToScope(tx, user.organizationId, created.id, framework.id);
       await logAudit(
         {
           organizationId: user.organizationId, userId: user.id, userName: user.name,
           entityType: "AuditPeriod", entityId: created.id, entityName: created.name, action: "CREATE",
-          afterJson: { name: created.name, framework: framework.name, startDate: data.startDate, endDate: data.endDate },
+          afterJson: { name: created.name, framework: framework.name, startDate: data.startDate, endDate: data.endDate, controls: inScope },
         },
         tx
       );

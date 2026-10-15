@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 import type { ControlFrequency, ControlStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { HttpError } from "@/lib/api";
-import { addDropdown, norm, readGrid, styleHeader, writeInstructions } from "@/lib/sheet";
+import { SAFE_ID, addDropdown, norm, readGrid, styleHeader, writeInstructions } from "@/lib/sheet";
 
 // Spreadsheet template for loading a year's controls into an audit period:
 // the platform hands out the template, the team fills it in, and it comes back as an upload.
@@ -172,9 +172,13 @@ export async function parseSheet(file: File): Promise<ParsedSheet> {
 
     const problems: string[] = [];
     if (!code) problems.push("Control ID is empty");
-    else if (code.length > 50) problems.push("Control ID is longer than 50 characters");
+    else if (!SAFE_ID.test(code)) problems.push("Control ID must be up to 50 letters, digits or simple punctuation (- . _ / : ( )), starting with a letter or digit");
     if (!title) problems.push("Control Name is empty");
     if (criteria.length === 0) problems.push("no criteria given");
+    else if (criteria.length > 30) problems.push("more than 30 criteria in one row");
+    const badCriteria = criteria.filter((c) => !SAFE_ID.test(c));
+    if (badCriteria.length) problems.push(`criteria IDs must be up to 50 letters, digits or simple punctuation: ${badCriteria.slice(0, 3).map((c) => `"${c.slice(0, 20)}"`).join(", ")}`);
+    if (get(r, "owner").length > 254) problems.push("Owner Email is too long");
     if (!freqRaw) problems.push("Evidence Frequency is empty");
     else if (!frequency) problems.push(`"${freqRaw}" isn't a frequency (use ${FREQUENCIES.map((f) => f.label).join(", ")})`);
     if (statusRaw && !status) problems.push(`"${statusRaw}" isn't a status (use ${STATUSES.map((s) => s.label).join(", ")})`);

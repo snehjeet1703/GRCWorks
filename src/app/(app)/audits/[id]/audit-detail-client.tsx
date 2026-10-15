@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Download, Trash2, Search, Repeat, FileText } from "lucide-react";
+import { ArrowLeft, Download, Trash2, Search, Repeat, FileText, PlusCircle, X } from "lucide-react";
 import { Modal, ConfirmDialog } from "@/components/modal";
 import { Select } from "@/components/form";
 import { FrameworkBadge } from "@/components/framework-badge";
@@ -45,9 +45,11 @@ function cellText(slot: SlotView, total: number) {
 }
 
 export function AuditDetailClient({
-  coverage, canManage, canEditControls, canExport,
+  coverage, outsideScope, canManage, canEditControls, canExport,
 }: {
   coverage: Coverage;
+  // Framework controls this period doesn't cover (added to the framework after the period was set up).
+  outsideScope: { id: string; code: string; title: string }[];
   canManage: boolean;
   canEditControls: boolean;
   canExport: boolean;
@@ -96,6 +98,24 @@ export function AuditDetailClient({
     const b = await res.json().catch(() => ({}));
     if (!res.ok) return toast.error(b?.error ?? "Couldn't update frequencies");
     toast.success(`Updated ${b.updated} control${b.updated === 1 ? "" : "s"}.`);
+    startTransition(() => router.refresh());
+  }
+
+  const [removeTarget, setRemoveTarget] = useState<ControlCoverage | null>(null);
+  const [scopeBusy, setScopeBusy] = useState(false);
+
+  async function changeScope(body: { add?: "all"; remove?: string[] }) {
+    setScopeBusy(true);
+    const res = await fetch(`/api/audit-periods/${period.id}/scope`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setScopeBusy(false);
+    setRemoveTarget(null);
+    const b = await res.json().catch(() => ({}));
+    if (!res.ok) return toast.error(b?.error ?? "Couldn't change the audit's controls");
+    toast.success(b.added ? `Added ${b.added} control${b.added === 1 ? "" : "s"} to this audit.` : "Removed from this audit. Its evidence is kept.");
     startTransition(() => router.refresh());
   }
 
@@ -176,6 +196,23 @@ export function AuditDetailClient({
         )}
       </div>
 
+      {canManage && outsideScope.length > 0 && (
+        <div className="card mb-4 flex flex-wrap items-center gap-3 border-blue-200 dark:border-blue-900">
+          <div className="min-w-[14rem] flex-1 text-sm">
+            <p className="font-medium">
+              {outsideScope.length} {period.framework.name} control{outsideScope.length === 1 ? " isn't" : "s aren't"} in this audit
+            </p>
+            <p className="mt-0.5 text-xs text-gray-500">
+              Mapped to the framework after this audit was set up, or left out on purpose:{" "}
+              <span className="font-mono">{outsideScope.slice(0, 8).map((c) => c.code).join(", ")}{outsideScope.length > 8 ? ` and ${outsideScope.length - 8} more` : ""}</span>
+            </p>
+          </div>
+          <button onClick={() => changeScope({ add: "all" })} disabled={scopeBusy} className="btn-secondary">
+            <PlusCircle className="mr-1.5 h-4 w-4" /> Add {outsideScope.length === 1 ? "it" : `all ${outsideScope.length}`} to this audit
+          </button>
+        </div>
+      )}
+
       {canEditControls && (
         <div className="card mb-4 flex flex-wrap items-end gap-3">
           <div className="min-w-[14rem] flex-1">
@@ -230,6 +267,11 @@ export function AuditDetailClient({
                       <span className="mr-1.5 font-mono text-xs text-gray-500">{c.code}</span>{c.title}
                     </p>
                     {c.requirements.length > 0 && <p className="truncate text-[11px] text-gray-400">{c.requirements.join(", ")}</p>}
+                    {canManage && (
+                      <button onClick={() => setRemoveTarget(c)} className="mt-0.5 inline-flex items-center gap-0.5 text-[11px] text-gray-400 hover:text-red-600">
+                        <X className="h-3 w-3" /> Remove from audit
+                      </button>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5 align-top text-gray-600 dark:text-gray-400">
                     {c.owner?.name ?? <span className="text-amber-600">Unassigned</span>}
@@ -305,6 +347,14 @@ export function AuditDetailClient({
         )}
       </Modal>
 
+      <ConfirmDialog
+        open={!!removeTarget}
+        onClose={() => setRemoveTarget(null)}
+        onConfirm={async () => { if (removeTarget) await changeScope({ remove: [removeTarget.id] }); }}
+        title="Remove from this audit"
+        confirmLabel="Remove from audit"
+        message={`Remove ${removeTarget?.code} ${removeTarget?.title} from ${period.name}? Its evidence and approvals stay on the control, and other audits aren't affected. You can add it back later.`}
+      />
       <ConfirmDialog
         open={confirmDelete}
         onClose={() => setConfirmDelete(false)}

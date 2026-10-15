@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ControlFrequency, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { HttpError } from "@/lib/api";
 
@@ -137,7 +138,45 @@ const controlScopeSelect = {
   },
 } as const;
 
-// In-scope controls: mapped to the period's framework and applicable.
+// Controls a new period covers by default: mapped to the framework and applicable.
+const frameworkScopeWhere = (organizationId: string, frameworkId: string) => ({
+  organizationId,
+  applicability: { not: "NOT_APPLICABLE" as const },
+  mappings: { some: { requirement: { frameworkId } } },
+});
+
+type Tx = Prisma.TransactionClient;
+
+/**
+ * Saves which controls a period covers, with their current frequencies. Without controlIds, it takes every
+ * applicable control mapped to the period's framework. Existing entries are left alone.
+ */
+export async function addToScope(
+  tx: Tx, organizationId: string, periodId: string, frameworkId: string,
+  controlIds?: string[], frequencyOverride?: Map<string, ControlFrequency>
+) {
+  const controls = await tx.control.findMany({
+    where: { ...frameworkScopeWhere(organizationId, frameworkId), ...(controlIds ? { id: { in: controlIds } } : {}) },
+    select: { id: true, frequency: true },
+  });
+  if (!controls.length) return 0;
+  const res = await tx.auditPeriodControl.createMany({
+    data: controls.map((c) => ({ auditPeriodId: periodId, controlId: c.id, frequency: frequencyOverride?.get(c.id) ?? c.frequency })),
+    skipDuplicates: true,
+  });
+  return res.count;
+}
+
+/** Applicable controls mapped to the framework that this period doesn't cover (e.g. added after it was created). */
+export async function controlsOutsideScope(organizationId: string, periodId: string, frameworkId: string) {
+  return prisma.control.findMany({
+    where: { ...frameworkScopeWhere(organizationId, frameworkId), auditScopes: { none: { auditPeriodId: periodId } } },
+    select: { id: true, code: true, title: true },
+    orderBy: { code: "asc" },
+  });
+}
+
+// In-scope controls: the ones saved for this period, while still applicable.
 export async function periodCoverage(organizationId: string, periodId: string, ownerId?: string) {
   const period = await prisma.auditPeriod.findFirst({
     where: { id: periodId, organizationId },
@@ -151,17 +190,22 @@ export async function periodCoverage(organizationId: string, periodId: string, o
   });
   if (!period) return null;
 
-  const controls = await prisma.control.findMany({
+  const scope = await prisma.auditPeriodControl.findMany({
     where: {
-      organizationId,
-      applicability: { not: "NOT_APPLICABLE" },
-      status: { not: "NOT_APPLICABLE" },
-      mappings: { some: { requirement: { frameworkId: period.frameworkId } } },
-      ...(ownerId ? { ownerId } : {}),
+      auditPeriodId: period.id,
+      control: {
+        organizationId,
+        applicability: { not: "NOT_APPLICABLE" },
+        status: { not: "NOT_APPLICABLE" },
+        ...(ownerId ? { ownerId } : {}),
+      },
     },
-    select: controlScopeSelect,
-    orderBy: { code: "asc" },
+    select: { frequency: true, control: { select: controlScopeSelect } },
   });
+  // The period's own frequency, not the control's current default: past periods keep their slots.
+  const controls = scope
+    .map((s) => ({ ...s.control, frequency: s.frequency }))
+    .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
 
   const now = new Date();
   const rows: ControlCoverage[] = controls.map((c) => {
@@ -265,15 +309,12 @@ export async function slotReviewQueue(organizationId: string, reviewerId: string
 export async function resolveSlot(organizationId: string, periodId: string, controlId: string, slotIndex: number) {
   const period = await prisma.auditPeriod.findFirst({ where: { id: periodId, organizationId } });
   if (!period) return null;
-  const control = await prisma.control.findFirst({
-    where: {
-      id: controlId, organizationId,
-      applicability: { not: "NOT_APPLICABLE" },
-      mappings: { some: { requirement: { frameworkId: period.frameworkId } } },
-    },
-    select: { id: true, code: true, title: true, frequency: true, ownerId: true },
+  const scoped = await prisma.auditPeriodControl.findFirst({
+    where: { auditPeriodId: period.id, controlId, control: { organizationId, applicability: { not: "NOT_APPLICABLE" } } },
+    select: { frequency: true, control: { select: { id: true, code: true, title: true, ownerId: true } } },
   });
-  if (!control) return null;
+  if (!scoped) return null;
+  const control = { ...scoped.control, frequency: scoped.frequency };
   const slot = slotsFor(control.frequency, period.startDate, period.endDate).find((s) => s.index === slotIndex);
   return slot ? { period, control, slot } : null;
 }

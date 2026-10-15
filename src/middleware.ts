@@ -13,21 +13,38 @@ const MFA_PREFIXES = ["/mfa-verify", "/api/mfa"];
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // API callers get a status code, not the HTML login page.
+  const isApi = pathname.startsWith("/api/");
+
+  // Static files (public/*.png etc.). API paths never skip the checks below, even with a dot in them.
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
-    pathname.includes(".")
+    (!isApi && pathname.includes("."))
   ) {
     return NextResponse.next();
+  }
+
+  // Cross-site requests can't change anything: a browser-sent Origin must be this site.
+  // (Session cookies are SameSite=Lax as well; this is a second line of defence for uploads and other writes.)
+  if (isApi && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+    const origin = req.headers.get("origin");
+    if (origin && origin !== "null") {
+      const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+      let originHost = "";
+      try { originHost = new URL(origin).host; } catch {}
+      if (!host || originHost !== host) {
+        return NextResponse.json({ error: "Cross-site request blocked" }, { status: 403 });
+      }
+    } else if (origin === "null") {
+      return NextResponse.json({ error: "Cross-site request blocked" }, { status: 403 });
+    }
   }
 
   const isPublic = PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
   const isMfaPath = MFA_PREFIXES.some((p) => pathname.startsWith(p));
 
   const token = await getToken({ req });
-
-  // API callers get a status code, not the HTML login page.
-  const isApi = pathname.startsWith("/api/");
 
   if (!token && !isPublic) {
     if (isApi) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { HttpError, handleError, readUploadForm, requirePermission } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
+import { limitOrNull } from "@/lib/rate-limit";
 import { parseQuestionnaireSheet } from "@/lib/questionnaire-sheet";
 
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -14,6 +15,8 @@ const MAX_BYTES = 5 * 1024 * 1024;
 export async function POST(req: Request) {
   try {
     const { resolved, ...user } = await requirePermission(PERMISSIONS.VENDORS_WRITE);
+    const limited = limitOrNull(`questionnaire-import:${user.id}`, 30, 10 * 60 * 1000);
+    if (limited) return limited;
     const form = await readUploadForm(req, MAX_BYTES, "The sheet must be 5 MB or smaller.");
     const file = form.get("file");
     if (!(file instanceof File) || file.size === 0) throw new HttpError(400, "Choose the filled-in question sheet to upload");
@@ -28,7 +31,7 @@ export async function POST(req: Request) {
     if (!title) throw new HttpError(400, "Give the questionnaire a title");
     if (title.length > 300) throw new HttpError(400, "The title must be 300 characters or fewer");
     const description = String(form.get("description") ?? "").slice(0, 2000);
-    const category = String(form.get("category") ?? "GENERAL").slice(0, 100) || "GENERAL";
+    const category = String(form.get("category") ?? "GENERAL").trim().slice(0, 100) || "GENERAL";
 
     const created = await prisma.$transaction(async (tx) => {
       const q = await tx.vendorQuestionnaire.create({

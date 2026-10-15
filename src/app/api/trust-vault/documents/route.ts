@@ -5,6 +5,7 @@ import { logAudit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
 import { saveUpload } from "@/lib/storage";
 import { VIEWABLE_MIME_TYPES } from "@/lib/trust-access";
+import { safeDisplayName } from "@/lib/vendor-upload";
 
 async function getConfigId(organizationId: string) {
   let config = await prisma.trustVaultConfig.findUnique({ where: { organizationId } });
@@ -75,19 +76,30 @@ export async function POST(req: Request) {
       throw new HttpError(400, "File content does not match declared type");
     }
 
-    const { storageKey, size } = await saveUpload(file.name, buffer);
 
-    const name = (formData.get("name") as string) || file.name;
-    const description = (formData.get("description") as string) || "";
-    const category = (formData.get("category") as string) || "General";
-    const visibility = (formData.get("visibility") as string) || "ACCESS_REQUIRED";
-    const permission = (formData.get("permission") as string) || "VIEW_ONLY";
+    const text = (k: string, max: number, fallback: string) => {
+      const v = formData.get(k);
+      const str = typeof v === "string" ? v.trim() : "";
+      if (str.length > max) throw new HttpError(400, `${k} must be ${max} characters or fewer`);
+      return str || fallback;
+    };
+    const name = text("name", 200, safeDisplayName(file.name));
+    const description = text("description", 2000, "");
+    const category = text("category", 100, "General");
+    const visibility = text("visibility", 20, "ACCESS_REQUIRED");
+    const permission = text("permission", 20, "VIEW_ONLY");
+    if (visibility !== "PUBLIC" && visibility !== "ACCESS_REQUIRED") throw new HttpError(400, "Invalid visibility");
+    if (permission !== "VIEW_ONLY" && permission !== "DOWNLOADABLE") throw new HttpError(400, "Invalid permission");
     if (permission === "VIEW_ONLY" && !VIEWABLE_MIME_TYPES.has(file.type)) {
       throw new HttpError(400, "Only PDFs and images can be view-only. Set this file to Downloadable or upload it as a PDF.");
     }
     const validUntilStr = formData.get("validUntil") as string | null;
     const validUntil = validUntilStr ? new Date(validUntilStr) : null;
+    if (validUntil && Number.isNaN(validUntil.getTime())) throw new HttpError(400, "Invalid expiry date");
     const replaceDocId = formData.get("replaceDocId") as string | null;
+
+    // Saved only once every field is valid, so a rejected upload leaves no orphan file.
+    const { storageKey, size } = await saveUpload(file.name, buffer);
 
     let version = 1;
     let previousVersionId: string | null = null;
@@ -111,12 +123,12 @@ export async function POST(req: Request) {
         name,
         description,
         category,
-        fileName: file.name,
+        fileName: safeDisplayName(file.name),
         storageKey,
         fileSize: size,
         mimeType: file.type,
-        visibility: visibility as any,
-        permission: permission as any,
+        visibility,
+        permission,
         validUntil,
         ownerId: user.id,
         version,

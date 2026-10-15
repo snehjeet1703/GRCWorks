@@ -11,7 +11,10 @@ const schema = z.object({
   onlyAsNeeded: z.boolean().optional().default(true),
 }).strict();
 
-// Sets how often evidence is needed for every control in the audit period's scope.
+/**
+ * Sets how often evidence is needed for the controls in this audit period. Other periods keep their own
+ * frequencies; the controls' defaults are updated too, so periods created later start from it.
+ */
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { resolved, ...user } = await requirePermission(PERMISSIONS.CONTROLS_WRITE);
@@ -21,22 +24,24 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (!period) throw new HttpError(404, "Audit period not found");
 
     const where = {
-      organizationId: user.organizationId,
-      applicability: { not: "NOT_APPLICABLE" as const },
-      mappings: { some: { requirement: { frameworkId: period.frameworkId } } },
+      auditPeriodId: id,
+      control: { organizationId: user.organizationId, applicability: { not: "NOT_APPLICABLE" as const } },
       ...(onlyAsNeeded ? { frequency: "AS_NEEDED" as const } : {}),
     };
     const updated = await prisma.$transaction(async (tx) => {
-      const result = await tx.control.updateMany({ where, data: { frequency } });
+      const rows = await tx.auditPeriodControl.findMany({ where, select: { controlId: true } });
+      const controlIds = rows.map((r) => r.controlId);
+      await tx.auditPeriodControl.updateMany({ where: { auditPeriodId: id, controlId: { in: controlIds } }, data: { frequency } });
+      await tx.control.updateMany({ where: { id: { in: controlIds }, organizationId: user.organizationId }, data: { frequency } });
       await logAudit(
         {
           organizationId: user.organizationId, userId: user.id, userName: user.name,
           entityType: "AuditPeriod", entityId: id, entityName: period.name, action: "UPDATE",
-          changes: { bulkFrequency: { to: frequency, controls: result.count, onlyAsNeeded } },
+          changes: { bulkFrequency: { to: frequency, controls: controlIds.length, onlyAsNeeded } },
         },
         tx
       );
-      return result.count;
+      return controlIds.length;
     });
     return NextResponse.json({ updated });
   } catch (err) {

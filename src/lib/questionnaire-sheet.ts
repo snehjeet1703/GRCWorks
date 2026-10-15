@@ -157,6 +157,9 @@ export async function parseQuestionnaireSheet(file: File) {
     else if (!type) problems.push(`"${typeRaw}" isn't an answer type (use ${TYPES.map((t) => t.label).join(", ")})`);
     if ((type === "SINGLE_CHOICE" || type === "MULTI_CHOICE") && options.length < 2) problems.push(`${typeLabel(type)} needs at least two options`);
     if (required === null) problems.push(`Required should be Yes or No, not "${get(r, "required")}"`);
+    if (options.length > 50) problems.push("more than 50 options");
+    if (options.some((o) => o.length > 200)) problems.push("an option is longer than 200 characters");
+    if (catRaw.length > 100) problems.push("Section is longer than 100 characters");
     if (problems.length) { errors.push({ row: rowNo, message: problems.join("; ") }); continue; }
 
     if (options.length && type !== "SINGLE_CHOICE" && type !== "MULTI_CHOICE") {
