@@ -6,7 +6,7 @@ import { handleError, HttpError, parseBody, requirePermission } from "@/lib/api"
 import { logAudit } from "@/lib/audit";
 import { PERMISSIONS } from "@/lib/permissions";
 import { VIEWABLE_MIME_TYPES } from "@/lib/trust-access";
-import { sendTrustAccessGrantedEmail } from "@/lib/email";
+import { sendTrustAccessExtendedEmail, sendTrustAccessGrantedEmail } from "@/lib/email";
 import { portalBaseUrl } from "@/lib/vendor-portal";
 
 const reviewSchema = z.object({
@@ -117,6 +117,60 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     const { accessTokenHash, ...safe } = updated;
     return NextResponse.json({ ...safe, linkIssued: !!accessTokenHash, accessToken: plainToken, emailed });
+  } catch (err) {
+    return handleError(err);
+  }
+}
+
+const extendSchema = z.object({
+  // Days added to the access; null makes it open-ended.
+  extendByDays: z.union([z.literal(7), z.literal(15), z.literal(30), z.literal(60), z.null()]),
+}).strict();
+
+// Extends an approved customer's access without them asking and without changing their link.
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { resolved, ...user } = await requirePermission(PERMISSIONS.TRUST_VAULT_MANAGE);
+    const { id } = await params;
+
+    const existing = await prisma.trustAccessRequest.findFirst({
+      where: { id, config: { organizationId: user.organizationId } },
+    });
+    if (!existing) throw new HttpError(404, "Access request not found");
+    if (existing.status !== "APPROVED" || !existing.accessTokenHash) {
+      throw new HttpError(400, "Only approved customers with an access link can be extended");
+    }
+
+    const { extendByDays } = await parseBody(req, extendSchema);
+    // Adds to whatever is left; an expired grant restarts from today.
+    const base = Math.max(Date.now(), existing.tokenExpiresAt?.getTime() ?? 0);
+    const tokenExpiresAt = extendByDays === null ? null : new Date(base + extendByDays * 86_400_000);
+
+    const updated = await prisma.trustAccessRequest.update({ where: { id }, data: { tokenExpiresAt } });
+
+    await logAudit({
+      organizationId: user.organizationId, userId: user.id, userName: user.name,
+      entityType: "TrustAccessRequest", entityId: id, action: "UPDATE",
+      beforeJson: { tokenExpiresAt: existing.tokenExpiresAt },
+      afterJson: { email: existing.email, extendByDays, tokenExpiresAt },
+    });
+
+    let emailed = false;
+    try {
+      const org = await prisma.organization.findUniqueOrThrow({ where: { id: user.organizationId }, select: { name: true, slug: true } });
+      await sendTrustAccessExtendedEmail(existing.email, {
+        orgName: org.name,
+        name: existing.name || existing.email,
+        trustPageUrl: `${portalBaseUrl(req)}/trust/${org.slug}`,
+        expiresAt: tokenExpiresAt,
+      });
+      emailed = true;
+    } catch (err) {
+      console.error("[trust-vault/access-requests] extension email failed:", err);
+    }
+
+    const { accessTokenHash, ...safe } = updated;
+    return NextResponse.json({ ...safe, linkIssued: true, emailed });
   } catch (err) {
     return handleError(err);
   }

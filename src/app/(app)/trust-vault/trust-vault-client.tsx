@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Settings, Award, FileText, Globe, Users, Plus, Trash2, Edit2,
   CheckCircle, XCircle, Clock, ExternalLink, Copy, Eye, Download,
-  Shield, Link2, ListChecks, ImageUp, Sparkles,
+  Shield, Link2, ListChecks, ImageUp, Sparkles, Search,
 } from "lucide-react";
 import { TrustControlIcon } from "@/components/trust-control-icon";
 import { PageTabs, type TabDef } from "@/components/page-tabs";
@@ -1098,6 +1098,38 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
   const [expiry, setExpiry] = useState<Expiry>(30);
   const [filter, setFilter] = useState<"ALL" | "PENDING" | "APPROVED" | "DENIED">("ALL");
   const [issuedLink, setIssuedLink] = useState<{ email: string; url: string; emailed: boolean } | null>(null);
+  const [search, setSearch] = useState("");
+  const [extending, setExtending] = useState<AccessRequest | null>(null);
+  const [extendBy, setExtendBy] = useState<Expiry>(30);
+  const [savingExtend, setSavingExtend] = useState(false);
+
+  const extendAccess = async () => {
+    if (!extending) return;
+    setSavingExtend(true);
+    try {
+      const res = await fetch(`/api/trust-vault/access-requests/${extending.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ extendByDays: extendBy }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      toast.success(data.emailed ? `Access extended; ${extending.email} has been told by email` : "Access extended (the email to the customer failed)");
+      setExtending(null);
+      onRefresh();
+    } catch {
+      toast.error("Failed to extend access");
+    } finally {
+      setSavingExtend(false);
+    }
+  };
+
+  // Extensions add to the time left; an expired grant restarts from today.
+  const extendedUntil = (r: AccessRequest, days: Expiry) => {
+    if (days === null) return null;
+    const base = Math.max(Date.now(), r.tokenExpiresAt ? new Date(r.tokenExpiresAt).getTime() : 0);
+    return new Date(base + days * 86400000);
+  };
 
   const openReview = (r: AccessRequest) => {
     setReviewing(r);
@@ -1151,12 +1183,26 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
     }
   };
 
-  const filtered = filter === "ALL" ? requests : requests.filter((r) => r.status === filter);
+  const q = search.trim().toLowerCase();
+  const filtered = requests
+    .filter((r) => filter === "ALL" || r.status === filter)
+    .filter((r) => !q || [r.name, r.email, r.company, r.reason ?? ""].some((v) => v.toLowerCase().includes(q)));
   const pending = requests.filter((r) => r.status === "PENDING").length;
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="relative mr-2 w-full sm:w-72">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name, email or company..."
+            aria-label="Search access requests"
+            className="input !pl-9"
+          />
+        </div>
         {(["ALL", "PENDING", "APPROVED", "DENIED"] as const).map((f) => (
           <button
             key={f}
@@ -1185,12 +1231,20 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
                     <span>
                       Access link issued
-                      {r.tokenExpiresAt ? <> · expires {new Date(r.tokenExpiresAt).toLocaleDateString()}</> : <> · never expires</>}
+                      {!r.tokenExpiresAt ? <> · never expires</>
+                        : new Date(r.tokenExpiresAt) < new Date()
+                          ? <> · <span className="font-medium text-red-600">expired {new Date(r.tokenExpiresAt).toLocaleDateString()}</span></>
+                          : <> · expires {new Date(r.tokenExpiresAt).toLocaleDateString()}</>}
                     </span>
                     {canManage && (
-                      <button onClick={() => reissueLink(r)} className="font-medium text-brand-600 hover:text-brand-800">
-                        New link
-                      </button>
+                      <>
+                        <button onClick={() => { setExtending(r); setExtendBy(30); }} className="font-medium text-brand-600 hover:text-brand-800">
+                          Extend access
+                        </button>
+                        <button onClick={() => reissueLink(r)} className="font-medium text-brand-600 hover:text-brand-800">
+                          New link
+                        </button>
+                      </>
                     )}
                   </div>
                 )}
@@ -1231,7 +1285,52 @@ function AccessRequestsTab({ orgSlug, requests, docs, canManage, onRefresh, toas
           </div>
         ))}
       </div>
-      {filtered.length === 0 && <div className="text-center py-12 text-gray-500">No access requests.</div>}
+      {filtered.length === 0 && (
+        <div className="text-center py-12 text-gray-500">{q ? `No requests match "${search.trim()}".` : "No access requests."}</div>
+      )}
+
+      <Modal open={!!extending} onClose={() => setExtending(null)} title="Extend access">
+        {extending && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              <strong>{extending.name}</strong> ({extending.email}) keeps the same link and documents.{" "}
+              {!extending.tokenExpiresAt ? "Their access currently never expires."
+                : new Date(extending.tokenExpiresAt) < new Date()
+                  ? `Their access expired on ${new Date(extending.tokenExpiresAt).toLocaleDateString()}; extending restarts it from today.`
+                  : `Their access currently ends on ${new Date(extending.tokenExpiresAt).toLocaleDateString()}.`}
+            </p>
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Extend by:</p>
+              <div role="radiogroup" aria-label="Extend by" className="flex flex-wrap gap-2">
+                {EXPIRY_OPTIONS.map((o) => (
+                  <button
+                    key={o.label}
+                    type="button"
+                    role="radio"
+                    aria-checked={extendBy === o.value}
+                    onClick={() => setExtendBy(o.value)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${extendBy === o.value ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                  >
+                    {o.value === null ? o.label : `+${o.label}`}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-xs text-gray-500">
+                {extendBy === null
+                  ? "Access will work until you revoke it."
+                  : `New end date: ${extendedUntil(extending, extendBy)!.toLocaleDateString()}.`}{" "}
+                We&apos;ll email the customer to let them know.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-gray-100 pt-3">
+              <button onClick={() => setExtending(null)} className="btn-secondary">Cancel</button>
+              <button onClick={extendAccess} disabled={savingExtend} className="btn-primary">
+                {savingExtend ? "Extending..." : "Extend access"}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal open={!!issuedLink} onClose={() => setIssuedLink(null)} title="Access link">
         {issuedLink && (

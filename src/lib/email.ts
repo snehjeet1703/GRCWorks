@@ -106,6 +106,28 @@ export async function sendTrustAccessGrantedEmail(
   });
 }
 
+export async function sendTrustAccessExtendedEmail(
+  to: string,
+  d: { orgName: string; name: string; trustPageUrl: string; expiresAt: Date | null }
+) {
+  const expiry = d.expiresAt ? `until ${d.expiresAt.toUTCString().slice(0, 16)}` : "with no end date (until access is revoked)";
+  await transporter.sendMail({
+    from: FROM,
+    to,
+    subject: `Your access to ${d.orgName}'s Trust Center has been extended`,
+    text:
+      `Hi ${d.name},\n\n${d.orgName} has extended your Trust Center access ${expiry}.\n\n` +
+      `Your existing link keeps working. If you don't have it, go to ${d.trustPageUrl}, click "Get access" and sign in with a code sent to this address.`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#111">
+        <p>Hi ${escapeHtml(d.name)},</p>
+        <p><strong>${escapeHtml(d.orgName)}</strong> has extended your Trust Center access ${escapeHtml(expiry)}.</p>
+        <p style="color:#666;font-size:13px">Your existing link keeps working. If you don't have it, go to <a href="${escapeHtml(d.trustPageUrl)}">${escapeHtml(d.trustPageUrl)}</a>, click <em>Get access</em> and sign in with a code sent to this address.</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendTrustAccessRequestedEmail(
   to: string[],
   d: { orgName: string; name: string; email: string; company: string; reason: string; reviewUrl: string }
