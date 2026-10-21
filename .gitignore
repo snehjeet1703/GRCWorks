@@ -6,3 +6,6 @@ next-env.d.ts
 uploads/
 AGENTS.md
 CLAUDE.md
+
+# Claude Code local files
+.claude/
