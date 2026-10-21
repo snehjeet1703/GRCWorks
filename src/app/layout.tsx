@@ -6,7 +6,7 @@ import "./theme-presets.css";
 import "./dark-tints.css";
 
 export const metadata: Metadata = {
-  title: "GRC Platform",
+  title: "GRCWorks",
   description: "Manage your governance, risk, and compliance.",
 };
 

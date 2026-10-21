@@ -7,7 +7,7 @@ const ENC_KEY = createHash("sha256").update(ENC_KEY_SOURCE).digest();
 
 export function generateTotpSecret(email: string) {
   const totp = new OTPAuth.TOTP({
-    issuer: "GRC Platform",
+    issuer: "GRCWorks",
     label: email,
     algorithm: "SHA1",
     digits: 6,
@@ -19,7 +19,7 @@ export function generateTotpSecret(email: string) {
 
 export function verifyTotpCode(secret: string, code: string): boolean {
   const totp = new OTPAuth.TOTP({
-    issuer: "GRC Platform",
+    issuer: "GRCWorks",
     algorithm: "SHA1",
     digits: 6,
     period: 30,

@@ -126,7 +126,7 @@ export function Sidebar({
           {/* With a logo, the logo is the brand; the name shows only without one. */}
           {!collapsed && !brand?.logoUrl && (
             <div className="grid min-w-0 flex-1 text-left leading-tight">
-              <span className="truncate text-sm font-semibold text-foreground">{brand?.name || "GRC Platform"}</span>
+              <span className="truncate text-sm font-semibold text-foreground">{brand?.name || "GRCWorks"}</span>
               <span className="truncate text-xs text-muted-foreground">Governance & compliance</span>
             </div>
           )}

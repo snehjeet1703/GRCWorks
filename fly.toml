@@ -1,4 +1,4 @@
-# Fly.io deploy config for GRC Platform.
+# Fly.io deploy config for GRCWorks.
 #
 # Bring your own app name and Postgres:
 #   fly launch --copy-config --no-deploy --name my-grc

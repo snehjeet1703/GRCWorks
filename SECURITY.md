@@ -1,6 +1,6 @@
 # Security policy
 
-GRC Platform stores sensitive compliance data, so we take vulnerabilities seriously and appreciate responsible disclosure.
+GRCWorks stores sensitive compliance data, so we take vulnerabilities seriously and appreciate responsible disclosure.
 
 ## Reporting a vulnerability
 

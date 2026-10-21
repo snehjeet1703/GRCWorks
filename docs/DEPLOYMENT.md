@@ -1,6 +1,6 @@
 # Deployment guide
 
-This guide takes you from an empty server to a production GRC Platform, then covers day-to-day running: email, file storage, backups and upgrades.
+This guide takes you from an empty server to a production GRCWorks, then covers day-to-day running: email, file storage, backups and upgrades.
 
 Each deployment serves **one organisation**. To run the platform for several companies, give each its own deployment and database.
 
@@ -65,7 +65,7 @@ At your DNS provider, create an **A record** for `$DOMAIN` pointing at that IP. 
 The app runs as its own service account, which can read and write only this bucket. That way the server holds no key file.
 
 ```bash
-gcloud iam service-accounts create grc-app --display-name="GRC Platform"
+gcloud iam service-accounts create grc-app --display-name="GRCWorks"
 SA=grc-app@$PROJECT.iam.gserviceaccount.com
 
 gcloud storage buckets create gs://$BUCKET --location=$REGION \

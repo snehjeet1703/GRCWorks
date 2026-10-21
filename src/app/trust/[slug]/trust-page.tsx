@@ -448,7 +448,7 @@ export function TrustPage({ slug }: { slug: string }) {
       </main>
 
       <footer className="py-8 text-center text-xs text-gray-400">
-        Monitored on <span className="inline-flex items-center gap-1 font-semibold text-gray-600"><Shield className="h-3.5 w-3.5" /> GRC Platform</span>
+        Monitored on <span className="inline-flex items-center gap-1 font-semibold text-gray-600"><Shield className="h-3.5 w-3.5" /> GRCWorks</span>
       </footer>
 
       {openFolder && (

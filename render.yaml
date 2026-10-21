@@ -1,4 +1,4 @@
-# Render blueprint for GRC Platform.
+# Render blueprint for GRCWorks.
 # Deploy in one click: https://render.com/deploy?repo=<your-repo-url>
 # Render will provision the Postgres DB, wire DATABASE_URL, and boot the web service.
 

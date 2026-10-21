@@ -40,7 +40,7 @@ export function LoginForm({ demoMode, microsoftSso }: { demoMode: boolean; micro
             <Shield className="h-6 w-6 text-white" />
           </div>
           <h1 className="mt-5 text-xl font-semibold tracking-tight text-gray-900">
-            Sign in to GRC Platform
+            Sign in to GRCWorks
           </h1>
           <p className="mt-1.5 text-sm text-gray-500">
             Manage your governance, risk, and compliance.

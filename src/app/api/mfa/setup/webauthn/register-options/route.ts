@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { gatePendingEnrolment } from "@/lib/mfa-session";
 import { generateRegistrationOptions } from "@simplewebauthn/server";
 
-const RP_NAME = process.env.WEBAUTHN_RP_NAME || "GRC Platform";
+const RP_NAME = process.env.WEBAUTHN_RP_NAME || "GRCWorks";
 const RP_ID = process.env.WEBAUTHN_RP_ID || "localhost";
 
 export async function POST() {

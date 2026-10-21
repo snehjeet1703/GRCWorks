@@ -53,7 +53,7 @@ export function SetupForm() {
           <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-primary">
             <Shield className="h-6 w-6 text-primary-foreground" />
           </div>
-          <h1 className="mt-5 text-xl font-semibold tracking-tight">Set up GRC Platform</h1>
+          <h1 className="mt-5 text-xl font-semibold tracking-tight">Set up GRCWorks</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
             Create your organisation and the first administrator account.
           </p>

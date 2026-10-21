@@ -62,7 +62,7 @@ function Shell({ children, wide }: { children: React.ReactNode; wide?: boolean }
     <div className="px-4 py-10 sm:py-16">
       <div className={`mx-auto ${wide ? "max-w-3xl" : "max-w-md"}`}>{children}</div>
       <p className="mt-10 text-center text-xs text-gray-400">
-        <Lock className="mr-1 inline h-3 w-3" /> Secure vendor portal · GRC Platform
+        <Lock className="mr-1 inline h-3 w-3" /> Secure vendor portal · GRCWorks
       </p>
     </div>
   );

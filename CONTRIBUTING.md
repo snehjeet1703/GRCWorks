@@ -1,4 +1,4 @@
-# Contributing to GRC Platform
+# Contributing to GRCWorks
 
 Thanks for helping. Bug reports, framework updates, docs fixes and features are all welcome.
 

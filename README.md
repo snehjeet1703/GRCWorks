@@ -1,4 +1,4 @@
-# GRC Platform
+# GRCWorks
 
 Open-source governance, risk and compliance for small teams.
 

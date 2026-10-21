@@ -24,7 +24,7 @@ const transporter = {
   },
 };
 
-const FROM = process.env.SMTP_FROM || "noreply@grc-platform.local";
+const FROM = process.env.SMTP_FROM || "noreply@grcworks.io";
 
 function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -320,11 +320,11 @@ export async function sendOtpEmail(to: string, code: string) {
   await transporter.sendMail({
     from: FROM,
     to,
-    subject: "Your GRC Platform verification code",
+    subject: "Your GRCWorks verification code",
     text: `Your verification code is: ${code}\n\nThis code expires in 5 minutes.`,
     html: `
       <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:24px">
-        <h2 style="color:#4f46e5">GRC Platform</h2>
+        <h2 style="color:#4f46e5">GRCWorks</h2>
         <p>Your verification code is:</p>
         <p style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#111;margin:16px 0">${code}</p>
         <p style="color:#666;font-size:14px">This code expires in 5 minutes.</p>

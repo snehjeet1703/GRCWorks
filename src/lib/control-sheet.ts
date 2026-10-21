@@ -78,7 +78,7 @@ export async function buildTemplate(organizationId: string, frameworkId: string)
   });
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = "GRC Platform";
+  wb.creator = "GRCWorks";
   const ws = wb.addWorksheet("Controls", { views: [{ state: "frozen", ySplit: 1 }] });
   ws.columns = COLUMNS.map((c) => ({ header: c.required ? `${c.header} *` : c.header, key: c.key, width: c.width }));
   styleHeader(ws, COLUMNS.map((c) => c.note));
