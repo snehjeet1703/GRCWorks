@@ -5,7 +5,9 @@ import { ChevronLeft, FileDown } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { FrameworkBadge } from "@/components/framework-badge";
+import { Suspense } from "react";
 import { FrameworkControlsClient } from "./framework-controls-client";
+import { FrameworkImport } from "./framework-import";
 
 export default async function FrameworkDetailPage({
   params,
@@ -15,6 +17,8 @@ export default async function FrameworkDetailPage({
   const { frameworkId } = await params;
   const session = await getServerSession(authOptions);
   const orgId = session!.user.organizationId;
+  const perms: string[] = (session!.user as any).permissions ?? [];
+  const canImport = perms.includes("frameworks:manage") && perms.includes("controls:write");
 
   const framework = await prisma.framework.findFirst({
     where: { id: frameworkId, organizationId: orgId },
@@ -121,15 +125,33 @@ export default async function FrameworkDetailPage({
             </p>
           </div>
         </div>
-        <Link
-          href={`/compliance/${framework.id}/report`}
-          className="btn-secondary shrink-0"
-          title="Auditor-ready report — print or save as PDF"
-        >
-          <FileDown className="h-4 w-4 mr-2" />
-          Generate report
-        </Link>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {canImport && (
+            <Suspense fallback={null}>
+              <FrameworkImport framework={{ id: framework.id, name: framework.name }} />
+            </Suspense>
+          )}
+          <Link
+            href={`/compliance/${framework.id}/report`}
+            className="btn-secondary shrink-0"
+            title="Auditor-ready report — print or save as PDF"
+          >
+            <FileDown className="h-4 w-4 mr-2" />
+            Generate report
+          </Link>
+        </div>
       </div>
+
+      {rows.length === 0 && (
+        <div className="card mb-6 text-sm text-gray-600 dark:text-gray-400">
+          <p className="font-medium text-gray-900 dark:text-gray-100">No requirements or controls yet</p>
+          <p className="mt-1">
+            {canImport
+              ? "Use Import from sheet: download the template, list each requirement (criteria ID) with the controls that meet it, and upload it. Controls you already have can be reused, so their evidence counts here too."
+              : "Ask someone who manages frameworks to import this framework's requirements."}
+          </p>
+        </div>
+      )}
 
       <FrameworkControlsClient
         initialControls={rows}

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { FRAMEWORK_META, catalogRequirementCount } from "@/lib/framework-catalog";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { HttpError, handleError, parseBody, requireSession } from "@/lib/api";
@@ -76,21 +77,12 @@ const RISK_CONTROL_MAP: Record<string, string[]> = {
 
 // ── Framework metadata ───────────────────────────────────────
 
-const FRAMEWORK_META: Record<string, { version: string; description: string }> = {
-  "SOC 2 Type II": { version: "2017", description: "AICPA Trust Services Criteria for Security, Availability, Processing Integrity, Confidentiality, and Privacy." },
-  "ISO 27001:2022": { version: "2022", description: "Information security management systems — Requirements (Annex A controls)." },
-  "HIPAA Security Rule": { version: "45 CFR §164.308-.312", description: "US health-data security safeguards: administrative, physical, and technical." },
-  "PCI-DSS v4.0.1": { version: "4.0.1", description: "Payment Card Industry Data Security Standard." },
-  "GDPR": { version: "2016/679", description: "EU General Data Protection Regulation." },
-  "NIST CSF 2.0": { version: "2.0", description: "NIST Cybersecurity Framework 2.0." },
-  "ISO 27701:2019": { version: "2019", description: "Privacy information management — extension to ISO 27001/ISO 27002." },
-  "DPDP Act 2023": { version: "2023", description: "India's Digital Personal Data Protection Act." },
-};
 
 const FRAMEWORK_CONTROL_COUNTS: Record<string, number> = {
   "SOC 2 Type II": 33, "ISO 27001:2022": 49, "HIPAA Security Rule": 46,
   "PCI-DSS v4.0.1": 57, "GDPR": 31, "NIST CSF 2.0": 22,
   "ISO 27701:2019": 31, "DPDP Act 2023": 26,
+  "ISO/IEC 42001:2023": catalogRequirementCount("ISO/IEC 42001:2023"),
 };
 
 const FRAMEWORK_POLICY_SUGGESTIONS: Record<string, string[]> = {
@@ -101,6 +93,7 @@ const FRAMEWORK_POLICY_SUGGESTIONS: Record<string, string[]> = {
   "GDPR": ["Privacy Policy", "Data Protection Policy", "Data Subject Rights Procedure", "Data Breach Response Plan", "Data Processing Agreement Template", "Data Retention Policy", "Privacy Impact Assessment Procedure"],
   "NIST CSF 2.0": ["Information Security Policy", "Risk Management Policy", "Access Control Policy", "Incident Response Plan", "Business Continuity Plan", "Supply Chain Risk Management Policy"],
   "ISO 27701:2019": ["Privacy Policy", "Data Protection Impact Assessment Procedure", "Consent Management Procedure", "Data Subject Rights Procedure", "PII Transfer Policy", "Data Retention and Deletion Policy"],
+  "ISO/IEC 42001:2023": ["AI Policy", "AI System Impact Assessment Procedure", "Responsible AI Development Procedure", "AI Data Management Procedure", "AI Incident Response Procedure"],
   "DPDP Act 2023": ["Privacy Policy (India)", "Consent Management Procedure", "Data Principal Rights Procedure", "Grievance Redressal Mechanism", "Data Breach Notification Procedure", "Children's Data Protection Policy", "Cross-border Transfer Policy"],
 };
 
@@ -253,7 +246,7 @@ export async function POST(req: Request) {
         if (existing) {
           frameworkIds.set(fwName, existing.id);
         } else {
-          const meta = FRAMEWORK_META[fwName] ?? { version: "", description: "" };
+          const meta = FRAMEWORK_META[fwName as FrameworkName] ?? { version: "", description: "" };
           const created = await tx.framework.create({
             data: {
               organizationId: org.id,

@@ -4,10 +4,13 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { FrameworkBadge } from "@/components/framework-badge";
+import { catalogSummary } from "@/lib/framework-catalog";
+import { AddFramework } from "./add-framework";
 
 export default async function CompliancePage() {
   const session = await getServerSession(authOptions);
   const orgId = (session!.user as any).organizationId;
+  const canManage = ((session!.user as any).permissions ?? []).includes("frameworks:manage");
 
   const frameworks = await prisma.framework.findMany({
     where: { organizationId: orgId },
@@ -34,6 +37,7 @@ export default async function CompliancePage() {
             Track your compliance posture across frameworks.
           </p>
         </div>
+        {canManage && <AddFramework catalog={catalogSummary()} existing={frameworks.map((f) => f.name)} />}
       </div>
 
       <div className="grid gap-3">

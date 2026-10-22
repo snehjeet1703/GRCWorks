@@ -11,7 +11,8 @@
 // Sources: control catalogs cross-referenced against the AICPA TSC 2017, ISO 27001:2022 Annex A,
 // 45 CFR §164.308-.312, PCI-DSS v4.0.1, GDPR Regulation (EU) 2016/679, and NIST CSF 2.0. Mappings
 // are conservative — a concept is only listed under a framework when the framework has a clearly
-// dedicated citation for it.
+// dedicated citation for it. ISO/IEC 42001:2023 (AI management systems) clause and Annex A
+// references are listed by number with short descriptive titles.
 
 export type FrameworkName =
   | "SOC 2 Type II"
@@ -21,7 +22,8 @@ export type FrameworkName =
   | "GDPR"
   | "NIST CSF 2.0"
   | "ISO 27701:2019"
-  | "DPDP Act 2023";
+  | "DPDP Act 2023"
+  | "ISO/IEC 42001:2023";
 
 export type ConceptMapping = {
   /** Short slug used as Control.code. Must be unique per org. */
@@ -124,6 +126,7 @@ export const CONTROL_MAPPINGS: ConceptMapping[] = [
     canonicalCode: "LOGGING",
     title: "Security event logging and retention",
     citations: {
+      "ISO/IEC 42001:2023": [{ code: "A.6.2.8", title: "AI system recording of event logs" }],
       "SOC 2 Type II": [{ code: "CC7.2", title: "Monitors system components for anomalies" }],
       "ISO 27001:2022": [{ code: "A.8.15", title: "Logging" }],
       "HIPAA Security Rule": [{ code: "164.312(b)", title: "Audit controls" }],
@@ -138,6 +141,7 @@ export const CONTROL_MAPPINGS: ConceptMapping[] = [
     canonicalCode: "MONITORING",
     title: "Continuous security monitoring",
     citations: {
+      "ISO/IEC 42001:2023": [{ code: "A.6.2.6", title: "AI system operation and monitoring" }],
       "SOC 2 Type II": [{ code: "CC7.1", title: "Monitors infrastructure and software for anomalies" }],
       "ISO 27001:2022": [{ code: "A.8.16", title: "Monitoring activities" }],
       "PCI-DSS v4.0.1": [{ code: "10.4", title: "Audit logs are reviewed to identify anomalies or suspicious activity" }],
@@ -148,6 +152,7 @@ export const CONTROL_MAPPINGS: ConceptMapping[] = [
     canonicalCode: "INCIDENT-RESPONSE",
     title: "Security incident response",
     citations: {
+      "ISO/IEC 42001:2023": [{ code: "A.8.4", title: "Communication of incidents" }],
       "SOC 2 Type II": [
         { code: "CC7.3", title: "Evaluates security events" },
         { code: "CC7.4", title: "Responds to identified security incidents" },
@@ -210,6 +215,7 @@ export const CONTROL_MAPPINGS: ConceptMapping[] = [
     canonicalCode: "SECURE-DEV",
     title: "Secure software development lifecycle",
     citations: {
+      "ISO/IEC 42001:2023": [{ code: "A.6.1.3", title: "Processes for responsible AI system design and development" }],
       "ISO 27001:2022": [
         { code: "A.8.25", title: "Secure development lifecycle" },
         { code: "A.8.28", title: "Secure coding" },
@@ -224,6 +230,7 @@ export const CONTROL_MAPPINGS: ConceptMapping[] = [
     canonicalCode: "SECURITY-TRAINING",
     title: "Security awareness training",
     citations: {
+      "ISO/IEC 42001:2023": [{ code: "A.4.6", title: "Human resources (competence for AI)" }],
       "ISO 27001:2022": [{ code: "A.6.3", title: "Information security awareness, education and training" }],
       "HIPAA Security Rule": [
         { code: "164.308(a)(5)(i)", title: "Security awareness and training" },
@@ -237,6 +244,7 @@ export const CONTROL_MAPPINGS: ConceptMapping[] = [
     canonicalCode: "VENDOR-RISK",
     title: "Third-party / vendor risk management",
     citations: {
+      "ISO/IEC 42001:2023": [{ code: "A.10.3", title: "Suppliers" }],
       "SOC 2 Type II": [
         { code: "CC9.1", title: "Identifies and manages risk from business partners" },
         { code: "CC9.2", title: "Manages risk associated with vendors and business partners" },
@@ -256,6 +264,7 @@ export const CONTROL_MAPPINGS: ConceptMapping[] = [
     canonicalCode: "RISK-ASSESSMENT",
     title: "Risk assessment and treatment",
     citations: {
+      "ISO/IEC 42001:2023": [{ code: "6.1.2", title: "AI risk assessment" }, { code: "6.1.3", title: "AI risk treatment" }],
       "SOC 2 Type II": [{ code: "CC3.2", title: "Identifies and analyzes risk" }],
       "HIPAA Security Rule": [
         { code: "164.308(a)(1)(ii)(A)", title: "Risk analysis" },
@@ -283,6 +292,7 @@ export const CONTROL_MAPPINGS: ConceptMapping[] = [
     canonicalCode: "ASSET-INVENTORY",
     title: "Asset inventory and classification",
     citations: {
+      "ISO/IEC 42001:2023": [{ code: "A.4.2", title: "Resource documentation" }],
       "ISO 27001:2022": [{ code: "A.5.9", title: "Inventory of information and other associated assets" }],
       "PCI-DSS v4.0.1": [{ code: "12.5", title: "PCI DSS scope is documented and validated" }],
       "NIST CSF 2.0": [{ code: "ID.AM", title: "Asset Management" }],
@@ -402,6 +412,157 @@ export const CONTROL_MAPPINGS: ConceptMapping[] = [
     citations: {
       "GDPR": [{ code: "Art. 30", title: "Records of processing activities" }],
       "ISO 27701:2019": [{ code: "A.7.2.8", title: "Records related to processing PII" }],
+    },
+  },
+  // ── ISO/IEC 42001:2023: AI management system ──
+  {
+    canonicalCode: "AIMS-CONTEXT",
+    title: "AI management system scope and context",
+    citations: {
+      "ISO/IEC 42001:2023": [
+        { code: "4.1", title: "Understanding the organization and its context" },
+        { code: "4.3", title: "Determining the scope of the AI management system" },
+      ],
+    },
+  },
+  {
+    canonicalCode: "AI-POLICY",
+    title: "AI policy approved and reviewed",
+    citations: {
+      "ISO/IEC 42001:2023": [
+        { code: "5.2", title: "AI policy" },
+        { code: "A.2.2", title: "AI policy" },
+        { code: "A.2.3", title: "Alignment with other organizational policies" },
+        { code: "A.2.4", title: "Review of the AI policy" },
+      ],
+    },
+  },
+  {
+    canonicalCode: "AI-ROLES",
+    title: "AI roles, responsibilities and reporting of concerns",
+    citations: {
+      "ISO/IEC 42001:2023": [
+        { code: "A.3.2", title: "AI roles and responsibilities" },
+        { code: "A.3.3", title: "Reporting of concerns" },
+      ],
+    },
+  },
+  {
+    canonicalCode: "AI-RESOURCES",
+    title: "AI data, tooling and computing resources documented",
+    citations: {
+      "ISO/IEC 42001:2023": [
+        { code: "A.4.3", title: "Data resources" },
+        { code: "A.4.4", title: "Tooling resources" },
+        { code: "A.4.5", title: "System and computing resources" },
+      ],
+    },
+  },
+  {
+    canonicalCode: "AI-IMPACT-ASSESSMENT",
+    title: "AI system impact assessments",
+    citations: {
+      "ISO/IEC 42001:2023": [
+        { code: "6.1.4", title: "AI system impact assessment" },
+        { code: "A.5.2", title: "AI system impact assessment process" },
+        { code: "A.5.3", title: "Documentation of AI system impact assessments" },
+        { code: "A.5.4", title: "Assessing AI system impact on individuals or groups of individuals" },
+        { code: "A.5.5", title: "Assessing societal impacts of AI systems" },
+      ],
+    },
+  },
+  {
+    canonicalCode: "AI-DESIGN",
+    title: "Responsible AI objectives, requirements and design records",
+    citations: {
+      "ISO/IEC 42001:2023": [
+        { code: "A.6.1.2", title: "Objectives for responsible development of AI system" },
+        { code: "A.6.2.2", title: "AI system requirements and specification" },
+        { code: "A.6.2.3", title: "Documentation of AI system design and development" },
+      ],
+    },
+  },
+  {
+    canonicalCode: "AI-VALIDATION",
+    title: "AI system verification and validation before release",
+    citations: {
+      "ISO/IEC 42001:2023": [
+        { code: "A.6.2.4", title: "AI system verification and validation" },
+      ],
+    },
+  },
+  {
+    canonicalCode: "AI-DEPLOYMENT",
+    title: "Controlled AI system deployment",
+    citations: {
+      "ISO/IEC 42001:2023": [
+        { code: "A.6.2.5", title: "AI system deployment" },
+      ],
+    },
+  },
+  {
+    canonicalCode: "AI-DOCUMENTATION",
+    title: "AI system technical and user documentation",
+    citations: {
+      "ISO/IEC 42001:2023": [
+        { code: "A.6.2.7", title: "AI system technical documentation" },
+        { code: "A.8.2", title: "System documentation and information for users" },
+      ],
+    },
+  },
+  {
+    canonicalCode: "AI-DATA-QUALITY",
+    title: "AI training and input data quality and provenance",
+    citations: {
+      "ISO/IEC 42001:2023": [
+        { code: "A.7.2", title: "Data for development and enhancement of AI system" },
+        { code: "A.7.3", title: "Acquisition of data" },
+        { code: "A.7.4", title: "Quality of data for AI systems" },
+        { code: "A.7.5", title: "Data provenance" },
+        { code: "A.7.6", title: "Data preparation" },
+      ],
+    },
+  },
+  {
+    canonicalCode: "AI-TRANSPARENCY",
+    title: "Information for interested parties about AI systems",
+    citations: {
+      "ISO/IEC 42001:2023": [
+        { code: "A.8.3", title: "External reporting" },
+        { code: "A.8.5", title: "Information for interested parties" },
+      ],
+    },
+  },
+  {
+    canonicalCode: "AI-RESPONSIBLE-USE",
+    title: "Responsible and intended use of AI systems",
+    citations: {
+      "ISO/IEC 42001:2023": [
+        { code: "A.9.2", title: "Processes for responsible use of AI systems" },
+        { code: "A.9.3", title: "Objectives for responsible use of AI system" },
+        { code: "A.9.4", title: "Intended use of the AI system" },
+      ],
+    },
+  },
+  {
+    canonicalCode: "AI-THIRD-PARTY",
+    title: "AI responsibilities with third parties and customers",
+    citations: {
+      "ISO/IEC 42001:2023": [
+        { code: "A.10.2", title: "Allocating responsibilities" },
+        { code: "A.10.4", title: "Customers" },
+      ],
+    },
+  },
+  {
+    canonicalCode: "AIMS-REVIEW",
+    title: "AI management system internal audit and management review",
+    citations: {
+      "ISO/IEC 42001:2023": [
+        { code: "9.2", title: "Internal audit" },
+        { code: "9.3", title: "Management review" },
+        { code: "10.2", title: "Nonconformity and corrective action" },
+      ],
     },
   },
 ];

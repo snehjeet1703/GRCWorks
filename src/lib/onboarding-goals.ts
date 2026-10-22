@@ -11,6 +11,7 @@ export type GoalSlug =
   | "hipaa"
   | "pci-dss"
   | "gdpr"
+  | "iso-42001"
   | "security-questionnaires"
   | "general-security";
 
@@ -82,6 +83,13 @@ export const ONBOARDING_GOALS: OnboardingGoal[] = [
     description: "EU General Data Protection Regulation",
     icon: "globe",
     frameworks: ["GDPR"],
+  },
+  {
+    slug: "iso-42001",
+    label: "ISO 42001",
+    description: "AI management system: responsible development and use of AI",
+    icon: "sparkles",
+    frameworks: ["ISO/IEC 42001:2023"],
   },
   {
     slug: "security-questionnaires",

@@ -48,6 +48,7 @@ const GOAL_ICONS: Record<string, React.ReactNode> = {
   globe: <Globe className="h-5 w-5" />,
   "clipboard-list": <ClipboardList className="h-5 w-5" />,
   lock: <Lock className="h-5 w-5" />,
+  sparkles: <Sparkles className="h-5 w-5" />,
 };
 
 type ProgramSummary = {

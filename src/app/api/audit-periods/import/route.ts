@@ -31,17 +31,26 @@ export async function POST(req: Request) {
     // from the framework (not deleted) and left out of the period.
     const fullScope = form.get("fullScope") === "true";
 
-    const period = periodSchema.safeParse({
-      name: String(form.get("name") ?? ""),
-      frameworkId: String(form.get("frameworkId") ?? ""),
-      startDate: String(form.get("startDate") ?? ""),
-      endDate: String(form.get("endDate") ?? ""),
-    });
-    if (!period.success) throw new HttpError(400, period.error.issues[0]?.message ?? "Fill in the audit period details");
-    const { start, end } = parsePeriodDates(period.data.startDate, period.data.endDate);
+    // Without an audit period the sheet only loads controls and requirements into the framework
+    // (e.g. a custom framework or privacy law added from the Compliance page).
+    const createPeriod = form.get("createPeriod") !== "false";
+    const frameworkId = String(form.get("frameworkId") ?? "");
+    let periodInput: { name: string; startDate: string; endDate: string; start: Date; end: Date } | null = null;
+    if (createPeriod) {
+      const period = periodSchema.safeParse({
+        name: String(form.get("name") ?? ""),
+        frameworkId,
+        startDate: String(form.get("startDate") ?? ""),
+        endDate: String(form.get("endDate") ?? ""),
+      });
+      if (!period.success) throw new HttpError(400, period.error.issues[0]?.message ?? "Fill in the audit period details");
+      periodInput = { ...period.data, ...parsePeriodDates(period.data.startDate, period.data.endDate) };
+    } else if (!/^[0-9a-f-]{36}$/i.test(frameworkId)) {
+      throw new HttpError(400, "Choose a framework");
+    }
 
     const framework = await prisma.framework.findFirst({
-      where: { id: period.data.frameworkId, organizationId: user.organizationId },
+      where: { id: frameworkId, organizationId: user.organizationId },
       select: { id: true, name: true, requirements: { select: { id: true, code: true } } },
     });
     if (!framework) throw new HttpError(404, "Framework not found");
@@ -141,10 +150,26 @@ export async function POST(req: Request) {
         })).count;
       }
 
+      const importDetails = {
+        framework: framework.name, importedFrom: file.name, controlsCreated: summary.create, controlsUpdated: summary.update,
+        criteriaAdded: summary.newCriteria, fullScope, unlinkedFromFramework: fullScope ? summary.notInSheet : [], mappingsRemoved: unlinked,
+      };
+      if (!periodInput) {
+        await logAudit(
+          {
+            organizationId: user.organizationId, userId: user.id, userName: user.name,
+            entityType: "Framework", entityId: framework.id, entityName: framework.name, action: "UPDATE",
+            changes: { sheetImport: importDetails },
+          },
+          tx
+        );
+        return null;
+      }
+
       const p = await tx.auditPeriod.create({
         data: {
-          organizationId: user.organizationId, frameworkId: framework.id, name: period.data.name,
-          startDate: start, endDate: end, createdById: user.id,
+          organizationId: user.organizationId, frameworkId: framework.id, name: periodInput.name,
+          startDate: periodInput.start, endDate: periodInput.end, createdById: user.id,
         },
       });
       // Frequencies come from the sheet (already saved on the controls above).
@@ -154,10 +179,7 @@ export async function POST(req: Request) {
           organizationId: user.organizationId, userId: user.id, userName: user.name,
           entityType: "AuditPeriod", entityId: p.id, entityName: p.name, action: "CREATE",
           afterJson: {
-            name: p.name, framework: framework.name, startDate: period.data.startDate, endDate: period.data.endDate,
-            importedFrom: file.name, controlsCreated: summary.create, controlsUpdated: summary.update,
-            criteriaAdded: summary.newCriteria, fullScope, controlsInScope: scoped,
-            unlinkedFromFramework: fullScope ? summary.notInSheet : [], mappingsRemoved: unlinked,
+            name: p.name, startDate: periodInput.startDate, endDate: periodInput.endDate, controlsInScope: scoped, ...importDetails,
           },
         },
         tx
@@ -165,7 +187,7 @@ export async function POST(req: Request) {
       return p;
     }, { timeout: 120_000, maxWait: 10_000 });
 
-    return NextResponse.json({ periodId: created.id, created: summary.create, updated: summary.update }, { status: 201 });
+    return NextResponse.json({ periodId: created?.id ?? null, frameworkId: framework.id, created: summary.create, updated: summary.update }, { status: 201 });
   } catch (err) {
     return handleError(err);
   }

@@ -15,11 +15,14 @@ const BADGES: { match: RegExp; badge: Badge }[] = [
   { match: /soc\s*2/i, badge: { main: "SOC 2", bg: "#4338ca", fg: "#ffffff" } },
   { match: /27001/, badge: { top: "ISO", main: "27001", bg: "#1e3a8a", fg: "#ffffff" } },
   { match: /27701/, badge: { top: "ISO", main: "27701", bg: "#6d28d9", fg: "#ffffff" } },
+  { match: /42001/, badge: { top: "ISO", main: "42001", bg: "#0e7490", fg: "#ffffff" } },
   { match: /hipaa/i, badge: { top: "US", main: "HIPAA", bg: "#0f766e", fg: "#ffffff" } },
   { match: /pci/i, badge: { top: "PCI", main: "DSS", bg: "#c2410c", fg: "#ffffff" } },
   { match: /gdpr/i, badge: { main: "GDPR", bg: "#003399", fg: "#ffffff", decor: "eu-stars" } },
   { match: /nist/i, badge: { top: "NIST", main: "CSF", bg: "#334155", fg: "#ffffff" } },
   { match: /dpdp/i, badge: { top: "INDIA", main: "DPDP", bg: "#ffffff", fg: "#000080", decor: "india-stripes" } },
+  { match: /pdpa/i, badge: { top: "PRIVACY", main: "PDPA", bg: "#be123c", fg: "#ffffff" } },
+  { match: /pdpl/i, badge: { top: "PRIVACY", main: "PDPL", bg: "#15803d", fg: "#ffffff" } },
 ];
 
 function badgeFor(name: string, fallbackColor?: string): Badge {

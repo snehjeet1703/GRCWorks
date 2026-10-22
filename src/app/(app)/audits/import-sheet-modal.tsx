@@ -27,17 +27,19 @@ function presets(now = new Date()) {
 }
 
 export function ImportSheetModal({
-  open, onClose, frameworks, onImported,
+  open, onClose, frameworks, onImported, fixedFrameworkId,
 }: {
   open: boolean;
   onClose: () => void;
   frameworks: { id: string; name: string }[];
-  onImported: (periodId: string, created: number, updated: number) => void;
+  onImported: (periodId: string | null, created: number, updated: number) => void;
+  // Opened from a framework's page: the framework is fixed and creating an audit period is optional (off).
+  fixedFrameworkId?: string;
 }) {
   const p = presets();
   const fwName = (id: string) => frameworks.find((f) => f.id === id)?.name ?? "";
   const initial = () => {
-    const frameworkId = frameworks.find((f) => /soc/i.test(f.name))?.id ?? frameworks[0]?.id ?? "";
+    const frameworkId = fixedFrameworkId ?? frameworks.find((f) => /soc/i.test(f.name))?.id ?? frameworks[0]?.id ?? "";
     return { frameworkId, name: `${fwName(frameworkId)} · ${p[0].name}`, startDate: p[0].start, endDate: p[0].end };
   };
   const [form, setForm] = useState(initial);
@@ -45,10 +47,11 @@ export function ImportSheetModal({
   const [preview, setPreview] = useState<Preview | null>(null);
   const [busy, setBusy] = useState<"preview" | "import" | null>(null);
   const [fullScope, setFullScope] = useState(false);
+  const [createPeriod, setCreatePeriod] = useState(!fixedFrameworkId);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const reset = () => { setForm(initial()); setFile(null); setPreview(null); setError(null); setFullScope(false); };
+  const reset = () => { setForm(initial()); setFile(null); setPreview(null); setError(null); setFullScope(false); setCreatePeriod(!fixedFrameworkId); };
   const close = () => { reset(); onClose(); };
 
   const send = async (mode: "preview" | "import", f: File) => {
@@ -56,6 +59,7 @@ export function ImportSheetModal({
     body.set("file", f);
     body.set("mode", mode);
     body.set("fullScope", String(fullScope));
+    body.set("createPeriod", String(createPeriod));
     Object.entries(form).forEach(([k, v]) => body.set(k, v));
     const res = await fetch("/api/audit-periods/import", { method: "POST", body });
     const data = await res.json().catch(() => ({}));
@@ -99,13 +103,19 @@ export function ImportSheetModal({
   const stepCls = "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-900 text-xs font-semibold text-white dark:bg-gray-100 dark:text-gray-900";
 
   return (
-    <Modal open={open} onClose={close} title="Import controls from a sheet" size="lg">
+    <Modal open={open} onClose={close} title={fixedFrameworkId ? `Import ${fwName(fixedFrameworkId)} controls from a sheet` : "Import controls from a sheet"} size="lg">
       <div className="space-y-5">
         <FormError message={error} />
 
         <section className="space-y-3">
-          <h3 className="flex items-center gap-2 text-sm font-semibold"><span className={stepCls}>1</span> Audit period</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <h3 className="flex items-center gap-2 text-sm font-semibold"><span className={stepCls}>1</span> {fixedFrameworkId ? fwName(fixedFrameworkId) : "Audit period"}</h3>
+          {fixedFrameworkId && (
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input type="checkbox" checked={createPeriod} onChange={(e) => { setCreatePeriod(e.target.checked); setPreview(null); }} className="h-4 w-4 rounded border-gray-300 text-brand-600" />
+              Also create an audit period for these controls
+            </label>
+          )}
+          <div className={`grid gap-3 sm:grid-cols-2 ${fixedFrameworkId ? "hidden" : ""}`}>
             <Field label="Framework" htmlFor="impFramework">
               <Select id="impFramework" value={form.frameworkId} onChange={(e) => {
                 const frameworkId = e.target.value;
@@ -119,7 +129,12 @@ export function ImportSheetModal({
               <TextInput id="impName" value={form.name} onChange={(e) => update({ name: e.target.value })} />
             </Field>
           </div>
-          <div className="flex flex-wrap items-end gap-3">
+          {createPeriod && fixedFrameworkId && (
+            <Field label="Audit period name" htmlFor="impName2">
+              <TextInput id="impName2" value={form.name} onChange={(e) => update({ name: e.target.value })} />
+            </Field>
+          )}
+          <div className={`flex flex-wrap items-end gap-3 ${createPeriod ? "" : "hidden"}`}>
             <Field label="Start date" htmlFor="impStart">
               <input id="impStart" type="date" className="input" value={form.startDate} onChange={(e) => update({ startDate: e.target.value })} />
             </Field>
@@ -266,7 +281,7 @@ export function ImportSheetModal({
             disabled={!preview || preview.errors.length > 0 || busy !== null || !form.name.trim()}
             className="btn-primary"
           >
-            {busy === "import" ? "Importing…" : `Import ${preview ? preview.create + preview.update : ""} controls & create period`}
+            {busy === "import" ? "Importing…" : `Import ${preview ? preview.create + preview.update : ""} controls${createPeriod ? " & create period" : ""}`}
           </button>
         </div>
       </div>
