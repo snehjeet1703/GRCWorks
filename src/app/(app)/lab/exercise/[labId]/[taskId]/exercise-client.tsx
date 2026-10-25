@@ -4,11 +4,13 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Download, Lightbulb, XCircle } from "lucide-react";
 import type { Exercise, Table } from "@/lib/lab/exercises";
+import { LEVEL_TUNING, levelLabel, type LabLevel } from "@/lib/lab/levels";
 
 type KeyRow = { row: string; label: string; explain: string };
+// Fields are null when the learner's level doesn't get that much feedback.
 type Result = {
-  passed: boolean; planted: number; found: number; wrongReason: number; falseAlarms: number;
-  missedByType: { label: string; count: number }[]; key: KeyRow[] | null;
+  passed: boolean; planted: number | null; found: number | null; wrongReason: number | null; falseAlarms: number | null;
+  allowedFalseAlarms: number; missedByType: { label: string; count: number }[]; wrongRows: string[]; key: KeyRow[] | null;
 };
 
 // Spreadsheet-safe CSV: quotes every cell and neutralises formulas.
@@ -26,7 +28,7 @@ function download(t: Table) {
   URL.revokeObjectURL(url);
 }
 
-function DataTable({ table, extra }: { table: Table; extra?: (row: Record<string, string>) => React.ReactNode }) {
+function DataTable({ table, extra, highlight }: { table: Table; extra?: (row: Record<string, string>) => React.ReactNode; highlight?: Set<string> }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-800">
       <table className="min-w-full text-xs">
@@ -38,7 +40,7 @@ function DataTable({ table, extra }: { table: Table; extra?: (row: Record<string
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
           {table.rows.map((r, i) => (
-            <tr key={r.id ?? i} className="align-top">
+            <tr key={r.id ?? i} className={`align-top ${highlight?.has(r.id) ? "bg-amber-50 dark:bg-amber-950" : ""}`}>
               {table.columns.map((c) => <td key={c.key} className="whitespace-nowrap px-2 py-1.5">{r[c.key] || <span className="text-gray-300">—</span>}</td>)}
               {extra && <td className="px-2 py-1">{extra(r)}</td>}
             </tr>
@@ -50,8 +52,9 @@ function DataTable({ table, extra }: { table: Table; extra?: (row: Record<string
 }
 
 export function ExerciseClient({
-  labId, taskId, labTitle, task, exercise, savedFlags, answerKey,
+  labId, taskId, labTitle, task, exercise, savedFlags, answerKey, level,
 }: {
+  level: LabLevel;
   labId: string;
   taskId: string;
   labTitle: string;
@@ -64,7 +67,8 @@ export function ExerciseClient({
   const [result, setResult] = useState<Result | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [showHints, setShowHints] = useState(false);
+  const [showHints, setShowHints] = useState(level === "beginner");
+  const wrong = useMemo(() => new Set(result?.passed ? [] : result?.wrongRows ?? []), [result]);
   const key = result?.key ?? answerKey;
   const keyByRow = useMemo(() => new Map((key ?? []).map((k) => [k.row, k])), [key]);
   const flagged = Object.values(flags).filter((v) => v && v !== "OK").length;
@@ -89,6 +93,9 @@ export function ExerciseClient({
       </Link>
       <p className="text-xs font-medium text-gray-500">{labTitle}</p>
       <h1 className="text-2xl font-bold tracking-tight">{task.title}</h1>
+      <p className="mt-1 text-xs text-gray-500">
+        Level: {levelLabel(level)} · {exercise.table.rows.length} rows · up to {LEVEL_TUNING[level].falseAlarms} false alarm(s) allowed
+      </p>
       <p className="mt-2 max-w-3xl text-sm text-gray-600 dark:text-gray-300">{task.instructions}</p>
 
       <ul className="mt-3 max-w-3xl list-disc space-y-0.5 pl-5 text-sm text-gray-600 dark:text-gray-300">
@@ -106,17 +113,23 @@ export function ExerciseClient({
             {result.passed ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <XCircle className="h-4 w-4 text-amber-600" />}
             {result.passed
               ? `Passed: you found all ${result.planted} problems.`
-              : `You found ${result.found} of ${result.planted} problems. Keep going.`}
+              : result.found === null
+                ? "Not yet. Every problem must be found, with no false alarms. Look again."
+                : `You found ${result.found} of ${result.planted} problems. Keep going.`}
           </p>
           {!result.passed && result.missedByType.length > 0 && (
             <ul className="mt-2 list-disc pl-5">
               {result.missedByType.map((m) => <li key={m.label}>Still missing: {m.count} × {m.label}</li>)}
             </ul>
           )}
-          {result.wrongReason > 0 && <p className="mt-1">{result.wrongReason} row(s) are problems, but you picked the wrong reason.</p>}
-          {result.falseAlarms > 0 && (
-            <p className="mt-1">{result.falseAlarms} row(s) you flagged are actually fine{result.falseAlarms > 2 ? "; at most two false alarms are allowed" : ""}.</p>
+          {!!result.wrongReason && <p className="mt-1">{result.wrongReason} row(s) are problems, but you picked the wrong reason.</p>}
+          {!!result.falseAlarms && (
+            <p className="mt-1">
+              {result.falseAlarms} row(s) you flagged are actually fine
+              {result.falseAlarms > result.allowedFalseAlarms ? `; at your level ${result.allowedFalseAlarms} false alarm(s) are allowed` : ""}.
+            </p>
           )}
+          {!result.passed && result.wrongRows.length > 0 && <p className="mt-1">Rows you flagged wrongly are highlighted below.</p>}
           {result.passed && <p className="mt-2">Next: raise the finding on the Findings page (the next task in this lab). The answer key is shown in the table below.</p>}
         </div>
       )}
@@ -128,6 +141,7 @@ export function ExerciseClient({
       <div className="mt-2">
         <DataTable
           table={exercise.table}
+          highlight={wrong}
           extra={(row) => {
             const k = keyByRow.get(row.id);
             return (

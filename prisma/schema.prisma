@@ -29,6 +29,7 @@ model Organization {
   practice           Boolean  @default(false)
   labCourseId        String?  @map("lab_course_id")
   labTemplate        String?  @map("lab_template") // "<template id>@<version>"
+  labLevel           String?  @map("lab_level") // beginner | practitioner | senior | expert
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 

@@ -1,6 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { IndustryProfile } from "./exercises";
+import type { LabLevel } from "./levels";
 
 // Lab mode turns this install into a practice environment: open sign-up, one practice company per learner.
 // Course content lives outside this repo (grcworks-labs), in the folder LAB_CONTENT_DIR points at.
@@ -11,6 +12,8 @@ export type LabCheck = { type: string; [field: string]: unknown };
 // `exercise` names a data-review exercise (see exercises.ts) the learner completes on the Labs page.
 export type LabTask = {
   id: string; title: string; instructions: string; hints: string[]; link?: string; exercise?: string; checks: LabCheck[];
+  // Experience levels the task is for; all levels when absent.
+  levels?: LabLevel[];
 };
 export type Lab = { id: string; title: string; minutes: number; objective: string; videoUrl?: string; tasks: LabTask[] };
 // `templates` are the practice companies (one per industry) a learner can pick; the first is the default.
@@ -105,12 +108,14 @@ function fill<T>(value: T, vars: Record<string, string>): T {
   return value;
 }
 
-/** The course with its labs written for one practice company. */
-export async function courseForTemplate(courseId: string, templateId: string) {
+/** The course with its labs written for one practice company, keeping only the tasks for the learner's level. */
+export async function courseForTemplate(courseId: string, templateId: string, level?: LabLevel) {
   const course = await getCourse(courseId);
   const template = await getTemplate(templateId);
   if (!course || !template || !course.templates.includes(templateId)) return null;
-  return { course: { ...course, labs: fill(course.labs, { company: template.company.name, ...template.vars }) }, template };
+  const labs = fill(course.labs, { company: template.company.name, ...template.vars })
+    .map((l) => ({ ...l, tasks: l.tasks.filter((t) => !level || !t.levels || t.levels.includes(level)) }));
+  return { course: { ...course, labs }, template };
 }
 
 /** The template id stored on a practice organisation ("<id>@<version>"). */

@@ -6,6 +6,7 @@ import { limitOrNull } from "@/lib/rate-limit";
 import { labMode } from "@/lib/lab/content";
 import { loadExercise } from "@/lib/lab/checks";
 import { grade } from "@/lib/lab/exercises";
+import { LEVEL_TUNING } from "@/lib/lab/levels";
 
 const schema = z.object({
   labId: z.string().max(64),
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
     const loaded = await loadExercise(user.organizationId, labId, taskId);
     if (!loaded) throw new HttpError(404, "Exercise not found");
 
-    const result = grade(loaded.exercise, flags);
+    const result = grade(loaded.exercise, flags, loaded.level);
     await prisma.labExerciseAttempt.create({
       data: {
         organizationId: user.organizationId, labId, taskId, flags,
@@ -33,8 +34,18 @@ export async function POST(req: Request) {
       },
     });
     const explain = new Map(loaded.exercise.options.map((o) => [o.value, o]));
+    // Feedback narrows with experience: beginners see the rows still wrong, experts only pass or fail.
+    const fb = LEVEL_TUNING[loaded.level].feedback;
     return NextResponse.json({
-      ...result,
+      passed: result.passed,
+      planted: fb === "passfail" && !result.passed ? null : result.planted,
+      allowedFalseAlarms: result.allowedFalseAlarms,
+      feedback: fb,
+      found: fb === "passfail" && !result.passed ? null : result.found,
+      falseAlarms: fb === "passfail" && !result.passed ? null : result.falseAlarms,
+      wrongReason: fb === "rows" || fb === "types" || result.passed ? result.wrongReason : null,
+      missedByType: fb === "rows" || fb === "types" ? result.missedByType : [],
+      wrongRows: fb === "rows" ? result.wrongRows : [],
       key: result.passed
         ? Object.entries(loaded.exercise.answers)
             .filter(([, v]) => v !== "OK")

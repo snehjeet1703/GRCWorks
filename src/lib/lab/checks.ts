@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { slotsFor } from "@/lib/audit-periods";
 import { buildExercise } from "./exercises";
+import { levelOf } from "./levels";
 import { courseForTemplate, getTemplate, templateIdOf, type LabCheck } from "./content";
 
 // Check types are defined in grcworks-labs/schema/checks.md. They only read the learner's own organisation.
@@ -121,7 +122,21 @@ async function runCheck(orgId: string, c: LabCheck, at: { labId: string; taskId:
           organizationId: orgId, controlId: ctl.id,
           ...(c.withOwner ? { ownerId: { not: null } } : {}),
           ...(c.withDueDate ? { dueDate: { not: null } } : {}),
+          ...(c.withRisk ? { riskId: { not: null } } : {}),
         },
+      })) > 0;
+    }
+    case "task_created": {
+      const ctl = await control(orgId, c.control);
+      if (!ctl) return false;
+      return (await prisma.task.count({
+        where: { organizationId: orgId, controlId: ctl.id, assigneeId: { not: null }, dueDate: { not: null } },
+      })) >= Number(c.min ?? 1);
+    }
+    case "risk_treatment_for_control": {
+      // A risk linked to the control with a written treatment plan.
+      return (await prisma.risk.count({
+        where: { organizationId: orgId, treatmentPlan: { not: "" }, controls: { some: { control: { code: s(c.control) } } } },
       })) > 0;
     }
     default:
@@ -134,9 +149,9 @@ export type LabResult = { id: string; tasks: TaskResult[] };
 
 /** Runs every task's checks for the organisation's course and records first completions. */
 export async function evaluateCourse(orgId: string) {
-  const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { labCourseId: true, labTemplate: true } });
+  const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { labCourseId: true, labTemplate: true, labLevel: true } });
   const id = templateIdOf(org.labTemplate);
-  const rendered = org.labCourseId && id ? await courseForTemplate(org.labCourseId, id) : null;
+  const rendered = org.labCourseId && id ? await courseForTemplate(org.labCourseId, id, levelOf(org.labLevel)) : null;
   if (!rendered) return null;
   const { course, template } = rendered;
 
@@ -170,15 +185,16 @@ export async function evaluateCourse(orgId: string) {
 /** A task's exercise for this organisation, with the lab and task it belongs to. */
 export async function loadExercise(orgId: string, labId: string, taskId: string) {
   const org = await prisma.organization.findUnique({
-    where: { id: orgId }, select: { practice: true, labCourseId: true, labTemplate: true, createdAt: true },
+    where: { id: orgId }, select: { practice: true, labCourseId: true, labTemplate: true, labLevel: true, createdAt: true },
   });
   const id = templateIdOf(org?.labTemplate ?? null);
   if (!org?.practice || !org.labCourseId || !id) return null;
-  const rendered = await courseForTemplate(org.labCourseId, id);
+  const level = levelOf(org.labLevel);
+  const rendered = await courseForTemplate(org.labCourseId, id, level);
   const lab = rendered?.course.labs.find((l) => l.id === labId);
   const task = lab?.tasks.find((t) => t.id === taskId);
   const profile = rendered?.template.industry;
   if (!lab || !task?.exercise || !profile) return null;
-  const exercise = buildExercise(task.exercise, profile, orgId, org.createdAt, `${labId}/${taskId}`);
-  return exercise ? { lab, task, exercise, company: rendered!.template.company.name } : null;
+  const exercise = buildExercise(task.exercise, profile, orgId, org.createdAt, `${labId}/${taskId}`, level);
+  return exercise ? { lab, task, exercise, level, company: rendered!.template.company.name } : null;
 }

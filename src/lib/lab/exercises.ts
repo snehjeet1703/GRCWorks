@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import { LEVEL_TUNING, type LabLevel } from "./levels";
+
+type Tuning = (typeof LEVEL_TUNING)[LabLevel];
 
 // Data-review exercises: each learner gets their own realistic export (access list, asset register, change
 // tickets...) generated from their practice company's industry profile, with problems planted in it. The learner
@@ -80,15 +83,21 @@ function people(r: Rng, n: number) {
   return out;
 }
 
-// Places each planted issue on a different random row; the rest stay clean.
-function plant<T extends string>(r: Rng, total: number, issues: T[]) {
+// Places each planted issue on a different random row; the rest stay clean. Beginners get one of each kind of
+// problem; experienced levels get repeats, capped so most rows stay clean.
+function plant<T extends string>(r: Rng, total: number, base: T[], t: Tuning) {
+  const unique = [...new Set(base)];
+  const issues = (t.issues === "unique" ? unique
+    : t.issues === "standard" ? base
+    : t.issues === "more" ? [...base, ...unique.slice(0, Math.ceil(unique.length / 2))]
+    : [...base, ...base]).slice(0, Math.floor(total * 0.4));
   const slots = r.shuffle(Array.from({ length: total }, (_, i) => i)).slice(0, issues.length);
   const at = new Map<number, T>();
   slots.forEach((s, i) => at.set(s, issues[i]));
   return at;
 }
 
-function accessReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
+function accessReview(p: IndustryProfile, r: Rng, asOf: Date, t: Tuning): Exercise {
   const cs = p.coreSystem;
   const options: Option[] = [OK,
     { value: "LEAVER", label: "Leaver still active", explain: "HR shows this person has left, but the account is still enabled." },
@@ -99,9 +108,9 @@ function accessReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
     { value: "SOD", label: "Segregation of duties conflict", explain: `Holds both ${cs.sodConflict.join(" and ")}, so one person can do and approve the same action.` },
   ];
   const issues = ["LEAVER", "LEAVER", "MOVER", "DORMANT", "DORMANT", "SHARED", "PRIV_NO_MFA", "SOD"];
-  const n = 34;
+  const n = Math.round(34 * t.rows);
   const staff = people(r, n);
-  const at = plant(r, n, issues);
+  const at = plant(r, n, issues, t);
   const rows: Record<string, string>[] = [];
   const roster: Record<string, string>[] = [];
   const answers: Record<string, string> = {};
@@ -123,6 +132,8 @@ function accessReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
     if (issue === "SHARED") { userId = `${r.pick(["ops", "frontdesk", "team", "shift", "support"])}-shared${r.int(1, 9)}`; role = r.pick(cs.roles); }
     if (issue === "PRIV_NO_MFA") { role = cs.privilegedRoles[r.int(0, cs.privilegedRoles.length - 1)]; mfa = "No"; }
     if (issue === "SOD") role = cs.sodConflict.join(" + ");
+    // Look-alikes for experienced levels: close to dormant, but not over the line.
+    if (issue === "OK" && r.next() < 0.08 * t.decoys) lastLogin = ago(asOf, r.int(75, 89));
     const id = `U${String(i + 1).padStart(3, "0")}`;
     rows.push({ id, userId, name: issue === "SHARED" ? "(shared)" : s.name, department: dept, role, mfa, lastLogin, status: "Enabled" });
     if (issue !== "SHARED") roster.push({ employee: s.name, department: hrDept, status: hrStatus, leftOn });
@@ -152,7 +163,7 @@ function accessReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
   };
 }
 
-function assetInventory(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
+function assetInventory(p: IndustryProfile, r: Rng, asOf: Date, t: Tuning): Exercise {
   const options: Option[] = [OK,
     { value: "NO_OWNER", label: "No owner", explain: "Nobody is accountable for patching, access or disposal." },
     { value: "UNENCRYPTED", label: "Laptop not encrypted", explain: "A lost or stolen laptop without disk encryption is a data breach." },
@@ -161,9 +172,9 @@ function assetInventory(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
     { value: "STALE", label: "Not seen in 60+ days", explain: "Lost, stolen or decommissioned without updating the register." },
   ];
   const issues = ["NO_OWNER", "NO_OWNER", "UNENCRYPTED", "UNENCRYPTED", "EOL_OS", "EOL_OS", "NO_EDR", "STALE"];
-  const n = 32;
+  const n = Math.round(32 * t.rows);
   const owners = people(r, 12);
-  const at = plant(r, n, issues);
+  const at = plant(r, n, issues, t);
   const types = [...p.endpoints, "Laptop", "Laptop"];
   const goodOs = { laptop: ["Windows 11 24H2", "Windows 11 25H2"], server: ["Ubuntu 22.04", "Windows Server 2022", "RHEL 9"], device: ["Vendor firmware 4.2", "Android 15", "Embedded Linux 6.1"] };
   const badOs = { laptop: ["Windows 7 SP1", "Windows 10 22H2"], server: ["Windows Server 2012 R2", "CentOS 7"], device: ["Windows XP Embedded", "Android 8"] };
@@ -200,7 +211,7 @@ function assetInventory(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
   };
 }
 
-function changeReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
+function changeReview(p: IndustryProfile, r: Rng, asOf: Date, t: Tuning): Exercise {
   const options: Option[] = [OK,
     { value: "NO_APPROVAL", label: "No approval", explain: "Went to production without anyone approving it." },
     { value: "LATE_APPROVAL", label: "Approved after deployment", explain: "The approval was recorded after the change was already live." },
@@ -209,9 +220,9 @@ function changeReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
     { value: "EMERGENCY_NO_PIR", label: "Emergency change without review", explain: "Emergency changes skip approval, so they need a post-implementation review." },
   ];
   const issues = ["NO_APPROVAL", "LATE_APPROVAL", "LATE_APPROVAL", "SELF_APPROVED", "NO_TESTING", "NO_TESTING", "EMERGENCY_NO_PIR"];
-  const n = 24;
+  const n = Math.round(24 * t.rows);
   const devs = people(r, 10);
-  const at = plant(r, n, issues);
+  const at = plant(r, n, issues, t);
   const verbs = ["Update", "Patch", "Add", "Fix", "Upgrade", "Change", "Remove"];
   const things = ["login timeout", "TLS certificate", "report export", "database index", "API rate limit", "password policy", "user role", "batch schedule", "firewall object", "library version"];
   const answers: Record<string, string> = {};
@@ -229,7 +240,7 @@ function changeReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
     if (issue === "SELF_APPROVED") approver = requester;
     if (issue === "NO_TESTING") testing = "";
     if (issue === "EMERGENCY_NO_PIR") { type = "Emergency"; pir = "Not done"; }
-    else if (r.next() < 0.1) { type = "Emergency"; pir = "Done " + fmt(new Date(deployed.getTime() + 2 * DAY)); }
+    else if (r.next() < 0.1 * t.decoys) { type = "Emergency"; pir = "Done " + fmt(new Date(deployed.getTime() + 2 * DAY)); }
     const id = `C${String(i + 1).padStart(3, "0")}`;
     answers[id] = issue;
     return {
@@ -250,15 +261,15 @@ function changeReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
   };
 }
 
-function vulnTriage(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
+function vulnTriage(p: IndustryProfile, r: Rng, asOf: Date, t: Tuning): Exercise {
   const options: Option[] = [OK,
     { value: "SLA_BREACH", label: "Past fix deadline", explain: "Open longer than the policy allows for its severity." },
     { value: "EXCEPTION_EXPIRED", label: "Exception expired", explain: "The risk acceptance ran out; it's overdue again unless renewed." },
     { value: "REOPENED", label: "Marked fixed but still detected", explain: "Closed in the tracker, yet the latest scan still finds it." },
   ];
   const issues = ["SLA_BREACH", "SLA_BREACH", "SLA_BREACH", "EXCEPTION_EXPIRED", "EXCEPTION_EXPIRED", "REOPENED", "REOPENED"];
-  const n = 26;
-  const at = plant(r, n, issues);
+  const n = Math.round(26 * t.rows);
+  const at = plant(r, n, issues, t);
   const vulns = [["Critical", "Remote code execution in web server"], ["Critical", "SQL injection in login form"], ["High", "Outdated OpenSSL"],
     ["High", "SMB signing not required"], ["Medium", "TLS 1.0 enabled"], ["Medium", "Missing security headers"], ["Low", "Server version disclosed"], ["High", "Default admin password"]];
   const answers: Record<string, string> = {};
@@ -274,8 +285,8 @@ function vulnTriage(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
     if (issue === "SLA_BREACH") open = sla + r.int(5, 60);
     if (issue === "EXCEPTION_EXPIRED") { open = sla + r.int(20, 90); status = "Risk accepted"; exception = ago(asOf, r.int(3, 40)); }
     if (issue === "REOPENED") { status = "Closed"; open = r.int(10, 40); }
-    if (issue === "OK" && r.next() < 0.15) { status = "Risk accepted"; open = sla + r.int(5, 30); exception = fmt(new Date(asOf.getTime() + r.int(20, 120) * DAY)); }
-    if (issue === "OK" && r.next() < 0.15) { status = "Closed"; lastScan = "Not detected"; }
+    if (issue === "OK" && r.next() < 0.15 * t.decoys) { status = "Risk accepted"; open = sla + r.int(5, 30); exception = fmt(new Date(asOf.getTime() + r.int(20, 120) * DAY)); }
+    if (issue === "OK" && r.next() < 0.15 * t.decoys) { status = "Closed"; lastScan = "Not detected"; }
     const id = `V${String(i + 1).padStart(3, "0")}`;
     answers[id] = issue;
     return { id, host: `${r.pick(p.systems)}-${r.int(1, 9)}`, severity: sev, title, firstSeen: ago(asOf, open), status, exceptionUntil: exception, latestScan: lastScan };
@@ -292,7 +303,7 @@ function vulnTriage(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
   };
 }
 
-function firewallReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
+function firewallReview(p: IndustryProfile, r: Rng, asOf: Date, t: Tuning): Exercise {
   const options: Option[] = [OK,
     { value: "ANY_ANY", label: "Any-to-any rule", explain: "Allows all traffic; the firewall isn't doing its job for this rule." },
     { value: "ADMIN_EXPOSED", label: "Admin port open to internet", explain: "RDP, SSH or database ports reachable from anywhere invite brute force and exploits." },
@@ -301,9 +312,9 @@ function firewallReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
     { value: "EXPIRED_TEMP", label: "Expired temporary rule", explain: "A temporary rule past its end date should have been removed." },
   ];
   const issues = ["ANY_ANY", "ADMIN_EXPOSED", "ADMIN_EXPOSED", "NO_OWNER", "NO_OWNER", "UNUSED", "EXPIRED_TEMP"];
-  const n = 24;
+  const n = Math.round(24 * t.rows);
   const owners = people(r, 6);
-  const at = plant(r, n, issues);
+  const at = plant(r, n, issues, t);
   const nets = ["10.10.0.0/16", "10.20.5.0/24", "192.168.40.0/24", "172.16.8.0/22"];
   const svc = [["HTTPS", "443"], ["HTTP", "80"], ["DNS", "53"], ["SMTP", "25"], ["NTP", "123"], ["App", "8443"]];
   const admin = [["RDP", "3389"], ["SSH", "22"], ["SQL Server", "1433"], ["PostgreSQL", "5432"]];
@@ -323,7 +334,7 @@ function firewallReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
     if (issue === "NO_OWNER") { owner = ""; ticket = ""; }
     if (issue === "UNUSED") lastHit = ago(asOf, r.int(200, 500));
     if (issue === "EXPIRED_TEMP") expires = ago(asOf, r.int(10, 90));
-    if (issue === "OK" && r.next() < 0.15) expires = fmt(new Date(asOf.getTime() + r.int(10, 60) * DAY));
+    if (issue === "OK" && r.next() < 0.15 * t.decoys) expires = fmt(new Date(asOf.getTime() + r.int(10, 60) * DAY));
     const id = `R${String(i + 1).padStart(3, "0")}`;
     answers[id] = issue;
     return { id, rule: String(100 + i * 10), source, destination: dest, service: `${service} ${port}`, action: "Allow", owner, ticket, lastHit, expires };
@@ -341,7 +352,7 @@ function firewallReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
   };
 }
 
-function vendorReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
+function vendorReview(p: IndustryProfile, r: Rng, asOf: Date, t: Tuning): Exercise {
   const options: Option[] = [OK,
     { value: "NO_DPA", label: "Personal data, no DPA", explain: "Processes personal data without a signed data processing agreement." },
     { value: "REVIEW_OVERDUE", label: "Review overdue", explain: "Critical and high vendors must be reassessed at least every 12 months." },
@@ -353,9 +364,12 @@ function vendorReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
     ["PrintHub", "Printing", "OTHER"], ["HireBoard", "Job ads", "SAAS"], ["ExpenseIt", "Expenses", "FINANCE"], ["AuditPartners", "External audit", "PROFESSIONAL_SERVICES"],
     ["SurveyNow", "Customer surveys", "SAAS"], ["CleanCo", "Facilities", "OTHER"], ["MonitorPlus", "Uptime monitoring", "SAAS"], ["BackupBox", "Offsite backup", "SECURITY"]];
   const list = [...p.vendors.map((v) => ({ name: v.name, service: v.service, criticality: v.criticality, data: v.data })),
-    ...r.shuffle(filler).slice(0, 14).map(([name, service]) => ({ name, service, criticality: r.pick(["HIGH", "MEDIUM", "LOW", "LOW"]), data: r.next() < 0.5 ? "Employee personal data" : "None" }))];
+    ...((pool) => Array.from({ length: Math.round(14 * t.rows) }, (_, i) => {
+      const [name, service] = pool[i % pool.length];
+      return [i < pool.length ? name : `${name} ${["APAC", "EU", "US", "MEA"][Math.floor(i / pool.length) - 1]}`, service];
+    }))(r.shuffle(filler)).map(([name, service]) => ({ name, service, criticality: r.pick(["HIGH", "MEDIUM", "LOW", "LOW"]), data: r.next() < 0.5 ? "Employee personal data" : "None" }))];
   const issues = ["NO_DPA", "NO_DPA", "REVIEW_OVERDUE", "REVIEW_OVERDUE", "CERT_EXPIRED", "CERT_EXPIRED", "NEVER_ASSESSED"];
-  const at = plant(r, list.length, issues);
+  const at = plant(r, list.length, issues, t);
   const answers: Record<string, string> = {};
   const rows = list.map((v, i) => {
     let issue = at.get(i) ?? "OK";
@@ -372,7 +386,7 @@ function vendorReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
     if (issue === "REVIEW_OVERDUE") lastReview = ago(asOf, r.int(420, 800));
     if (issue === "CERT_EXPIRED") { cert = r.pick(["SOC 2 Type II", "ISO 27001"]); certExpiry = ago(asOf, r.int(15, 200)); }
     if (issue === "NEVER_ASSESSED") lastReview = "Never";
-    if (issue === "OK" && !["CRITICAL", "HIGH"].includes(crit) && r.next() < 0.3) lastReview = ago(asOf, r.int(400, 700)); // fine for medium/low
+    if (issue === "OK" && !["CRITICAL", "HIGH"].includes(crit) && r.next() < 0.3 * t.decoys) lastReview = ago(asOf, r.int(400, 700)); // fine for medium/low
     const id = `T${String(i + 1).padStart(3, "0")}`;
     answers[id] = issue;
     return { id, vendor: v.name, service: v.service, criticality: crit, data, dpa, lastReview, certificate: cert, certExpiry };
@@ -389,7 +403,7 @@ function vendorReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
   };
 }
 
-function trainingReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
+function trainingReview(p: IndustryProfile, r: Rng, asOf: Date, t: Tuning): Exercise {
   const options: Option[] = [OK,
     { value: "TRAINING_OVERDUE", label: "Annual training overdue", explain: "Last security training was more than 365 days ago." },
     { value: "JOINER_UNTRAINED", label: "Joiner not trained in 30 days", explain: "New joiners must finish security training within 30 days." },
@@ -397,9 +411,9 @@ function trainingReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
     { value: "NO_BGV", label: "Sensitive role without background check", explain: `Roles with access to ${p.dataLabel} need a completed background check.` },
   ];
   const issues = ["TRAINING_OVERDUE", "TRAINING_OVERDUE", "TRAINING_OVERDUE", "JOINER_UNTRAINED", "JOINER_UNTRAINED", "NO_POLICY_ACK", "NO_BGV"];
-  const n = 30;
+  const n = Math.round(30 * t.rows);
   const staff = people(r, n);
-  const at = plant(r, n, issues);
+  const at = plant(r, n, issues, t);
   const answers: Record<string, string> = {};
   const rows = staff.map((s, i) => {
     const issue = at.get(i) ?? "OK";
@@ -413,7 +427,7 @@ function trainingReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
     if (issue === "JOINER_UNTRAINED") { joined = ago(asOf, r.int(40, 80)); trained = ""; }
     if (issue === "NO_POLICY_ACK") ack = "No";
     if (issue === "NO_BGV") { sensitive = "Yes"; bgv = "Pending"; }
-    if (issue === "OK" && r.next() < 0.15) { joined = ago(asOf, r.int(3, 20)); trained = ""; } // still inside 30 days
+    if (issue === "OK" && r.next() < 0.15 * t.decoys) { joined = ago(asOf, r.int(3, 20)); trained = ""; } // still inside 30 days
     const id = `E${String(i + 1).padStart(3, "0")}`;
     answers[id] = issue;
     return { id, employee: s.name, department: r.pick(p.departments), joined, lastTraining: trained, policyAck: ack, sensitiveAccess: sensitive, backgroundCheck: bgv };
@@ -430,7 +444,7 @@ function trainingReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
   };
 }
 
-function backupReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
+function backupReview(p: IndustryProfile, r: Rng, asOf: Date, t: Tuning): Exercise {
   const options: Option[] = [OK,
     { value: "FAILED_NO_TICKET", label: "Failure not followed up", explain: "A failed or partial backup with no incident ticket means nobody fixed it." },
     { value: "RETENTION_SHORT", label: "Retention below policy", explain: "Backups are deleted sooner than the policy requires." },
@@ -438,8 +452,8 @@ function backupReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
   ];
   const systems = [p.coreSystem.name, ...p.systems, "Email archive", "File server", "HR system", "Finance ERP", "Directory (AD)", "CRM"];
   const issues = ["FAILED_NO_TICKET", "FAILED_NO_TICKET", "FAILED_NO_TICKET", "RETENTION_SHORT", "RETENTION_SHORT", "NO_RESTORE_TEST", "NO_RESTORE_TEST"];
-  const n = 26;
-  const at = plant(r, n, issues);
+  const n = Math.round(26 * t.rows);
+  const at = plant(r, n, issues, t);
   const answers: Record<string, string> = {};
   const rows = Array.from({ length: n }, (_, i) => {
     const issue = at.get(i) ?? "OK";
@@ -450,7 +464,7 @@ function backupReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
     let retention = policy + r.pick([0, 0, 5]);
     let restore = ago(asOf, r.int(5, 80));
     if (issue === "FAILED_NO_TICKET") result = r.pick(["Failed", "Partial"]);
-    if (issue === "OK" && r.next() < 0.15) { result = "Failed"; ticket = `INC-${r.int(10000, 99999)}`; }
+    if (issue === "OK" && r.next() < 0.15 * t.decoys) { result = "Failed"; ticket = `INC-${r.int(10000, 99999)}`; }
     if (issue === "RETENTION_SHORT") retention = Math.max(7, policy - r.pick([15, 23, 60]));
     if (issue === "NO_RESTORE_TEST") restore = ago(asOf, r.int(120, 260));
     const id = `B${String(i + 1).padStart(3, "0")}`;
@@ -469,7 +483,7 @@ function backupReview(p: IndustryProfile, r: Rng, asOf: Date): Exercise {
   };
 }
 
-const GENERATORS: Record<string, (p: IndustryProfile, r: Rng, asOf: Date) => Exercise> = {
+const GENERATORS: Record<string, (p: IndustryProfile, r: Rng, asOf: Date, t: Tuning) => Exercise> = {
   access_review: accessReview,
   asset_inventory: assetInventory,
   change_review: changeReview,
@@ -481,10 +495,13 @@ const GENERATORS: Record<string, (p: IndustryProfile, r: Rng, asOf: Date) => Exe
 };
 
 /** The learner's own data set: the same every time for one practice company, different for every company. */
-export function buildExercise(kind: string, profile: IndustryProfile, orgId: string, orgCreatedAt: Date, taskKey: string): Exercise | null {
+export function buildExercise(
+  kind: string, profile: IndustryProfile, orgId: string, orgCreatedAt: Date, taskKey: string, level: LabLevel = "practitioner"
+): Exercise | null {
   const gen = GENERATORS[kind];
   if (!gen) return null;
-  return gen(profile, rng(`${orgId}:${taskKey}`), new Date(Date.UTC(orgCreatedAt.getUTCFullYear(), orgCreatedAt.getUTCMonth(), orgCreatedAt.getUTCDate())));
+  const asOf = new Date(Date.UTC(orgCreatedAt.getUTCFullYear(), orgCreatedAt.getUTCMonth(), orgCreatedAt.getUTCDate()));
+  return gen(profile, rng(`${orgId}:${taskKey}:${level}`), asOf, LEVEL_TUNING[level]);
 }
 
 /** What the learner sees: everything except the answer key. */
@@ -495,6 +512,9 @@ export function publicExercise(ex: Exercise) {
 
 export type Grade = {
   passed: boolean;
+  allowedFalseAlarms: number;
+  // Rows the learner flagged wrongly (false alarm or wrong reason); beginners are shown these. Missed rows never are.
+  wrongRows: string[];
   planted: number;
   found: number;
   wrongReason: number;
@@ -503,23 +523,27 @@ export type Grade = {
   missedByType: { label: string; count: number }[];
 };
 
-// Passes when every planted problem is flagged (with the right reason) and at most two clean rows are flagged.
-export function grade(ex: Exercise, flags: Record<string, string>): Grade {
+// Passes when every planted problem is flagged with the right reason and false alarms stay within the level's limit.
+export function grade(ex: Exercise, flags: Record<string, string>, level: LabLevel = "practitioner"): Grade {
+  const t = LEVEL_TUNING[level];
+  const wrongRows: string[] = [];
   const label = new Map(ex.options.map((o) => [o.value, o.label]));
   let planted = 0, found = 0, wrongReason = 0, falseAlarms = 0;
   const missed = new Map<string, number>();
   for (const [row, truth] of Object.entries(ex.answers)) {
     const given = flags[row] ?? "OK";
-    if (truth === "OK") { if (given !== "OK") falseAlarms++; continue; }
+    if (truth === "OK") { if (given !== "OK") { falseAlarms++; wrongRows.push(row); } continue; }
     planted++;
     if (given === truth) found++;
     else {
-      if (given !== "OK") wrongReason++;
+      if (given !== "OK") { wrongReason++; wrongRows.push(row); }
       missed.set(truth, (missed.get(truth) ?? 0) + 1);
     }
   }
   return {
-    passed: found === planted && falseAlarms <= 2,
+    passed: found === planted && falseAlarms <= t.falseAlarms,
+    allowedFalseAlarms: t.falseAlarms,
+    wrongRows,
     planted, found, wrongReason, falseAlarms,
     missedByType: [...missed].map(([v, count]) => ({ label: label.get(v) ?? v, count })),
   };

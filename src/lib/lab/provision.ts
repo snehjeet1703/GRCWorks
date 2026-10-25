@@ -11,6 +11,7 @@ import { addToScope, slotsFor } from "@/lib/audit-periods";
 import { deleteUpload, saveUpload } from "@/lib/storage";
 import type { PortalAnswer, PortalQuestion } from "@/lib/vendor-portal";
 import { getCourse, getTemplate, labContent, templateIdOf, type LabTemplate } from "./content";
+import { levelOf, type LabLevel } from "./levels";
 
 type Tx = Prisma.TransactionClient;
 export type Learner = { email: string; name: string; passwordHash: string };
@@ -45,7 +46,7 @@ function placeholderPdf(title: string, company: string) {
 }
 
 /** Creates a learner's practice company from one of the course's templates (the first if none is given). */
-export async function provisionPracticeOrg(courseId: string, templateId: string | null, learner: Learner) {
+export async function provisionPracticeOrg(courseId: string, templateId: string | null, learner: Learner, level?: LabLevel) {
   const course = await getCourse(courseId);
   if (!course) throw new Error(`Unknown course ${courseId}`);
   const id = templateId && course.templates.includes(templateId) ? templateId : course.templates[0];
@@ -61,7 +62,7 @@ export async function provisionPracticeOrg(courseId: string, templateId: string 
   }
 
   try {
-    return await prisma.$transaction((tx) => applyTemplate(tx, t, course.id, learner, files), { timeout: 60_000 });
+    return await prisma.$transaction((tx) => applyTemplate(tx, t, course.id, learner, files, level), { timeout: 60_000 });
   } catch (err) {
     await Promise.all([...files.values()].map((f) => deleteUpload(f.key).catch(() => {})));
     throw err;
@@ -69,7 +70,8 @@ export async function provisionPracticeOrg(courseId: string, templateId: string 
 }
 
 async function applyTemplate(
-  tx: Tx, t: LabTemplate, courseId: string, learner: Learner, files: Map<string, { key: string; size: number; name: string }>
+  tx: Tx, t: LabTemplate, courseId: string, learner: Learner, files: Map<string, { key: string; size: number; name: string }>,
+  level?: LabLevel
 ) {
   const suffix = randomBytes(4).toString("hex");
   const org = await tx.organization.create({
@@ -79,6 +81,7 @@ async function applyTemplate(
       practice: true,
       labCourseId: courseId,
       labTemplate: `${t.id}@${t.version}`,
+      labLevel: level ?? "practitioner",
       onboardingComplete: true,
       // One real person per practice company: approvals by "someone else" would block every lab.
       controlApprovalRequired: false,
@@ -270,12 +273,12 @@ async function applyTemplate(
  * Replaces a learner's practice company with a fresh copy: the new company is built first, then the learner's
  * account moves to it and the old company (with its fictional colleagues and data) is deleted.
  */
-export async function resetPracticeOrg(userId: string, templateId?: string) {
+export async function resetPracticeOrg(userId: string, templateId?: string, level?: LabLevel) {
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: userId },
     select: {
       id: true, email: true, name: true, passwordHash: true,
-      organization: { select: { id: true, practice: true, labCourseId: true, labTemplate: true } },
+      organization: { select: { id: true, practice: true, labCourseId: true, labTemplate: true, labLevel: true } },
     },
   });
   const old = user.organization;
@@ -287,7 +290,7 @@ export async function resetPracticeOrg(userId: string, templateId?: string) {
   const courseId = templateId
     ? (await labContent()).courses.find((c) => c.templates.includes(templateId))?.id ?? old.labCourseId
     : old.labCourseId;
-  const fresh = await provisionPracticeOrg(courseId, templateId ?? templateIdOf(old.labTemplate), { email: parked, name: user.name, passwordHash: user.passwordHash });
+  const fresh = await provisionPracticeOrg(courseId, templateId ?? templateIdOf(old.labTemplate), { email: parked, name: user.name, passwordHash: user.passwordHash }, level ?? levelOf(old.labLevel));
 
   const oldKeys = await prisma.evidence.findMany({ where: { organizationId: old.id }, select: { storageKey: true } });
   await prisma.$transaction(async (tx) => {

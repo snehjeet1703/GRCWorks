@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { GraduationCap } from "lucide-react";
 import { PasswordInput } from "@/components/password-input";
+import { LAB_LEVELS, type LabLevel } from "@/lib/lab/levels";
 
 async function post(url: string, body: unknown) {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -16,6 +17,7 @@ type Industry = { id: string; industry: string; company: string; description: st
 
 export function SignupForm({ course, industries }: { course: { title: string; labs: string[] } | null; industries: Industry[] }) {
   const [template, setTemplate] = useState(industries[0]?.id ?? "");
+  const [level, setLevel] = useState<LabLevel>("beginner");
   const [step, setStep] = useState<"details" | "code" | "building">("details");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -39,7 +41,7 @@ export function SignupForm({ course, industries }: { course: { title: string; la
     setLoading(true);
     setError("");
     setStep("building");
-    const err = await post("/api/lab/signup/verify", { email, code, template });
+    const err = await post("/api/lab/signup/verify", { email, code, template, level });
     if (err) {
       setLoading(false);
       setStep("code");
@@ -89,6 +91,13 @@ export function SignupForm({ course, industries }: { course: { title: string; la
                   </p>
                 </div>
               )}
+              <div>
+                <label htmlFor="level" className="mb-1.5 block text-sm font-medium text-gray-700">Your GRC experience</label>
+                <select id="level" className="input" value={level} onChange={(e) => setLevel(e.target.value as LabLevel)}>
+                  {LAB_LEVELS.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">{LAB_LEVELS.find((l) => l.id === level)?.summary}</p>
+              </div>
               {error && <p className="text-sm text-red-600">{error}</p>}
               <button type="submit" disabled={loading} className="btn-primary w-full">
                 {loading ? "Sending code..." : "Email me a code"}

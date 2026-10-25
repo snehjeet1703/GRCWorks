@@ -31,6 +31,7 @@ export default async function ExercisePage({ params }: { params: Promise<{ labId
       task={{ title: loaded.task.title, instructions: loaded.task.instructions, hints: loaded.task.hints }}
       exercise={publicExercise(loaded.exercise)}
       savedFlags={(last?.flags as Record<string, string> | null) ?? {}}
+      level={loaded.level}
       answerKey={passedBefore
         ? Object.entries(loaded.exercise.answers).filter(([, v]) => v !== "OK")
             .map(([row, v]) => ({ row, label: options.get(v)?.label ?? v, explain: options.get(v)?.explain ?? "" }))

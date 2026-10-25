@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowUpRight, CheckCircle2, Circle, Clock, Lightbulb, PlayCircle, RotateCcw } from "lucide-react";
 import { Modal } from "@/components/modal";
+import { LAB_LEVELS, levelLabel, type LabLevel } from "@/lib/lab/levels";
 import { useToast } from "@/components/toast";
 
 export type LabView = {
@@ -22,8 +23,9 @@ type Progress = { labs: { id: string; tasks: { id: string; done: boolean }[] }[]
 const POLL_MS = 15_000;
 
 export function LabClient({
-  courseTitle, company, industries, labs: initial,
+  courseTitle, company, industries, level, labs: initial,
 }: {
+  level: LabLevel;
   courseTitle: string;
   company: { id: string; name: string; industry: string; description: string };
   industries: { id: string; industry: string; company: string; description: string }[];
@@ -37,6 +39,7 @@ export function LabClient({
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [nextTemplate, setNextTemplate] = useState(company.id);
+  const [nextLevel, setNextLevel] = useState<LabLevel>(level);
 
   useEffect(() => setLabs(initial), [initial]);
 
@@ -62,7 +65,7 @@ export function LabClient({
   async function reset() {
     setResetting(true);
     const res = await fetch("/api/lab/reset", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ template: nextTemplate }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ template: nextTemplate, level: nextLevel }),
     });
     setResetting(false);
     setConfirmReset(false);
@@ -82,9 +85,12 @@ export function LabClient({
           <p className="mt-1 max-w-2xl text-sm text-gray-500">
             You&apos;re the compliance lead at <strong>{company.name}</strong> ({company.industry}), a fictional company. {company.description}
           </p>
+          <p className="mt-2 inline-flex rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-950 dark:text-brand-300">
+            Level: {levelLabel(level)}
+          </p>
         </div>
-        <button className="btn-secondary" onClick={() => { setNextTemplate(company.id); setConfirmReset(true); }}>
-          <RotateCcw className="mr-2 h-4 w-4" /> Start over or change industry
+        <button className="btn-secondary" onClick={() => { setNextTemplate(company.id); setNextLevel(level); setConfirmReset(true); }}>
+          <RotateCcw className="mr-2 h-4 w-4" /> Start over, change industry or level
         </button>
       </div>
 
@@ -194,6 +200,11 @@ export function LabClient({
           {industries.map((i) => <option key={i.id} value={i.id}>{i.industry} ({i.company})</option>)}
         </select>
         <p className="mt-1 text-xs text-gray-500">{industries.find((i) => i.id === nextTemplate)?.description}</p>
+        <label htmlFor="next-level" className="mt-4 mb-1 block text-sm font-medium">Experience level</label>
+        <select id="next-level" className="input" value={nextLevel} onChange={(e) => setNextLevel(e.target.value as LabLevel)}>
+          {LAB_LEVELS.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+        </select>
+        <p className="mt-1 text-xs text-gray-500">{LAB_LEVELS.find((l) => l.id === nextLevel)?.summary}</p>
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button type="button" onClick={() => setConfirmReset(false)} className="btn-secondary" disabled={resetting}>Cancel</button>
           <button type="button" onClick={reset} className="btn-primary" disabled={resetting}>
