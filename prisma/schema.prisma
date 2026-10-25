@@ -152,6 +152,7 @@ model User {
   labAccess         LabAccess?
   labRedemptions    LabRedemption[]
   labCertificates   LabCertificate[]
+  labAccessRequests LabAccessRequest[] @relation("LabRequester")
 
   @@index([organizationId])
   @@map("users")
@@ -1321,4 +1322,43 @@ model LabCertificate {
 
   @@unique([userId, courseId, level])
   @@map("lab_certificates")
+}
+
+// Lab settings the admins change from the command centre. One row, id "default".
+model LabSettings {
+  id            String   @id @default("default")
+  pricingText   String   @default("") @map("pricing_text")
+  paymentText   String   @default("") @map("payment_text")
+  upiId         String   @default("") @map("upi_id")
+  // Per course: which labs are free. A course missing here uses its own freePreviewLabs.
+  freeLabs      Json     @default("{}") @map("free_labs")
+  defaultMonths Int      @default(12) @map("default_months")
+  signupOpen    Boolean  @default(true) @map("signup_open")
+  // Admins added in the app; LAB_ADMIN_EMAILS stay admins regardless.
+  admins        Json     @default("[]")
+  updatedBy     String   @default("") @map("updated_by")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("lab_settings")
+}
+
+// "I've paid": a learner's request for paid access, with their payment reference, for an admin to approve.
+model LabAccessRequest {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  plan         String
+  reference    String
+  amount       String    @default("")
+  note         String    @default("")
+  status       String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  decidedBy    String?   @map("decided_by")
+  decidedAt    DateTime? @map("decided_at")
+  decisionNote String    @default("") @map("decision_note")
+  months       Int?
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  user User @relation("LabRequester", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("lab_access_requests")
 }

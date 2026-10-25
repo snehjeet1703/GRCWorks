@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { industryChoices, labContent, labMode, videoEmbedUrl } from "@/lib/lab/content";
 import { evaluateCourse } from "@/lib/lab/checks";
 import { levelLabel, levelOf } from "@/lib/lab/levels";
-import { PLANS, isLabAdmin, paymentText, pricingText } from "@/lib/lab/access";
+import { PLANS, isLabAdmin, labSettings } from "@/lib/lab/access";
 import { LabClient, type LabView } from "./lab-client";
 
 export const dynamic = "force-dynamic";
@@ -51,16 +51,22 @@ export default async function LabPage() {
       data: { userId, courseId: result.course.id, name: user.name, course: result.course.title, industry: template.company.industry, level: levelLabel(level) },
     });
   }
+  const settings = await labSettings();
+  const lastRequest = await prisma.labAccessRequest.findFirst({ where: { userId }, orderBy: { createdAt: "desc" } });
   const managesTeam = (await prisma.labAccessCode.count({ where: { plan: "team", managerEmail: { equals: user.email, mode: "insensitive" } } })) > 0;
 
   return (
     <LabClient
       access={{
         plan: PLANS[result.access.plan].label, paid: result.access.paid,
-        expiresAt: result.access.expiresAt?.toISOString() ?? null, pricing: pricingText(), payment: paymentText(),
+        expiresAt: result.access.expiresAt?.toISOString() ?? null, pricing: settings.pricingText, payment: settings.paymentText,
+        upiId: settings.upiId,
+        request: lastRequest
+          ? { status: lastRequest.status, reference: lastRequest.reference, note: lastRequest.decisionNote, createdAt: lastRequest.createdAt.toISOString() }
+          : null,
       }}
       certificateId={certificate?.id ?? null}
-      links={{ admin: isLabAdmin(user.email), team: managesTeam }}
+      links={{ admin: await isLabAdmin(user.email), team: managesTeam }}
       courseTitle={result.course.title}
       company={{ id: template.id, name: template.company.name, industry: template.company.industry, description: template.company.description }}
       industries={industries}

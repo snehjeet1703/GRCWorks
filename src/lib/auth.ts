@@ -205,6 +205,7 @@ export const authOptions: NextAuthOptions = {
               role: true,
               roleId: true,
               organizationId: true,
+              canSignIn: true,
               organization: { select: { name: true } },
               customRole: { select: { name: true, permissions: true } },
               frameworkScopes: { select: { frameworkId: true } },
@@ -215,6 +216,7 @@ export const authOptions: NextAuthOptions = {
             // Live too, so a lab reset (which moves the learner to a fresh practice company) applies at once.
             (session.user as any).organizationId = dbUser.organizationId;
             (session.user as any).organizationName = dbUser.organization.name;
+            if (!dbUser.canSignIn) (session.user as any).blocked = true;
             (session.user as any).role = dbUser.role;
             (session.user as any).roleId = dbUser.roleId;
             (session.user as any).permissions = [...resolved.permissions];

@@ -26,7 +26,10 @@ const POLL_MS = 15_000;
 export function LabClient({
   courseTitle, company, industries, level, labs: initial, access, certificateId, links,
 }: {
-  access: { plan: string; paid: boolean; expiresAt: string | null; pricing: string; payment: string };
+  access: {
+    plan: string; paid: boolean; expiresAt: string | null; pricing: string; payment: string; upiId: string;
+    request: { status: string; reference: string; note: string; createdAt: string } | null;
+  };
   certificateId: string | null;
   links: { admin: boolean; team: boolean };
   level: LabLevel;
@@ -46,6 +49,20 @@ export function LabClient({
   const [nextLevel, setNextLevel] = useState<LabLevel>(level);
   const [code, setCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
+  const [paidForm, setPaidForm] = useState<{ plan: string; reference: string; amount: string } | null>(null);
+  const [sending, setSending] = useState(false);
+
+  async function sendPaid(e: React.FormEvent) {
+    e.preventDefault();
+    setSending(true);
+    const res = await fetch("/api/lab/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(paidForm) });
+    setSending(false);
+    const data = await res.json().catch(() => null);
+    if (!res.ok) return toast.error(data?.error ?? "Couldn't send your request");
+    toast.success("Thanks! We'll unlock your account once we've checked the payment.");
+    setPaidForm(null);
+    router.refresh();
+  }
 
   async function redeem(e: React.FormEvent) {
     e.preventDefault();
@@ -121,7 +138,42 @@ export function LabClient({
               {access.paid && expiry && <span className="font-normal text-gray-500"> · until {expiry}</span>}
               {!access.paid && expiry && <span className="font-normal text-gray-500"> · paid access ended {expiry}</span>}
             </p>
-            {!access.paid && <p className="mt-1 max-w-xl text-gray-500">Lab 1 is free. {access.pricing} {access.payment}</p>}
+            {!access.paid && (
+              <div className="mt-1 max-w-xl space-y-1 text-gray-500">
+                <p>Lab 1 is free. {access.pricing}</p>
+                <p>{access.payment}{access.upiId && <> UPI ID: <strong className="font-mono text-gray-800 dark:text-gray-200">{access.upiId}</strong></>}</p>
+              </div>
+            )}
+            {access.request?.status === "PENDING" && (
+              <p className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                Payment reference {access.request.reference} received; we&apos;ll unlock your account once it&apos;s checked.
+              </p>
+            )}
+            {access.request?.status === "REJECTED" && !access.paid && (
+              <p className="mt-2 rounded-md bg-red-50 px-2 py-1 text-xs text-red-800 dark:bg-red-950 dark:text-red-300">
+                We couldn&apos;t match payment {access.request.reference}{access.request.note ? `: ${access.request.note}` : "."} Send it again or contact us.
+              </p>
+            )}
+            {!access.paid && access.request?.status !== "PENDING" && !paidForm && (
+              <button className="mt-2 text-sm font-medium text-brand-600 hover:underline" onClick={() => setPaidForm({ plan: "individual", reference: "", amount: "" })}>
+                I&apos;ve paid: unlock my account
+              </button>
+            )}
+            {paidForm && (
+              <form onSubmit={sendPaid} className="mt-3 grid max-w-xl gap-2 sm:grid-cols-3">
+                <select className="input py-1.5 text-sm" value={paidForm.plan} onChange={(e) => setPaidForm({ ...paidForm, plan: e.target.value })} aria-label="Plan paid for">
+                  <option value="individual">Individual</option>
+                  <option value="bundle">Labs + interview prep</option>
+                  <option value="team">Team</option>
+                </select>
+                <input className="input py-1.5 text-sm" placeholder="UPI / bank reference" value={paidForm.reference} onChange={(e) => setPaidForm({ ...paidForm, reference: e.target.value })} required minLength={4} maxLength={100} />
+                <input className="input py-1.5 text-sm" placeholder="Amount (e.g. ₹2,999)" value={paidForm.amount} onChange={(e) => setPaidForm({ ...paidForm, amount: e.target.value })} maxLength={50} />
+                <div className="flex gap-2 sm:col-span-3">
+                  <button className="btn-primary" disabled={sending}>{sending ? "Sending..." : "Send for approval"}</button>
+                  <button type="button" className="btn-secondary" onClick={() => setPaidForm(null)}>Cancel</button>
+                </div>
+              </form>
+            )}
           </div>
           <form onSubmit={redeem} className="flex gap-2">
             <input

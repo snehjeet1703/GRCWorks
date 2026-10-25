@@ -50,6 +50,7 @@ export async function requireSession(): Promise<SessionUser> {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new HttpError(401, "Not authenticated");
   const user = session.user as SessionUser;
+  if ((session.user as any).blocked) throw new HttpError(401, "Not authenticated");
   checkApiRateLimit(user.id);
   return user;
 }

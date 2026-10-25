@@ -1,18 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { handleError, HttpError, parseBody, requireSession } from "@/lib/api";
-import { labMode } from "@/lib/lab/content";
-import { isLabAdmin, newCode } from "@/lib/lab/access";
-
-async function requireLabAdmin() {
-  if (!labMode) throw new HttpError(404, "Not found");
-  const user = await requireSession();
-  // Read live so removing someone from LAB_ADMIN_EMAILS takes effect at once.
-  const row = await prisma.user.findUnique({ where: { id: user.id }, select: { email: true } });
-  if (!isLabAdmin(row?.email)) throw new HttpError(403, "Lab admins only");
-  return { ...user, email: row!.email };
-}
+import { handleError, HttpError, parseBody } from "@/lib/api";
+import { newCode, requireLabAdmin } from "@/lib/lab/access";
 
 const createSchema = z.object({
   plan: z.enum(["individual", "bundle", "team"]),

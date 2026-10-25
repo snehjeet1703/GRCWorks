@@ -14,17 +14,45 @@ export const PLANS = {
 export type PaidPlan = "individual" | "bundle" | "team";
 export const PAID_PLANS: PaidPlan[] = ["individual", "bundle", "team"];
 
-// Shown to free learners on locked labs. Set in the environment so prices change without a release.
-export const pricingText = () =>
-  process.env.LAB_PRICING_TEXT ??
-  "Individual: ₹2,999 / $59 for 12 months. Labs + interview prep: ₹4,499 / $89. Teams: ₹1,999 / $39 per person per year (5+ people).";
-export const paymentText = () =>
-  process.env.LAB_PAYMENT_TEXT ??
-  "Email hello@grcworks.io to pay by UPI or bank transfer. You'll get an access code to enter here.";
+// ─── Settings (changed in the command centre; environment values are the defaults) ───
 
-export function isLabAdmin(email: string | null | undefined) {
-  const admins = (process.env.LAB_ADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
-  return !!email && admins.includes(email.toLowerCase());
+const DEFAULT_PRICING =
+  "Individual: ₹2,999 / $59 for 12 months. Labs + interview prep: ₹4,499 / $89. Teams: ₹1,999 / $39 per person per year (5+ people).";
+const DEFAULT_PAYMENT = "Pay by UPI or bank transfer, then tell us your payment reference below and we'll unlock your account.";
+
+export type LabSettingsView = {
+  pricingText: string; paymentText: string; upiId: string; freeLabs: Record<string, string[]>;
+  defaultMonths: number; signupOpen: boolean; admins: string[]; updatedBy: string; updatedAt: string | null;
+};
+
+export async function labSettings(): Promise<LabSettingsView> {
+  const row = await prisma.labSettings.findUnique({ where: { id: "default" } });
+  return {
+    pricingText: row?.pricingText || process.env.LAB_PRICING_TEXT || DEFAULT_PRICING,
+    paymentText: row?.paymentText || process.env.LAB_PAYMENT_TEXT || DEFAULT_PAYMENT,
+    upiId: row?.upiId ?? "",
+    freeLabs: (row?.freeLabs as Record<string, string[]> | null) ?? {},
+    defaultMonths: row?.defaultMonths ?? 12,
+    signupOpen: row?.signupOpen ?? true,
+    admins: (row?.admins as string[] | null) ?? [],
+    updatedBy: row?.updatedBy ?? "",
+    updatedAt: row?.updatedAt.toISOString() ?? null,
+  };
+}
+
+/** Admins from LAB_ADMIN_EMAILS can't be removed in the app, so nobody can lock everyone out. */
+export const ownerAdmins = () =>
+  (process.env.LAB_ADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+
+export async function isLabAdmin(email: string | null | undefined) {
+  if (!email) return false;
+  const e = email.toLowerCase();
+  return ownerAdmins().includes(e) || (await labSettings()).admins.includes(e);
+}
+
+/** A course's free labs: the admin's choice if set, otherwise the course's own preview labs. */
+export async function freeLabsFor(courseId: string, courseDefault: string[]) {
+  return (await labSettings()).freeLabs[courseId] ?? courseDefault;
 }
 
 export type Access = { plan: keyof typeof PLANS; paid: boolean; expiresAt: Date | null };
@@ -96,4 +124,15 @@ export async function redeemCode(userId: string, raw: string) {
     };
     return tx.labAccess.upsert({ where: { userId }, create: { userId, ...data }, update: data });
   });
+}
+
+/** For admin API routes: the signed-in user, if they're a lab admin (checked live). */
+export async function requireLabAdmin() {
+  const { requireSession } = await import("@/lib/api");
+  const { labMode } = await import("./content");
+  if (!labMode) throw new HttpError(404, "Not found");
+  const user = await requireSession();
+  const row = await prisma.user.findUnique({ where: { id: user.id }, select: { email: true } });
+  if (!row || !(await isLabAdmin(row.email))) throw new HttpError(403, "Lab admins only");
+  return { ...user, email: row.email };
 }

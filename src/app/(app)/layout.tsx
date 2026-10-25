@@ -22,6 +22,8 @@ export default async function AppLayout({
   }
 
   const user = session.user as any;
+  // Blocked (e.g. a lab account an admin suspended): back to sign-in, where the account is refused.
+  if (user.blocked) redirect("/login");
 
   const org = await prisma.organization.findUnique({
     where: { id: user.organizationId },

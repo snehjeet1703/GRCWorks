@@ -7,6 +7,7 @@ import { handleError, HttpError, parseBody } from "@/lib/api";
 import { sendLabAccountExistsEmail, sendLabSignupCodeEmail } from "@/lib/email";
 import { clientIp, limitOrNull } from "@/lib/rate-limit";
 import { labMode } from "@/lib/lab/content";
+import { labSettings } from "@/lib/lab/access";
 
 const LAB_CODE_TTL_MS = 15 * 60 * 1000;
 
@@ -21,6 +22,7 @@ const schema = z.object({
 export async function POST(req: Request) {
   try {
     if (!labMode) throw new HttpError(404, "Not found");
+    if (!(await labSettings()).signupOpen) throw new HttpError(403, "Sign-ups are closed for now.");
     const ipLimited = limitOrNull(`lab-signup-ip:${clientIp(req.headers)}`, 10, 60 * 60 * 1000);
     if (ipLimited) return ipLimited;
 

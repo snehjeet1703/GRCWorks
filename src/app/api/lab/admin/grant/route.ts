@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { handleError, HttpError, parseBody, requireSession } from "@/lib/api";
-import { labMode } from "@/lib/lab/content";
-import { extendAccess, isLabAdmin } from "@/lib/lab/access";
+import { handleError, HttpError, parseBody } from "@/lib/api";
+import { extendAccess, requireLabAdmin } from "@/lib/lab/access";
 
 const schema = z.object({
   email: z.string().trim().toLowerCase().email().max(200),
@@ -16,10 +15,7 @@ const schema = z.object({
 // Gives, extends or ends a learner's paid access directly, without a code.
 export async function POST(req: Request) {
   try {
-    if (!labMode) throw new HttpError(404, "Not found");
-    const user = await requireSession();
-    const me = await prisma.user.findUnique({ where: { id: user.id }, select: { email: true } });
-    if (!isLabAdmin(me?.email)) throw new HttpError(403, "Lab admins only");
+    const me = await requireLabAdmin();
 
     const d = await parseBody(req, schema);
     const learner = await prisma.user.findUnique({ where: { email: d.email }, select: { id: true } });
@@ -29,7 +25,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
     if (!d.months) throw new HttpError(400, "How many months?");
-    const access = await extendAccess(learner.id, d.plan, d.months, { note: d.note || `Granted by ${me!.email}` });
+    const access = await extendAccess(learner.id, d.plan, d.months, { note: d.note || `Granted by ${me.email}` });
     return NextResponse.json({ plan: access.plan, expiresAt: access.expiresAt });
   } catch (err) {
     return handleError(err);

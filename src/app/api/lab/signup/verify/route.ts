@@ -6,6 +6,7 @@ import { handleError, HttpError, parseBody } from "@/lib/api";
 import { clientIp, limitOrNull } from "@/lib/rate-limit";
 import { labContent, labMode } from "@/lib/lab/content";
 import { provisionPracticeOrg } from "@/lib/lab/provision";
+import { labSettings } from "@/lib/lab/access";
 
 const MAX_ATTEMPTS = 5;
 
@@ -20,6 +21,7 @@ const schema = z.object({
 export async function POST(req: Request) {
   try {
     if (!labMode) throw new HttpError(404, "Not found");
+    if (!(await labSettings()).signupOpen) throw new HttpError(403, "Sign-ups are closed for now.");
     const limited = limitOrNull(`lab-verify-ip:${clientIp(req.headers)}`, 20, 60 * 60 * 1000);
     if (limited) return limited;
 

@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { slotsFor } from "@/lib/audit-periods";
 import { buildExercise } from "./exercises";
 import { levelOf } from "./levels";
-import { getAccess, labUnlocked } from "./access";
+import { freeLabsFor, getAccess, labUnlocked } from "./access";
 import { courseForTemplate, getTemplate, templateIdOf, type LabCheck } from "./content";
 
 // Check types are defined in grcworks-labs/schema/checks.md. They only read the learner's own organisation.
@@ -162,8 +162,9 @@ export async function evaluateCourse(orgId: string, userId: string) {
       .map((r) => [`${r.labId}/${r.taskId}`, r.completedAt])
   );
   const labs: LabResult[] = [];
+  const freeLabs = await freeLabsFor(course.id, course.freeLabs);
   for (const lab of course.labs) {
-    const locked = !labUnlocked(access, course.freeLabs, lab.id);
+    const locked = !labUnlocked(access, freeLabs, lab.id);
     if (locked) {
       labs.push({ id: lab.id, locked, tasks: lab.tasks.map((t) => ({ id: t.id, done: false, completedAt: null })) });
       continue;
@@ -202,7 +203,8 @@ export async function loadExercise(orgId: string, userId: string, labId: string,
   const task = lab?.tasks.find((t) => t.id === taskId);
   const profile = rendered?.template.industry;
   if (!lab || !task?.exercise || !profile) return null;
-  if (!labUnlocked(await getAccess(userId), rendered!.course.freeLabs, labId)) return null;
+  const freeLabs = await freeLabsFor(rendered!.course.id, rendered!.course.freeLabs);
+  if (!labUnlocked(await getAccess(userId), freeLabs, labId)) return null;
   const exercise = buildExercise(task.exercise, profile, orgId, org.createdAt, `${labId}/${taskId}`, level);
   return exercise ? { lab, task, exercise, level, company: rendered!.template.company.name } : null;
 }
