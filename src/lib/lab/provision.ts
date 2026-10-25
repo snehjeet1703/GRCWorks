@@ -10,7 +10,7 @@ import { slugify } from "@/lib/install-slug";
 import { addToScope, slotsFor } from "@/lib/audit-periods";
 import { deleteUpload, saveUpload } from "@/lib/storage";
 import type { PortalAnswer, PortalQuestion } from "@/lib/vendor-portal";
-import { getCourse, getTemplate, type LabTemplate } from "./content";
+import { getCourse, getTemplate, templateIdOf, type LabTemplate } from "./content";
 
 type Tx = Prisma.TransactionClient;
 export type Learner = { email: string; name: string; passwordHash: string };
@@ -44,12 +44,13 @@ function placeholderPdf(title: string, company: string) {
   return new TextEncoder().encode(out);
 }
 
-/** Creates a learner's practice company from the course's template and returns the learner's user id. */
-export async function provisionPracticeOrg(courseId: string, learner: Learner) {
+/** Creates a learner's practice company from one of the course's templates (the first if none is given). */
+export async function provisionPracticeOrg(courseId: string, templateId: string | null, learner: Learner) {
   const course = await getCourse(courseId);
   if (!course) throw new Error(`Unknown course ${courseId}`);
-  const t = await getTemplate(course.template);
-  if (!t) throw new Error(`Unknown template ${course.template}`);
+  const id = templateId && course.templates.includes(templateId) ? templateId : course.templates[0];
+  const t = await getTemplate(id);
+  if (!t) throw new Error(`Unknown template ${id}`);
 
   // Files are written before the transaction (storage isn't transactional) and removed if it fails.
   const files = new Map<string, { key: string; size: number; name: string }>();
@@ -269,17 +270,20 @@ async function applyTemplate(
  * Replaces a learner's practice company with a fresh copy: the new company is built first, then the learner's
  * account moves to it and the old company (with its fictional colleagues and data) is deleted.
  */
-export async function resetPracticeOrg(userId: string) {
+export async function resetPracticeOrg(userId: string, templateId?: string) {
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: userId },
-    select: { id: true, email: true, name: true, passwordHash: true, organization: { select: { id: true, practice: true, labCourseId: true } } },
+    select: {
+      id: true, email: true, name: true, passwordHash: true,
+      organization: { select: { id: true, practice: true, labCourseId: true, labTemplate: true } },
+    },
   });
   const old = user.organization;
   if (!old.practice || !old.labCourseId || !user.passwordHash) throw new Error("Not a practice company");
 
   // Emails are unique, so the learner takes a placeholder address in the new company until the old one is gone.
   const parked = `reset.${randomBytes(6).toString("hex")}@practice.grcworks.invalid`;
-  const fresh = await provisionPracticeOrg(old.labCourseId, { email: parked, name: user.name, passwordHash: user.passwordHash });
+  const fresh = await provisionPracticeOrg(old.labCourseId, templateId ?? templateIdOf(old.labTemplate), { email: parked, name: user.name, passwordHash: user.passwordHash });
 
   const oldKeys = await prisma.evidence.findMany({ where: { organizationId: old.id }, select: { storageKey: true } });
   await prisma.$transaction(async (tx) => {

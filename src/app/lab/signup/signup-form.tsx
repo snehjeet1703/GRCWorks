@@ -12,7 +12,10 @@ async function post(url: string, body: unknown) {
   return (data?.error as string) ?? "Something went wrong. Try again.";
 }
 
-export function SignupForm({ course }: { course: { title: string; labs: string[] } | null }) {
+type Industry = { id: string; industry: string; company: string; description: string };
+
+export function SignupForm({ course, industries }: { course: { title: string; labs: string[] } | null; industries: Industry[] }) {
+  const [template, setTemplate] = useState(industries[0]?.id ?? "");
   const [step, setStep] = useState<"details" | "code" | "building">("details");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -36,7 +39,7 @@ export function SignupForm({ course }: { course: { title: string; labs: string[]
     setLoading(true);
     setError("");
     setStep("building");
-    const err = await post("/api/lab/signup/verify", { email, code });
+    const err = await post("/api/lab/signup/verify", { email, code, template });
     if (err) {
       setLoading(false);
       setStep("code");
@@ -75,6 +78,23 @@ export function SignupForm({ course }: { course: { title: string; labs: string[]
                 <PasswordInput id="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={12} />
                 <p className="mt-1 text-xs text-gray-500">At least 12 characters.</p>
               </div>
+              {industries.length > 1 && (
+                <fieldset>
+                  <legend className="mb-1.5 block text-sm font-medium text-gray-700">Practise in which industry?</legend>
+                  <div className="space-y-2">
+                    {industries.map((i) => (
+                      <label key={i.id} className={`flex cursor-pointer gap-2 rounded-md border p-2 text-sm ${template === i.id ? "border-brand-600 bg-brand-50" : "border-gray-200"}`}>
+                        <input type="radio" name="industry" checked={template === i.id} onChange={() => setTemplate(i.id)} className="mt-0.5" />
+                        <span>
+                          <span className="font-medium text-gray-900">{i.industry}</span>
+                          <span className="block text-xs text-gray-500">{i.company}: {i.description.split(". ")[0]}.</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">You can switch later with Start over.</p>
+                </fieldset>
+              )}
               {error && <p className="text-sm text-red-600">{error}</p>}
               <button type="submit" disabled={loading} className="btn-primary w-full">
                 {loading ? "Sending code..." : "Email me a code"}

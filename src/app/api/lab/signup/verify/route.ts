@@ -12,6 +12,7 @@ const MAX_ATTEMPTS = 5;
 const schema = z.object({
   email: z.string().trim().toLowerCase().email().max(200),
   code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code"),
+  template: z.string().max(64).optional(),
 }).strict();
 
 // Step 2 of lab sign-up: checks the code, then creates the account and its practice company.
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
     const limited = limitOrNull(`lab-verify-ip:${clientIp(req.headers)}`, 20, 60 * 60 * 1000);
     if (limited) return limited;
 
-    const { email, code } = await parseBody(req, schema);
+    const { email, code, template } = await parseBody(req, schema);
     const pending = await prisma.labSignup.findUnique({ where: { email } });
     if (!pending || pending.expiresAt < new Date() || pending.attempts >= MAX_ATTEMPTS) {
       throw new HttpError(400, "This code has expired. Start again to get a new one.");
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
     // Every learner starts on the first course; more courses can be added from the Labs page later.
     const course = (await labContent()).courses[0];
     if (!course) throw new HttpError(503, "No labs are available yet");
-    await provisionPracticeOrg(course.id, { email, name: pending.name, passwordHash: pending.passwordHash });
+    await provisionPracticeOrg(course.id, template ?? null, { email, name: pending.name, passwordHash: pending.passwordHash });
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (err) {
     return handleError(err);

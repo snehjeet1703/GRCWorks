@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { slotsFor } from "@/lib/audit-periods";
-import { getCourse, getTemplate, type LabCheck } from "./content";
+import { courseForTemplate, getTemplate, templateIdOf, type LabCheck } from "./content";
 
 // Check types are defined in grcworks-labs/schema/checks.md. They only read the learner's own organisation.
 const s = (v: unknown) => String(v ?? "");
@@ -15,9 +15,9 @@ async function risk(orgId: string, title: unknown) {
 }
 
 async function vendorByKey(orgId: string, key: unknown) {
-  const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { labCourseId: true } });
-  const course = org.labCourseId ? await getCourse(org.labCourseId) : null;
-  const t = course ? await getTemplate(course.template) : null;
+  const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { labTemplate: true } });
+  const id = templateIdOf(org.labTemplate);
+  const t = id ? await getTemplate(id) : null;
   const name = t?.vendors.find((v) => v.key === s(key))?.name;
   return name ? prisma.vendor.findFirst({ where: { organizationId: orgId, name } }) : null;
 }
@@ -120,9 +120,11 @@ export type LabResult = { id: string; tasks: TaskResult[] };
 
 /** Runs every task's checks for the organisation's course and records first completions. */
 export async function evaluateCourse(orgId: string) {
-  const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { labCourseId: true } });
-  const course = org.labCourseId ? await getCourse(org.labCourseId) : null;
-  if (!course) return null;
+  const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { labCourseId: true, labTemplate: true } });
+  const id = templateIdOf(org.labTemplate);
+  const rendered = org.labCourseId && id ? await courseForTemplate(org.labCourseId, id) : null;
+  if (!rendered) return null;
+  const { course, template } = rendered;
 
   const recorded = new Map(
     (await prisma.labTaskCompletion.findMany({ where: { organizationId: orgId, courseId: course.id } }))
@@ -148,5 +150,5 @@ export async function evaluateCourse(orgId: string) {
     }
     labs.push({ id: lab.id, tasks });
   }
-  return { course, labs };
+  return { course, template, labs };
 }

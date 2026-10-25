@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Circle, Clock, Lightbulb, PlayCircle, RotateCcw } from "lucide-react";
-import { ConfirmDialog } from "@/components/modal";
+import Link from "next/link";
+import { ArrowUpRight, CheckCircle2, Circle, Clock, Lightbulb, PlayCircle, RotateCcw } from "lucide-react";
+import { Modal } from "@/components/modal";
 import { useToast } from "@/components/toast";
 
 export type LabView = {
@@ -12,7 +13,7 @@ export type LabView = {
   minutes: number;
   objective: string;
   videoEmbed: string | null;
-  tasks: { id: string; title: string; instructions: string; hints: string[]; done: boolean }[];
+  tasks: { id: string; title: string; instructions: string; hints: string[]; link: string | null; done: boolean }[];
 };
 
 type Progress = { labs: { id: string; tasks: { id: string; done: boolean }[] }[] };
@@ -21,10 +22,11 @@ type Progress = { labs: { id: string; tasks: { id: string; done: boolean }[] }[]
 const POLL_MS = 15_000;
 
 export function LabClient({
-  courseTitle, company, labs: initial,
+  courseTitle, company, industries, labs: initial,
 }: {
   courseTitle: string;
-  company: { name: string; description: string } | null;
+  company: { id: string; name: string; industry: string; description: string };
+  industries: { id: string; industry: string; company: string; description: string }[];
   labs: LabView[];
 }) {
   const router = useRouter();
@@ -34,6 +36,7 @@ export function LabClient({
   const [hints, setHints] = useState<Set<string>>(new Set());
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [nextTemplate, setNextTemplate] = useState(company.id);
 
   useEffect(() => setLabs(initial), [initial]);
 
@@ -58,7 +61,9 @@ export function LabClient({
 
   async function reset() {
     setResetting(true);
-    const res = await fetch("/api/lab/reset", { method: "POST" });
+    const res = await fetch("/api/lab/reset", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ template: nextTemplate }),
+    });
     setResetting(false);
     setConfirmReset(false);
     if (!res.ok) {
@@ -74,14 +79,12 @@ export function LabClient({
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold tracking-tight">{courseTitle}</h1>
-          {company && (
-            <p className="mt-1 max-w-2xl text-sm text-gray-500">
-              You&apos;re the compliance lead at <strong>{company.name}</strong>, a fictional company. {company.description}
-            </p>
-          )}
+          <p className="mt-1 max-w-2xl text-sm text-gray-500">
+            You&apos;re the compliance lead at <strong>{company.name}</strong> ({company.industry}), a fictional company. {company.description}
+          </p>
         </div>
-        <button className="btn-secondary" onClick={() => setConfirmReset(true)}>
-          <RotateCcw className="mr-2 h-4 w-4" /> Start over
+        <button className="btn-secondary" onClick={() => { setNextTemplate(company.id); setConfirmReset(true); }}>
+          <RotateCcw className="mr-2 h-4 w-4" /> Start over or change industry
         </button>
       </div>
 
@@ -151,6 +154,11 @@ export function LabClient({
                           <div className="min-w-0">
                             <p className={`text-sm font-medium ${t.done ? "text-gray-500 line-through" : ""}`}>{t.title}</p>
                             <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">{t.instructions}</p>
+                            {t.link && !t.done && (
+                              <Link href={t.link} className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline">
+                                Go to this task <ArrowUpRight className="h-3 w-3" />
+                              </Link>
+                            )}
                             {t.hints.length > 0 && !t.done && (
                               hints.has(key) ? (
                                 <ul className="mt-2 space-y-1 rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
@@ -177,14 +185,26 @@ export function LabClient({
         })}
       </ol>
 
-      <ConfirmDialog
-        open={confirmReset}
-        onClose={() => !resetting && setConfirmReset(false)}
-        onConfirm={reset}
-        title="Start over?"
-        message="Your practice company goes back to how it was on day one, and your lab progress starts again. Your account stays."
-        confirmLabel={resetting ? "Resetting..." : "Start over"}
-      />
+      <Modal open={confirmReset} onClose={() => !resetting && setConfirmReset(false)} title="Start over" size="sm">
+        <p className="text-sm text-muted-foreground">
+          You get a fresh practice company as it was on day one, and your lab progress starts again. Your account stays.
+        </p>
+        <fieldset className="mt-4 space-y-2">
+          <legend className="mb-1 text-sm font-medium">Industry</legend>
+          {industries.map((i) => (
+            <label key={i.id} className="flex cursor-pointer gap-2 rounded-md border border-gray-200 p-2 text-sm dark:border-gray-700">
+              <input type="radio" name="industry" checked={nextTemplate === i.id} onChange={() => setNextTemplate(i.id)} className="mt-0.5" />
+              <span><strong>{i.industry}</strong>: {i.company}</span>
+            </label>
+          ))}
+        </fieldset>
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={() => setConfirmReset(false)} className="btn-secondary" disabled={resetting}>Cancel</button>
+          <button type="button" onClick={reset} className="btn-primary" disabled={resetting}>
+            {resetting ? "Setting up..." : "Start over"}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

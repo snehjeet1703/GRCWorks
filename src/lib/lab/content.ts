@@ -6,15 +6,19 @@ import path from "node:path";
 export const labMode = process.env.LAB_MODE === "true";
 
 export type LabCheck = { type: string; [field: string]: unknown };
-export type LabTask = { id: string; title: string; instructions: string; hints: string[]; checks: LabCheck[] };
+// `link` is the platform page where the task is done.
+export type LabTask = { id: string; title: string; instructions: string; hints: string[]; link?: string; checks: LabCheck[] };
 export type Lab = { id: string; title: string; minutes: number; objective: string; videoUrl?: string; tasks: LabTask[] };
-export type Course = { id: string; title: string; template: string; labs: Lab[] };
+// `templates` are the practice companies (one per industry) a learner can pick; the first is the default.
+export type Course = { id: string; title: string; templates: string[]; labs: Lab[] };
 
 type TeamMember = { key: string; name: string; title: string; role: "Admin" | "Editor" | "Viewer" | "Auditor" };
 export type LabTemplate = {
   id: string;
   version: number;
-  company: { name: string; industry: string; employees: number; cloud: string; description: string };
+  company: { name: string; industry: string; industryKey?: string; employees: number; cloud: string; description: string };
+  // Values for {{placeholders}} in lab text and checks, so the same labs fit every company.
+  vars?: Record<string, string>;
   frameworks: string[];
   team: TeamMember[];
   controls: { code: string; status: string; owner: string | null; frequency: string; notes?: string }[];
@@ -61,11 +65,12 @@ async function load() {
   const courses: Course[] = [];
   const templates = new Map<string, LabTemplate>();
   for (const id of courseIds) {
-    const raw = await readJson<{ id: string; title: string; template: string; labs: string[] }>("courses", id, "course.json");
+    const raw = await readJson<{ id: string; title: string; template: string; templates?: string[]; labs: string[] }>("courses", id, "course.json");
     const labs = await Promise.all(raw.labs.map((labId) => readJson<Lab>("courses", id, "labs", `${labId}.json`)));
-    courses.push({ id: raw.id, title: raw.title, template: raw.template, labs });
-    if (!templates.has(raw.template)) {
-      templates.set(raw.template, await readJson<LabTemplate>("templates", raw.template, "template.json"));
+    const ids = raw.templates?.length ? raw.templates : [raw.template];
+    courses.push({ id: raw.id, title: raw.title, templates: ids, labs });
+    for (const t of ids) {
+      if (!templates.has(t)) templates.set(t, await readJson<LabTemplate>("templates", t, "template.json"));
     }
   }
   return { courses, templates };
@@ -82,6 +87,34 @@ export async function getCourse(courseId: string) {
 
 export async function getTemplate(templateId: string) {
   return (await labContent()).templates.get(templateId) ?? null;
+}
+
+// Replaces {{name}} in every string (titles, instructions and check values) with the company's own values.
+function fill<T>(value: T, vars: Record<string, string>): T {
+  if (typeof value === "string") return value.replace(/\{\{(\w+)\}\}/g, (m, k) => vars[k] ?? m) as T;
+  if (Array.isArray(value)) return value.map((v) => fill(v, vars)) as T;
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, fill(v, vars)])) as T;
+  }
+  return value;
+}
+
+/** The course with its labs written for one practice company. */
+export async function courseForTemplate(courseId: string, templateId: string) {
+  const course = await getCourse(courseId);
+  const template = await getTemplate(templateId);
+  if (!course || !template || !course.templates.includes(templateId)) return null;
+  return { course: { ...course, labs: fill(course.labs, { company: template.company.name, ...template.vars }) }, template };
+}
+
+/** The template id stored on a practice organisation ("<id>@<version>"). */
+export const templateIdOf = (labTemplate: string | null) => labTemplate?.split("@")[0] ?? null;
+
+export async function industryChoices(courseId: string) {
+  const course = await getCourse(courseId);
+  if (!course) return [];
+  const all = await Promise.all(course.templates.map(async (id) => ({ id, t: await getTemplate(id) })));
+  return all.flatMap(({ id, t }) => (t ? [{ id, industry: t.company.industry, company: t.company.name, description: t.company.description }] : []));
 }
 
 // Only privacy-enhanced YouTube embeds are allowed, so the CSP can name one frame source.
