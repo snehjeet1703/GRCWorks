@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowUpRight, CheckCircle2, Circle, Clock, Lightbulb, PlayCircle, RotateCcw } from "lucide-react";
+import { ArrowUpRight, Award, CheckCircle2, Circle, Clock, KeyRound, Lightbulb, Lock, PlayCircle, RotateCcw, Settings2, Users } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { LAB_LEVELS, levelLabel, type LabLevel } from "@/lib/lab/levels";
 import { useToast } from "@/components/toast";
@@ -14,6 +14,7 @@ export type LabView = {
   minutes: number;
   objective: string;
   videoEmbed: string | null;
+  locked: boolean;
   tasks: { id: string; title: string; instructions: string; hints: string[]; link: string | null; done: boolean }[];
 };
 
@@ -23,8 +24,11 @@ type Progress = { labs: { id: string; tasks: { id: string; done: boolean }[] }[]
 const POLL_MS = 15_000;
 
 export function LabClient({
-  courseTitle, company, industries, level, labs: initial,
+  courseTitle, company, industries, level, labs: initial, access, certificateId, links,
 }: {
+  access: { plan: string; paid: boolean; expiresAt: string | null; pricing: string; payment: string };
+  certificateId: string | null;
+  links: { admin: boolean; team: boolean };
   level: LabLevel;
   courseTitle: string;
   company: { id: string; name: string; industry: string; description: string };
@@ -40,6 +44,21 @@ export function LabClient({
   const [resetting, setResetting] = useState(false);
   const [nextTemplate, setNextTemplate] = useState(company.id);
   const [nextLevel, setNextLevel] = useState<LabLevel>(level);
+  const [code, setCode] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
+
+  async function redeem(e: React.FormEvent) {
+    e.preventDefault();
+    setRedeeming(true);
+    const res = await fetch("/api/lab/redeem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
+    setRedeeming(false);
+    const data = await res.json().catch(() => null);
+    if (!res.ok) return toast.error(data?.error ?? "Couldn't use that code");
+    toast.success("Access unlocked");
+    setCode("");
+    router.refresh();
+  }
+  const expiry = access.expiresAt ? new Date(access.expiresAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : null;
 
   useEffect(() => setLabs(initial), [initial]);
 
@@ -95,6 +114,35 @@ export function LabClient({
       </div>
 
       <div className="card mb-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="text-sm">
+            <p className="font-medium">
+              Plan: {access.plan}
+              {access.paid && expiry && <span className="font-normal text-gray-500"> · until {expiry}</span>}
+              {!access.paid && expiry && <span className="font-normal text-gray-500"> · paid access ended {expiry}</span>}
+            </p>
+            {!access.paid && <p className="mt-1 max-w-xl text-gray-500">Lab 1 is free. {access.pricing} {access.payment}</p>}
+          </div>
+          <form onSubmit={redeem} className="flex gap-2">
+            <input
+              className="input w-48 py-1.5 text-sm uppercase" placeholder="GRC-XXXX-XXXX-XXXX" value={code}
+              onChange={(e) => setCode(e.target.value)} aria-label="Access code" maxLength={24} required
+            />
+            <button className="btn-secondary whitespace-nowrap" disabled={redeeming}>
+              <KeyRound className="mr-2 h-4 w-4" /> {redeeming ? "Checking..." : access.paid ? "Add code" : "Unlock"}
+            </button>
+          </form>
+        </div>
+        {(certificateId || links.admin || links.team) && (
+          <div className="mt-3 flex flex-wrap gap-4 border-t border-gray-100 pt-3 text-sm dark:border-gray-800">
+            {certificateId && <Link href={`/certificate/${certificateId}`} target="_blank" className="inline-flex items-center gap-1 font-medium text-brand-600 hover:underline"><Award className="h-4 w-4" /> Your certificate</Link>}
+            {links.team && <Link href="/lab/team" className="inline-flex items-center gap-1 text-brand-600 hover:underline"><Users className="h-4 w-4" /> Team progress</Link>}
+            {links.admin && <Link href="/lab/admin" className="inline-flex items-center gap-1 text-brand-600 hover:underline"><Settings2 className="h-4 w-4" /> Lab admin</Link>}
+          </div>
+        )}
+      </div>
+
+      <div className="card mb-6">
         <div className="flex items-center justify-between text-sm">
           <span className="font-medium">{finished} of {total} tasks done</span>
           <span className="text-gray-500">{pct}%</span>
@@ -120,20 +168,26 @@ export function LabClient({
                 onClick={() => setOpenLab(open ? undefined : lab.id)}
                 aria-expanded={open}
               >
-                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${complete ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>
-                  {complete ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${complete && !lab.locked ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>
+                  {lab.locked ? <Lock className="h-4 w-4" /> : complete ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">{lab.title}</span>
                   <span className="mt-0.5 flex items-center gap-3 text-xs text-gray-500">
                     <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" /> {lab.minutes} min</span>
-                    <span>{done}/{lab.tasks.length} tasks</span>
+                    <span>{lab.locked ? "Paid plan" : `${done}/${lab.tasks.length} tasks`}</span>
                     {lab.videoEmbed && <span className="inline-flex items-center gap-1"><PlayCircle className="h-3 w-3" /> Intro video</span>}
                   </span>
                 </span>
               </button>
 
-              {open && (
+              {open && lab.locked && (
+                <div className="border-t border-gray-100 p-4 text-sm text-gray-600 dark:border-gray-800 dark:text-gray-300">
+                  <p>{lab.objective}</p>
+                  <p className="mt-2 flex items-center gap-1 font-medium"><Lock className="h-4 w-4" /> Unlock this lab with a paid plan: enter your access code above.</p>
+                </div>
+              )}
+              {open && !lab.locked && (
                 <div className="border-t border-gray-100 p-4 dark:border-gray-800">
                   <p className="text-sm text-gray-600 dark:text-gray-300">{lab.objective}</p>
                   {lab.videoEmbed && (

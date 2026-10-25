@@ -149,6 +149,9 @@ model User {
   riskActions       RiskAction[]       @relation("RiskActionOwner")
   trustDocuments    TrustVaultDocument[] @relation("TrustDocOwner")
   auditLogs         AuditLog[]
+  labAccess         LabAccess?
+  labRedemptions    LabRedemption[]
+  labCertificates   LabCertificate[]
 
   @@index([organizationId])
   @@map("users")
@@ -1251,4 +1254,71 @@ model LabExerciseAttempt {
 
   @@index([organizationId, labId, taskId])
   @@map("lab_exercise_attempts")
+}
+
+// A learner's paid lab access. No row (or an expired one) means the free plan.
+model LabAccess {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  plan      String // individual | bundle | team
+  expiresAt DateTime @map("expires_at")
+  // Team plans: the code whose buyer (the manager) can see this learner's progress.
+  teamCodeId String? @map("team_code_id")
+  note      String   @default("")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("lab_access")
+}
+
+// A code sold offline (UPI, bank transfer, invoice) that unlocks a paid plan when redeemed.
+model LabAccessCode {
+  id           String    @id @default(uuid())
+  code         String    @unique
+  plan         String // individual | bundle | team
+  months       Int
+  seats        Int       @default(1)
+  used         Int       @default(0)
+  redeemBy     DateTime? @map("redeem_by")
+  buyer        String    @default("") // name, email or company, for the admin's records
+  managerEmail String    @default("") @map("manager_email") // team plans: who gets the progress report
+  note         String    @default("")
+  disabled     Boolean   @default(false)
+  createdBy    String    @map("created_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  redemptions LabRedemption[]
+
+  @@map("lab_access_codes")
+}
+
+model LabRedemption {
+  id         String   @id @default(uuid())
+  codeId     String   @map("code_id")
+  userId     String   @map("user_id")
+  redeemedAt DateTime @default(now()) @map("redeemed_at")
+
+  code LabAccessCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([codeId, userId])
+  @@map("lab_redemptions")
+}
+
+// Issued when a paid learner completes every task of a course; anyone can verify it by id.
+model LabCertificate {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  courseId  String   @map("course_id")
+  name      String
+  course    String
+  industry  String
+  level     String
+  issuedAt  DateTime @default(now()) @map("issued_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId, level])
+  @@map("lab_certificates")
 }

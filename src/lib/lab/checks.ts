@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { slotsFor } from "@/lib/audit-periods";
 import { buildExercise } from "./exercises";
 import { levelOf } from "./levels";
+import { getAccess, labUnlocked } from "./access";
 import { courseForTemplate, getTemplate, templateIdOf, type LabCheck } from "./content";
 
 // Check types are defined in grcworks-labs/schema/checks.md. They only read the learner's own organisation.
@@ -145,10 +146,11 @@ async function runCheck(orgId: string, c: LabCheck, at: { labId: string; taskId:
 }
 
 export type TaskResult = { id: string; done: boolean; completedAt: Date | null };
-export type LabResult = { id: string; tasks: TaskResult[] };
+export type LabResult = { id: string; locked: boolean; tasks: TaskResult[] };
 
-/** Runs every task's checks for the organisation's course and records first completions. */
-export async function evaluateCourse(orgId: string) {
+/** Runs every unlocked task's checks for the organisation's course and records first completions. */
+export async function evaluateCourse(orgId: string, userId: string) {
+  const access = await getAccess(userId);
   const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { labCourseId: true, labTemplate: true, labLevel: true } });
   const id = templateIdOf(org.labTemplate);
   const rendered = org.labCourseId && id ? await courseForTemplate(org.labCourseId, id, levelOf(org.labLevel)) : null;
@@ -161,6 +163,11 @@ export async function evaluateCourse(orgId: string) {
   );
   const labs: LabResult[] = [];
   for (const lab of course.labs) {
+    const locked = !labUnlocked(access, course.freeLabs, lab.id);
+    if (locked) {
+      labs.push({ id: lab.id, locked, tasks: lab.tasks.map((t) => ({ id: t.id, done: false, completedAt: null })) });
+      continue;
+    }
     const tasks: TaskResult[] = [];
     for (const task of lab.tasks) {
       const key = `${lab.id}/${task.id}`;
@@ -177,13 +184,13 @@ export async function evaluateCourse(orgId: string) {
       // A task stays ticked once completed, even if the learner later undoes the change.
       tasks.push({ id: task.id, done: done || !!completedAt, completedAt });
     }
-    labs.push({ id: lab.id, tasks });
+    labs.push({ id: lab.id, locked, tasks });
   }
-  return { course, template, labs };
+  return { course, template, labs, access };
 }
 
 /** A task's exercise for this organisation, with the lab and task it belongs to. */
-export async function loadExercise(orgId: string, labId: string, taskId: string) {
+export async function loadExercise(orgId: string, userId: string, labId: string, taskId: string) {
   const org = await prisma.organization.findUnique({
     where: { id: orgId }, select: { practice: true, labCourseId: true, labTemplate: true, labLevel: true, createdAt: true },
   });
@@ -195,6 +202,7 @@ export async function loadExercise(orgId: string, labId: string, taskId: string)
   const task = lab?.tasks.find((t) => t.id === taskId);
   const profile = rendered?.template.industry;
   if (!lab || !task?.exercise || !profile) return null;
+  if (!labUnlocked(await getAccess(userId), rendered!.course.freeLabs, labId)) return null;
   const exercise = buildExercise(task.exercise, profile, orgId, org.createdAt, `${labId}/${taskId}`, level);
   return exercise ? { lab, task, exercise, level, company: rendered!.template.company.name } : null;
 }

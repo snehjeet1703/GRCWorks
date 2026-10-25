@@ -8,7 +8,7 @@ export async function GET() {
   try {
     if (!labMode) throw new HttpError(404, "Not found");
     const user = await requireSession();
-    const result = await evaluateCourse(user.organizationId);
+    const result = await evaluateCourse(user.organizationId, user.id);
     if (!result) throw new HttpError(404, "This organisation has no lab");
     return NextResponse.json({ labs: result.labs });
   } catch (err) {

@@ -14,7 +14,7 @@ export default async function ExercisePage({ params }: { params: Promise<{ labId
   const { labId, taskId } = await params;
   const session = await getServerSession(authOptions);
   const orgId: string = (session!.user as any).organizationId;
-  const loaded = await loadExercise(orgId, labId, taskId);
+  const loaded = await loadExercise(orgId, (session!.user as any).id, labId, taskId);
   if (!loaded) notFound();
 
   const last = await prisma.labExerciseAttempt.findFirst({

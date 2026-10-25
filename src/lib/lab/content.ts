@@ -17,7 +17,7 @@ export type LabTask = {
 };
 export type Lab = { id: string; title: string; minutes: number; objective: string; videoUrl?: string; tasks: LabTask[] };
 // `templates` are the practice companies (one per industry) a learner can pick; the first is the default.
-export type Course = { id: string; title: string; templates: string[]; labs: Lab[] };
+export type Course = { id: string; title: string; templates: string[]; freeLabs: string[]; labs: Lab[] };
 
 type TeamMember = { key: string; name: string; title: string; role: "Admin" | "Editor" | "Viewer" | "Auditor" };
 export type LabTemplate = {
@@ -74,10 +74,12 @@ async function load() {
   const courses: Course[] = [];
   const templates = new Map<string, LabTemplate>();
   for (const id of courseIds) {
-    const raw = await readJson<{ id: string; title: string; template: string; templates?: string[]; labs: string[] }>("courses", id, "course.json");
+    const raw = await readJson<{
+      id: string; title: string; template: string; templates?: string[]; freePreviewLabs?: string[]; labs: string[];
+    }>("courses", id, "course.json");
     const labs = await Promise.all(raw.labs.map((labId) => readJson<Lab>("courses", id, "labs", `${labId}.json`)));
     const ids = raw.templates?.length ? raw.templates : [raw.template];
-    courses.push({ id: raw.id, title: raw.title, templates: ids, labs });
+    courses.push({ id: raw.id, title: raw.title, templates: ids, freeLabs: raw.freePreviewLabs ?? [], labs });
     for (const t of ids) {
       if (!templates.has(t)) templates.set(t, await readJson<LabTemplate>("templates", t, "template.json"));
     }

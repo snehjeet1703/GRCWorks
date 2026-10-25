@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const limited = limitOrNull(`lab-exercise:${user.id}`, 60, 60 * 60 * 1000);
     if (limited) return limited;
     const { labId, taskId, flags } = await parseBody(req, schema);
-    const loaded = await loadExercise(user.organizationId, labId, taskId);
+    const loaded = await loadExercise(user.organizationId, user.id, labId, taskId);
     if (!loaded) throw new HttpError(404, "Exercise not found");
 
     const result = grade(loaded.exercise, flags, loaded.level);

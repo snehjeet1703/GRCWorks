@@ -7,7 +7,7 @@ import type { NextRequest } from "next/server";
 const PUBLIC_PREFIXES = [
   "/login", "/setup", "/api/setup", "/api/auth", "/trust/", "/api/trust/", "/onboarding",
   "/vendor-portal/", "/api/vendor-portal/", "/api/health",
-  "/lab/signup", "/api/lab/signup",
+  "/lab/signup", "/api/lab/signup", "/certificate/",
 ];
 const MFA_PREFIXES = ["/mfa-verify", "/api/mfa"];
 
