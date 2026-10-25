@@ -1,9 +1,9 @@
-// Experience levels a learner picks at sign-up. They set how hard the exercises are and which extra tasks appear.
+// Experience levels a learner picks at sign-up (ids are stored; labels are what learners see). They set how hard the exercises are and which extra tasks appear.
 export const LAB_LEVELS = [
   { id: "beginner", label: "Beginner (0–2 years)", summary: "Smaller data sets, one of each kind of problem, hints open and detailed feedback." },
-  { id: "practitioner", label: "3–5 years", summary: "Full-size data sets with repeat problems and a few tricky rows." },
-  { id: "senior", label: "6–10 years", summary: "Larger data sets, more look-alike rows, less feedback, and tasks that tie findings to risks." },
-  { id: "expert", label: "11+ years", summary: "The largest data sets, no false alarms allowed, pass/fail feedback only, and remediation planning." },
+  { id: "practitioner", label: "Intermediate (3–5 years)", summary: "Full-size data sets with repeat problems and a few tricky rows." },
+  { id: "senior", label: "Senior (6–10 years)", summary: "Larger data sets, more look-alike rows, less feedback, and tasks that tie findings to risks." },
+  { id: "expert", label: "Leadership (11+ years)", summary: "The largest data sets, no false alarms allowed, pass/fail feedback only, and remediation planning." },
 ] as const;
 
 export type LabLevel = (typeof LAB_LEVELS)[number]["id"];
