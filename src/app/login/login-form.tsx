@@ -5,7 +5,7 @@ import { signIn } from "next-auth/react";
 import { Shield } from "lucide-react";
 import { PasswordInput } from "@/components/password-input";
 
-export function LoginForm({ demoMode, microsoftSso }: { demoMode: boolean; microsoftSso: boolean }) {
+export function LoginForm({ demoMode, microsoftSso, labSignup = false }: { demoMode: boolean; microsoftSso: boolean; labSignup?: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -28,7 +28,7 @@ export function LoginForm({ demoMode, microsoftSso }: { demoMode: boolean; micro
       return;
     }
 
-    window.location.href = "/dashboard";
+    window.location.href = labSignup ? "/lab" : "/dashboard";
   }
 
   return (
@@ -122,6 +122,12 @@ export function LoginForm({ demoMode, microsoftSso }: { demoMode: boolean; micro
                 Sign in with Microsoft
               </button>
             </>
+          )}
+
+          {labSignup && (
+            <p className="mt-5 text-center text-sm text-gray-500">
+              New to GRCWorks Labs? <a href="/lab/signup" className="font-medium text-brand-600 hover:underline">Sign up free</a>
+            </p>
           )}
 
           {demoMode && (

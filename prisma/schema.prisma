@@ -25,6 +25,10 @@ model Organization {
   logoStorageKey     String?  @map("logo_storage_key")
   logoMimeType       String?  @map("logo_mime_type")
   logoUpdatedAt      DateTime? @map("logo_updated_at")
+  // Lab mode: a learner's practice company, created from a course template.
+  practice           Boolean  @default(false)
+  labCourseId        String?  @map("lab_course_id")
+  labTemplate        String?  @map("lab_template") // "<template id>@<version>"
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
@@ -44,6 +48,7 @@ model Organization {
   vendorQuestionnaires   VendorQuestionnaire[]
   companyProfile         CompanyProfile?
   trustVaultConfig       TrustVaultConfig?
+  labTaskCompletions     LabTaskCompletion[]
 
   @@map("organizations")
 }
@@ -112,6 +117,8 @@ model User {
   // Set by the server on a successful MFA check; the session's MFA gate only clears when this postdates login.
   mfaVerifiedAt  DateTime?  @map("mfa_verified_at")
   recoveryCodes  Json?      @map("recovery_codes")
+  // Fictional colleagues in a lab practice company: they own controls and submit evidence but can't sign in.
+  canSignIn      Boolean    @default(true) @map("can_sign_in")
   createdAt      DateTime   @default(now()) @map("created_at")
   updatedAt      DateTime   @updatedAt @map("updated_at")
 
@@ -1192,4 +1199,35 @@ model ReminderLog {
 
   @@unique([userId, kind, sentOn])
   @@map("reminder_logs")
+}
+
+// ─── Lab mode ─────────────────────────────────────────────────
+
+// A lab sign-up waiting for its email code. The account and practice company are only created once verified.
+model LabSignup {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String   @map("password_hash")
+  codeHash     String   @map("code_hash")
+  expiresAt    DateTime @map("expires_at")
+  attempts     Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("lab_signups")
+}
+
+// First time each lab task passed its checks, for progress and certificates.
+model LabTaskCompletion {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  courseId       String   @map("course_id")
+  labId          String   @map("lab_id")
+  taskId         String   @map("task_id")
+  completedAt    DateTime @default(now()) @map("completed_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, courseId, labId, taskId])
+  @@map("lab_task_completions")
 }

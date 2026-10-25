@@ -11,6 +11,8 @@ const csp = [
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
   `connect-src 'self'${isDev ? " ws: wss:" : ""}`,
+  // Lab mode embeds short intro videos from YouTube's privacy-enhanced domain only.
+  `frame-src 'self'${process.env.LAB_MODE === "true" ? " https://www.youtube-nocookie.com" : ""}`,
   "object-src 'none'",
   "base-uri 'self'",
   "frame-ancestors 'none'",

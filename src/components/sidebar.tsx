@@ -18,6 +18,7 @@ import {
   Vault,
   CheckSquare,
   CalendarRange,
+  GraduationCap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "next-auth/react";
@@ -40,6 +41,8 @@ export const sections: NavSection[] = [
   {
     label: "Overview",
     items: [
+      // Shown only in a lab practice company (the layout adds this pseudo-permission there).
+      { name: "Labs", href: "/lab", icon: GraduationCap, requiredPermission: "lab:practice" },
       { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, requiredPermission: "dashboard:view" },
       { name: "My Tasks", href: "/tasks", icon: CheckSquare, badge: "openTasks" },
       { name: "Compliance", href: "/compliance", icon: ShieldCheck, requiredPermission: "controls:read" },

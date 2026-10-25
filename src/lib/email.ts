@@ -16,6 +16,8 @@ const smtp = nodemailer.createTransport({
 
 const transporter = {
   async sendMail(msg: { from: string; to: string; subject: string; text: string; html: string }) {
+    // Lab practice companies' fictional people have .invalid addresses; never try to deliver to them.
+    if (/\.invalid$/i.test(msg.to.trim())) return;
     if (devLogMail) {
       console.log(`\n[email:dev] To: ${msg.to}\n[email:dev] Subject: ${msg.subject}\n${msg.text}\n`);
       return;
@@ -328,6 +330,39 @@ export async function sendOtpEmail(to: string, code: string) {
         <p>Your verification code is:</p>
         <p style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#111;margin:16px 0">${code}</p>
         <p style="color:#666;font-size:14px">This code expires in 5 minutes.</p>
+      </div>
+    `,
+  });
+}
+
+export async function sendLabSignupCodeEmail(to: string, code: string) {
+  await transporter.sendMail({
+    from: FROM,
+    to,
+    subject: "Your GRCWorks Labs sign-up code",
+    text: `Your sign-up code is: ${code}\n\nIt expires in 15 minutes. If you didn't sign up for GRCWorks Labs, you can ignore this email.`,
+    html: `
+      <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:24px">
+        <h2 style="color:#4f46e5">GRCWorks Labs</h2>
+        <p>Your sign-up code is:</p>
+        <p style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#111;margin:16px 0">${code}</p>
+        <p style="color:#666;font-size:14px">It expires in 15 minutes. If you didn't sign up for GRCWorks Labs, you can ignore this email.</p>
+      </div>
+    `,
+  });
+}
+
+export async function sendLabAccountExistsEmail(to: string) {
+  await transporter.sendMail({
+    from: FROM,
+    to,
+    subject: "You already have a GRCWorks Labs account",
+    text: "Someone tried to sign up for GRCWorks Labs with this email, but you already have an account. Sign in instead. If it wasn't you, you can ignore this email.",
+    html: `
+      <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:24px">
+        <h2 style="color:#4f46e5">GRCWorks Labs</h2>
+        <p>Someone tried to sign up with this email, but you already have an account. Sign in instead.</p>
+        <p style="color:#666;font-size:14px">If it wasn't you, you can ignore this email.</p>
       </div>
     `,
   });

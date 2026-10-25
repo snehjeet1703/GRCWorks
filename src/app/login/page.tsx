@@ -11,6 +11,7 @@ export default async function LoginPage() {
     <LoginForm
       demoMode={process.env.DEMO_MODE === "true"}
       microsoftSso={azureSsoEnabled}
+      labSignup={process.env.LAB_MODE === "true"}
     />
   );
 }

@@ -77,7 +77,7 @@ export const authOptions: NextAuthOptions = {
             frameworkScopes: { select: { frameworkId: true } },
           },
         });
-        if (!user || !user.passwordHash) return null;
+        if (!user || !user.passwordHash || !user.canSignIn) return null;
 
         const isValid = await compare(credentials.password, user.passwordHash);
         if (!isValid) return null;
@@ -204,12 +204,17 @@ export const authOptions: NextAuthOptions = {
             select: {
               role: true,
               roleId: true,
+              organizationId: true,
+              organization: { select: { name: true } },
               customRole: { select: { name: true, permissions: true } },
               frameworkScopes: { select: { frameworkId: true } },
             },
           });
           if (dbUser) {
             const resolved = resolvePermissions(dbUser);
+            // Live too, so a lab reset (which moves the learner to a fresh practice company) applies at once.
+            (session.user as any).organizationId = dbUser.organizationId;
+            (session.user as any).organizationName = dbUser.organization.name;
             (session.user as any).role = dbUser.role;
             (session.user as any).roleId = dbUser.roleId;
             (session.user as any).permissions = [...resolved.permissions];

@@ -19,6 +19,7 @@ const SETUP_LOCK_KEY = 815_001;
 
 export async function POST(req: Request) {
   try {
+    if (process.env.LAB_MODE === "true") throw new HttpError(404, "Not found");
     const limited = limitOrNull(`setup:${clientIp(req.headers)}`, 5, 3600000);
     if (limited) return limited;
 
