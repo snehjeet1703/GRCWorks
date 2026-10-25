@@ -79,21 +79,15 @@ export function SignupForm({ course, industries }: { course: { title: string; la
                 <p className="mt-1 text-xs text-gray-500">At least 12 characters.</p>
               </div>
               {industries.length > 1 && (
-                <fieldset>
-                  <legend className="mb-1.5 block text-sm font-medium text-gray-700">Practise in which industry?</legend>
-                  <div className="space-y-2">
-                    {industries.map((i) => (
-                      <label key={i.id} className={`flex cursor-pointer gap-2 rounded-md border p-2 text-sm ${template === i.id ? "border-brand-600 bg-brand-50" : "border-gray-200"}`}>
-                        <input type="radio" name="industry" checked={template === i.id} onChange={() => setTemplate(i.id)} className="mt-0.5" />
-                        <span>
-                          <span className="font-medium text-gray-900">{i.industry}</span>
-                          <span className="block text-xs text-gray-500">{i.company}: {i.description.split(". ")[0]}.</span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500">You can switch later with Start over.</p>
-                </fieldset>
+                <div>
+                  <label htmlFor="industry" className="mb-1.5 block text-sm font-medium text-gray-700">Your industry</label>
+                  <select id="industry" className="input" value={template} onChange={(e) => setTemplate(e.target.value)}>
+                    {industries.map((i) => <option key={i.id} value={i.id}>{i.industry}</option>)}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {industries.find((i) => i.id === template)?.description} You can switch later.
+                  </p>
+                </div>
               )}
               {error && <p className="text-sm text-red-600">{error}</p>}
               <button type="submit" disabled={loading} className="btn-primary w-full">

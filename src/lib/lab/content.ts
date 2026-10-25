@@ -1,5 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import type { IndustryProfile } from "./exercises";
 
 // Lab mode turns this install into a practice environment: open sign-up, one practice company per learner.
 // Course content lives outside this repo (grcworks-labs), in the folder LAB_CONTENT_DIR points at.
@@ -7,7 +8,10 @@ export const labMode = process.env.LAB_MODE === "true";
 
 export type LabCheck = { type: string; [field: string]: unknown };
 // `link` is the platform page where the task is done.
-export type LabTask = { id: string; title: string; instructions: string; hints: string[]; link?: string; checks: LabCheck[] };
+// `exercise` names a data-review exercise (see exercises.ts) the learner completes on the Labs page.
+export type LabTask = {
+  id: string; title: string; instructions: string; hints: string[]; link?: string; exercise?: string; checks: LabCheck[];
+};
 export type Lab = { id: string; title: string; minutes: number; objective: string; videoUrl?: string; tasks: LabTask[] };
 // `templates` are the practice companies (one per industry) a learner can pick; the first is the default.
 export type Course = { id: string; title: string; templates: string[]; labs: Lab[] };
@@ -19,6 +23,8 @@ export type LabTemplate = {
   company: { name: string; industry: string; industryKey?: string; employees: number; cloud: string; description: string };
   // Values for {{placeholders}} in lab text and checks, so the same labs fit every company.
   vars?: Record<string, string>;
+  // Industry profile that exercise data sets are generated from.
+  industry?: IndustryProfile;
   frameworks: string[];
   team: TeamMember[];
   controls: { code: string; status: string; owner: string | null; frequency: string; notes?: string }[];

@@ -49,6 +49,7 @@ model Organization {
   companyProfile         CompanyProfile?
   trustVaultConfig       TrustVaultConfig?
   labTaskCompletions     LabTaskCompletion[]
+  labExerciseAttempts    LabExerciseAttempt[]
 
   @@map("organizations")
 }
@@ -1230,4 +1231,23 @@ model LabTaskCompletion {
 
   @@unique([organizationId, courseId, labId, taskId])
   @@map("lab_task_completions")
+}
+
+// A learner's submitted answers to a lab data-review exercise, with the result.
+model LabExerciseAttempt {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  labId          String   @map("lab_id")
+  taskId         String   @map("task_id")
+  flags          Json     @default("{}")
+  found          Int
+  planted        Int
+  falseAlarms    Int      @map("false_alarms")
+  passed         Boolean
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, labId, taskId])
+  @@map("lab_exercise_attempts")
 }

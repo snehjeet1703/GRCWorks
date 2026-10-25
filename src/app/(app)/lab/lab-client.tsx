@@ -156,7 +156,7 @@ export function LabClient({
                             <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">{t.instructions}</p>
                             {t.link && !t.done && (
                               <Link href={t.link} className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline">
-                                Go to this task <ArrowUpRight className="h-3 w-3" />
+                                {t.link.startsWith("/lab/exercise/") ? "Open the data and start reviewing" : "Go to this task"} <ArrowUpRight className="h-3 w-3" />
                               </Link>
                             )}
                             {t.hints.length > 0 && !t.done && (
@@ -189,15 +189,11 @@ export function LabClient({
         <p className="text-sm text-muted-foreground">
           You get a fresh practice company as it was on day one, and your lab progress starts again. Your account stays.
         </p>
-        <fieldset className="mt-4 space-y-2">
-          <legend className="mb-1 text-sm font-medium">Industry</legend>
-          {industries.map((i) => (
-            <label key={i.id} className="flex cursor-pointer gap-2 rounded-md border border-gray-200 p-2 text-sm dark:border-gray-700">
-              <input type="radio" name="industry" checked={nextTemplate === i.id} onChange={() => setNextTemplate(i.id)} className="mt-0.5" />
-              <span><strong>{i.industry}</strong>: {i.company}</span>
-            </label>
-          ))}
-        </fieldset>
+        <label htmlFor="next-industry" className="mt-4 mb-1 block text-sm font-medium">Industry</label>
+        <select id="next-industry" className="input" value={nextTemplate} onChange={(e) => setNextTemplate(e.target.value)}>
+          {industries.map((i) => <option key={i.id} value={i.id}>{i.industry} ({i.company})</option>)}
+        </select>
+        <p className="mt-1 text-xs text-gray-500">{industries.find((i) => i.id === nextTemplate)?.description}</p>
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button type="button" onClick={() => setConfirmReset(false)} className="btn-secondary" disabled={resetting}>Cancel</button>
           <button type="button" onClick={reset} className="btn-primary" disabled={resetting}>

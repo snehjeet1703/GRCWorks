@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function LabSignupPage() {
   if (!labMode) notFound();
   const course = (await labContent()).courses[0];
-  const industries = course ? await industryChoices(course.id) : [];
+  const industries = course ? (await industryChoices(course.id)).sort((a, b) => a.industry.localeCompare(b.industry)) : [];
   return (
     <SignupForm
       course={course ? { title: course.title, labs: course.labs.map((l) => l.title.replace(/\{\{\w+\}\}/g, "your company")) } : null}

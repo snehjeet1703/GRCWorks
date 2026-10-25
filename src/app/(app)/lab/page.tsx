@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { industryChoices, labMode, videoEmbedUrl } from "@/lib/lab/content";
+import { industryChoices, labContent, labMode, videoEmbedUrl } from "@/lib/lab/content";
 import { evaluateCourse } from "@/lib/lab/checks";
 import { LabClient, type LabView } from "./lab-client";
 
@@ -18,7 +18,12 @@ export default async function LabPage() {
   const result = await evaluateCourse(orgId);
   if (!result) notFound();
   const { template } = result;
-  const industries = await industryChoices(result.course.id);
+  // Start over offers the main course's industries, so learners on an older course can move across.
+  const main = (await labContent()).courses[0];
+  const industries = (await industryChoices(main.id)).sort((a, b) => a.industry.localeCompare(b.industry));
+  if (!industries.some((i) => i.id === template.id)) {
+    industries.unshift({ id: template.id, industry: template.company.industry, company: template.company.name, description: template.company.description });
+  }
 
   const labs: LabView[] = result.course.labs.map((lab, i) => ({
     id: lab.id,

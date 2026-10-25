@@ -10,7 +10,7 @@ import { slugify } from "@/lib/install-slug";
 import { addToScope, slotsFor } from "@/lib/audit-periods";
 import { deleteUpload, saveUpload } from "@/lib/storage";
 import type { PortalAnswer, PortalQuestion } from "@/lib/vendor-portal";
-import { getCourse, getTemplate, templateIdOf, type LabTemplate } from "./content";
+import { getCourse, getTemplate, labContent, templateIdOf, type LabTemplate } from "./content";
 
 type Tx = Prisma.TransactionClient;
 export type Learner = { email: string; name: string; passwordHash: string };
@@ -283,7 +283,11 @@ export async function resetPracticeOrg(userId: string, templateId?: string) {
 
   // Emails are unique, so the learner takes a placeholder address in the new company until the old one is gone.
   const parked = `reset.${randomBytes(6).toString("hex")}@practice.grcworks.invalid`;
-  const fresh = await provisionPracticeOrg(old.labCourseId, templateId ?? templateIdOf(old.labTemplate), { email: parked, name: user.name, passwordHash: user.passwordHash });
+  // A new industry may belong to another course (e.g. moving from SOC 2 from Scratch to GRC Daily Operations).
+  const courseId = templateId
+    ? (await labContent()).courses.find((c) => c.templates.includes(templateId))?.id ?? old.labCourseId
+    : old.labCourseId;
+  const fresh = await provisionPracticeOrg(courseId, templateId ?? templateIdOf(old.labTemplate), { email: parked, name: user.name, passwordHash: user.passwordHash });
 
   const oldKeys = await prisma.evidence.findMany({ where: { organizationId: old.id }, select: { storageKey: true } });
   await prisma.$transaction(async (tx) => {

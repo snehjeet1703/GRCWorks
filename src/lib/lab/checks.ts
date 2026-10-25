@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { slotsFor } from "@/lib/audit-periods";
+import { buildExercise } from "./exercises";
 import { courseForTemplate, getTemplate, templateIdOf, type LabCheck } from "./content";
 
 // Check types are defined in grcworks-labs/schema/checks.md. They only read the learner's own organisation.
@@ -22,7 +23,7 @@ async function vendorByKey(orgId: string, key: unknown) {
   return name ? prisma.vendor.findFirst({ where: { organizationId: orgId, name } }) : null;
 }
 
-async function runCheck(orgId: string, c: LabCheck): Promise<boolean> {
+async function runCheck(orgId: string, c: LabCheck, at: { labId: string; taskId: string }): Promise<boolean> {
   switch (c.type) {
     case "control_status":
       return list(c.in).includes((await control(orgId, c.control))?.status ?? "");
@@ -110,6 +111,19 @@ async function runCheck(orgId: string, c: LabCheck): Promise<boolean> {
           status: c.decision ? (s(c.decision) as "APPROVED") : { in: ["APPROVED", "DENIED"] },
         },
       })) > 0;
+    case "exercise_passed":
+      return (await prisma.labExerciseAttempt.count({ where: { organizationId: orgId, labId: at.labId, taskId: at.taskId, passed: true } })) > 0;
+    case "finding_recorded": {
+      const ctl = await control(orgId, c.control);
+      if (!ctl) return false;
+      return (await prisma.finding.count({
+        where: {
+          organizationId: orgId, controlId: ctl.id,
+          ...(c.withOwner ? { ownerId: { not: null } } : {}),
+          ...(c.withDueDate ? { dueDate: { not: null } } : {}),
+        },
+      })) > 0;
+    }
     default:
       return false;
   }
@@ -136,7 +150,7 @@ export async function evaluateCourse(orgId: string) {
     for (const task of lab.tasks) {
       const key = `${lab.id}/${task.id}`;
       let done = true;
-      for (const check of task.checks) if (!(await runCheck(orgId, check))) { done = false; break; }
+      for (const check of task.checks) if (!(await runCheck(orgId, check, { labId: lab.id, taskId: task.id }))) { done = false; break; }
       let completedAt = recorded.get(key) ?? null;
       if (done && !completedAt) {
         completedAt = (await prisma.labTaskCompletion.upsert({
@@ -151,4 +165,20 @@ export async function evaluateCourse(orgId: string) {
     labs.push({ id: lab.id, tasks });
   }
   return { course, template, labs };
+}
+
+/** A task's exercise for this organisation, with the lab and task it belongs to. */
+export async function loadExercise(orgId: string, labId: string, taskId: string) {
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId }, select: { practice: true, labCourseId: true, labTemplate: true, createdAt: true },
+  });
+  const id = templateIdOf(org?.labTemplate ?? null);
+  if (!org?.practice || !org.labCourseId || !id) return null;
+  const rendered = await courseForTemplate(org.labCourseId, id);
+  const lab = rendered?.course.labs.find((l) => l.id === labId);
+  const task = lab?.tasks.find((t) => t.id === taskId);
+  const profile = rendered?.template.industry;
+  if (!lab || !task?.exercise || !profile) return null;
+  const exercise = buildExercise(task.exercise, profile, orgId, org.createdAt, `${labId}/${taskId}`);
+  return exercise ? { lab, task, exercise, company: rendered!.template.company.name } : null;
 }
