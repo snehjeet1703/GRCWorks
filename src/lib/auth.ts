@@ -114,6 +114,8 @@ export const authOptions: NextAuthOptions = {
           where: { email: user.email },
         });
         if (!existing) {
+          // A lab server holds many learners' practice companies; never drop strangers into one.
+          if (process.env.LAB_MODE === "true") return false;
           const org = await prisma.organization.findFirst();
           if (!org) return false;
           await prisma.user.create({

@@ -14,6 +14,9 @@ const MFA_PREFIXES = ["/mfa-verify", "/api/mfa"];
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // The app never uses next/image, so the image optimiser endpoint is switched off entirely.
+  if (pathname.startsWith("/_next/image")) return new NextResponse(null, { status: 404 });
+
   // API callers get a status code, not the HTML login page.
   const isApi = pathname.startsWith("/api/");
 
@@ -65,5 +68,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|favicon.ico).*)"],
 };

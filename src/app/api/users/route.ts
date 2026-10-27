@@ -40,6 +40,8 @@ export async function POST(req: Request) {
   try {
     const { resolved, ...admin } = await requirePermission(PERMISSIONS.USERS_MANAGE);
     const data = await parseBody(req, createSchema);
+    // Practice companies come with fictional colleagues; adding real accounts would skip email verification.
+    if (process.env.LAB_MODE === "true") throw new HttpError(403, "Adding people isn't available in practice companies");
     const passwordHash = await hash(data.password, 12);
     const user = await prisma.$transaction(async (tx) => {
       const existing = await tx.user.findUnique({ where: { email: data.email } });

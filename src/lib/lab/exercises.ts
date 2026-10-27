@@ -501,7 +501,9 @@ export function buildExercise(
   const gen = GENERATORS[kind];
   if (!gen) return null;
   const asOf = new Date(Date.UTC(orgCreatedAt.getUTCFullYear(), orgCreatedAt.getUTCMonth(), orgCreatedAt.getUTCDate()));
-  return gen(profile, rng(`${orgId}:${taskKey}:${level}`), asOf, LEVEL_TUNING[level]);
+  // The generator is open source, so a server-side secret keeps learners from recreating the answer key.
+  const secret = process.env.LAB_EXERCISE_SECRET ?? process.env.NEXTAUTH_SECRET ?? "";
+  return gen(profile, rng(`${secret}:${orgId}:${taskKey}:${level}`), asOf, LEVEL_TUNING[level]);
 }
 
 /** What the learner sees: everything except the answer key. */

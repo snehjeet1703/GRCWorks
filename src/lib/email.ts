@@ -14,10 +14,23 @@ const smtp = nodemailer.createTransport({
       : undefined,
 });
 
+// On a shared lab server every learner is an admin of their own practice company, so features like vendor
+// invites could otherwise email anyone. There, mail only goes to verified learners (people who can sign in).
+async function labRecipientAllowed(to: string) {
+  if (process.env.LAB_MODE !== "true") return true;
+  const { prisma } = await import("./db");
+  const u = await prisma.user.findUnique({ where: { email: to.trim().toLowerCase() }, select: { canSignIn: true, passwordHash: true } });
+  return !!u?.canSignIn && !!u.passwordHash;
+}
+
 const transporter = {
-  async sendMail(msg: { from: string; to: string; subject: string; text: string; html: string }) {
+  async sendMail(msg: { from: string; to: string; subject: string; text: string; html: string }, opts: { anyRecipient?: boolean } = {}) {
     // Lab practice companies' fictional people have .invalid addresses; never try to deliver to them.
     if (/\.invalid$/i.test(msg.to.trim())) return;
+    if (!opts.anyRecipient && !(await labRecipientAllowed(msg.to))) {
+      console.warn(`[email] lab mode: not sending "${msg.subject}" to a non-learner address`);
+      return;
+    }
     if (devLogMail) {
       console.log(`\n[email:dev] To: ${msg.to}\n[email:dev] Subject: ${msg.subject}\n${msg.text}\n`);
       return;
@@ -349,7 +362,7 @@ export async function sendLabSignupCodeEmail(to: string, code: string) {
         <p style="color:#666;font-size:14px">It expires in 15 minutes. If you didn't sign up for GRCWorks Labs, you can ignore this email.</p>
       </div>
     `,
-  });
+  }, { anyRecipient: true });
 }
 
 export async function sendLabAccountExistsEmail(to: string) {
@@ -365,5 +378,5 @@ export async function sendLabAccountExistsEmail(to: string) {
         <p style="color:#666;font-size:14px">If it wasn't you, you can ignore this email.</p>
       </div>
     `,
-  });
+  }, { anyRecipient: true });
 }

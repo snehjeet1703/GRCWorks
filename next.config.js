@@ -54,10 +54,16 @@ const nextConfig = {
   },
   allowedDevOrigins: ["192.168.17.1"],
   poweredByHeader: false,
+  // No next/image in the app: keep the optimiser off.
+  images: { unoptimized: true },
   async headers() {
     return [
       { source: "/((?!api/trust/[^/]+/documents/[^/]+/view).*)", headers: pageHeaders },
       { source: VIEWER_PATH, headers: viewerHeaders },
+      // Lab servers host learners' fictional Trust Centers and vendor portals: never index them.
+      ...(process.env.LAB_MODE === "true"
+        ? [{ source: "/(trust|vendor-portal|api/trust)/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] }]
+        : []),
     ];
   },
 };

@@ -111,11 +111,19 @@ export async function userHasPermission(userId: string, permission: Permission):
   return !!dbUser && hasPermission(resolvePermissions(dbUser), permission);
 }
 
+// JSON request bodies are small forms; anything bigger is refused before it is parsed or validated.
+const MAX_JSON_BYTES = 1024 * 1024;
+
 export async function parseBody<T>(req: Request, schema: ZodSchema<T>): Promise<T> {
+  const declared = Number(req.headers.get("content-length") ?? 0);
+  if (declared > MAX_JSON_BYTES) throw new HttpError(413, "Request body is too large");
   let raw: unknown;
   try {
-    raw = await req.json();
-  } catch {
+    const text = await req.text();
+    if (text.length > MAX_JSON_BYTES) throw new HttpError(413, "Request body is too large");
+    raw = JSON.parse(text);
+  } catch (err) {
+    if (err instanceof HttpError) throw err;
     throw new HttpError(400, "Invalid JSON body");
   }
   try {
