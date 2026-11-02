@@ -12,6 +12,9 @@ COPY prisma ./prisma
 RUN npm ci
 
 COPY . .
+# Lab servers build with LAB_MODE=true: Next.js bakes security headers (e.g. the video frame-src) in at build time.
+ARG LAB_MODE=false
+ENV LAB_MODE=$LAB_MODE
 RUN npx prisma generate && npm run build
 
 # --- Migration tool: only the Prisma CLI, pinned to the version in package-lock.json ---
