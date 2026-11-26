@@ -14,14 +14,17 @@ const schema = z.object({
   password: z.string().min(12, "Use at least 12 characters").max(200),
 }).strict();
 
-// Step 2 of "forgot password": checks the emailed code and sets the new password. Two-factor sign-in, if the
-// account uses it, is unchanged and still asked for at the next sign-in.
+// Step 2 of "forgot password": checks the emailed code and sets the new password. Sessions started before the
+// reset stop working. Two-factor sign-in, if the account uses it, is unchanged and still asked for.
 export async function POST(req: Request) {
   try {
     const limited = limitOrNull(`pw-reset-confirm-ip:${clientIp(req.headers)}`, 20, 60 * 60 * 1000);
     if (limited) return limited;
 
     const { email, code, password } = await parseBody(req, schema);
+    // Caps guesses per account across codes and IP addresses: requesting fresh codes doesn't buy more tries.
+    const emailLimited = limitOrNull(`pw-reset-confirm:${email}`, 10, 24 * 60 * 60 * 1000);
+    if (emailLimited) return emailLimited;
     const pending = await prisma.passwordReset.findUnique({ where: { email } });
     if (!pending || pending.expiresAt < new Date() || pending.attempts >= MAX_ATTEMPTS) {
       throw new HttpError(400, "This code has expired. Start again to get a new one.");
@@ -36,7 +39,8 @@ export async function POST(req: Request) {
 
     const updated = await prisma.user.updateMany({
       where: { email, canSignIn: true, passwordHash: { not: null } },
-      data: { passwordHash: await hash(password, 12) },
+      // passwordChangedAt signs out every session started before the reset (see the session callback).
+      data: { passwordHash: await hash(password, 12), passwordChangedAt: new Date() },
     });
     if (updated.count === 0) throw new HttpError(400, "This code has expired. Start again to get a new one.");
     await sendPasswordChangedEmail(email).catch((err) => console.error("[password-reset] email failed:", err));

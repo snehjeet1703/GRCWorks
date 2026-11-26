@@ -208,6 +208,7 @@ export const authOptions: NextAuthOptions = {
               roleId: true,
               organizationId: true,
               canSignIn: true,
+              passwordChangedAt: true,
               organization: { select: { name: true } },
               customRole: { select: { name: true, permissions: true } },
               frameworkScopes: { select: { frameworkId: true } },
@@ -219,6 +220,9 @@ export const authOptions: NextAuthOptions = {
             (session.user as any).organizationId = dbUser.organizationId;
             (session.user as any).organizationName = dbUser.organization.name;
             if (!dbUser.canSignIn) (session.user as any).blocked = true;
+            // A password reset ends every session that signed in before it.
+            const authTime = typeof token.authTime === "number" ? token.authTime : 0;
+            if (dbUser.passwordChangedAt && dbUser.passwordChangedAt.getTime() > authTime) (session.user as any).blocked = true;
             (session.user as any).role = dbUser.role;
             (session.user as any).roleId = dbUser.roleId;
             (session.user as any).permissions = [...resolved.permissions];

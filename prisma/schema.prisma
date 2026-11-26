@@ -121,6 +121,8 @@ model User {
   recoveryCodes  Json?      @map("recovery_codes")
   // Fictional colleagues in a lab practice company: they own controls and submit evidence but can't sign in.
   canSignIn      Boolean    @default(true) @map("can_sign_in")
+  // Set when the password is reset; sessions that signed in before this are refused.
+  passwordChangedAt DateTime? @map("password_changed_at")
   createdAt      DateTime   @default(now()) @map("created_at")
   updatedAt      DateTime   @updatedAt @map("updated_at")
 
