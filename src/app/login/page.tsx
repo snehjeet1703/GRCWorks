@@ -12,6 +12,8 @@ export default async function LoginPage() {
       demoMode={process.env.DEMO_MODE === "true"}
       microsoftSso={azureSsoEnabled}
       labSignup={process.env.LAB_MODE === "true"}
+      // Codes go by email, so only offer the reset where mail can be sent (or is logged, in development).
+      passwordReset={!!process.env.SMTP_HOST || process.env.NODE_ENV !== "production"}
     />
   );
 }

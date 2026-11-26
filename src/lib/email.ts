@@ -365,6 +365,39 @@ export async function sendLabSignupCodeEmail(to: string, code: string) {
   }, { anyRecipient: true });
 }
 
+export async function sendPasswordResetCodeEmail(to: string, code: string) {
+  await transporter.sendMail({
+    from: FROM,
+    to,
+    subject: "Your GRCWorks password reset code",
+    text: `Your password reset code is: ${code}\n\nIt expires in 15 minutes. If you didn't ask to reset your password, you can ignore this email; your password hasn't changed.`,
+    html: `
+      <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:24px">
+        <h2 style="color:#4f46e5">GRCWorks</h2>
+        <p>Your password reset code is:</p>
+        <p style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#111;margin:16px 0">${code}</p>
+        <p style="color:#666;font-size:14px">It expires in 15 minutes. If you didn't ask to reset your password, you can ignore this email; your password hasn't changed.</p>
+      </div>
+    `,
+  });
+}
+
+export async function sendPasswordChangedEmail(to: string) {
+  await transporter.sendMail({
+    from: FROM,
+    to,
+    subject: "Your GRCWorks password was changed",
+    text: "Your GRCWorks password was just reset with an emailed code. If this wasn't you, reset it again straight away and contact your administrator.",
+    html: `
+      <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:24px">
+        <h2 style="color:#4f46e5">GRCWorks</h2>
+        <p>Your password was just reset with an emailed code.</p>
+        <p style="color:#666;font-size:14px">If this wasn't you, reset it again straight away and contact your administrator.</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendLabAccountExistsEmail(to: string) {
   await transporter.sendMail({
     from: FROM,

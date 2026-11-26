@@ -5,7 +5,7 @@ import { signIn } from "next-auth/react";
 import { Shield } from "lucide-react";
 import { PasswordInput } from "@/components/password-input";
 
-export function LoginForm({ demoMode, microsoftSso, labSignup = false }: { demoMode: boolean; microsoftSso: boolean; labSignup?: boolean }) {
+export function LoginForm({ demoMode, microsoftSso, labSignup = false, passwordReset = false }: { demoMode: boolean; microsoftSso: boolean; labSignup?: boolean; passwordReset?: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -69,12 +69,16 @@ export function LoginForm({ demoMode, microsoftSso, labSignup = false }: { demoM
             </div>
 
             <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 mb-1.5"
-              >
-                Password
-              </label>
+              <div className="mb-1.5 flex items-baseline justify-between">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Password
+                </label>
+                {passwordReset && (
+                  <a href="/login/forgot" className="text-xs font-medium text-brand-600 hover:underline">
+                    Forgot password?
+                  </a>
+                )}
+              </div>
               <PasswordInput
                 id="password"
                 value={password}

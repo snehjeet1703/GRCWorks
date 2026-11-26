@@ -1223,6 +1223,18 @@ model LabSignup {
   @@map("lab_signups")
 }
 
+// Pending "forgot password" requests: one per email, holding a hashed 6-digit code.
+model PasswordReset {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  codeHash  String   @map("code_hash")
+  expiresAt DateTime @map("expires_at")
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("password_resets")
+}
+
 // First time each lab task passed its checks, for progress and certificates.
 model LabTaskCompletion {
   id             String   @id @default(uuid())
